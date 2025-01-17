@@ -5,7 +5,7 @@ Tool used by Kramden for OS Load and Final Test stages of the refurbishing proce
 ## Dependencies
 
 ```bash
-sudo apt install python3-gi gir1.2-gtk-4.0
+sudo apt install python3-gi gir1.2-gtk-4.0 python3-psutil
 ```
 
 ## Running OS Load
