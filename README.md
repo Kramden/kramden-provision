@@ -19,3 +19,9 @@ python3 src/osload.py
 ```bash
 python3 src/finaltest.py
 ```
+
+## Run Unit Tests
+
+```bash
+python3 -m unittest discover tests
+```
