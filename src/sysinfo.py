@@ -31,6 +31,21 @@ class SysInfo(Adw.Bin):
         hostname_row.set_text(utils.get_hostname())
         hostname_row.set_editable(False)
 
+        vender_row = Adw.EntryRow()
+        vender_row.set_title("Manufacturer")
+        vender_row.set_text(utils.get_vender())
+        vender_row.set_editable(False)
+
+        model_row = Adw.EntryRow()
+        model_row.set_title("Model")
+        model_row.set_text(utils.get_model())
+        model_row.set_editable(False)
+
+        os_row = Adw.EntryRow()
+        os_row.set_title("OS")
+        os_row.set_text(utils.get_os())
+        os_row.set_editable(False)
+
         cpu_row = Adw.EntryRow()
         cpu_row.set_title("CPU")
         cpu_row.set_text(utils.get_cpu_info())
@@ -48,7 +63,10 @@ class SysInfo(Adw.Bin):
 
         # Add rows to the list box
         list_box.append(hostname_row)
+        list_box.append(vender_row)
+        list_box.append(model_row)
         list_box.append(cpu_row)
+        list_box.append(os_row)
         list_box.append(mem_row)
         list_box.append(disk_row)
 

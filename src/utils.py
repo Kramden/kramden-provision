@@ -1,9 +1,23 @@
 import psutil
+import subprocess
 
 # Utility class for functions used throughout the app
 class Utils():
     def __init__(self):
-        pass
+        self.model = ""
+        self.vender = ""
+        self.hostname = ""
+        self.os = ""
+        result = subprocess.run(['hostnamectl', 'status'], capture_output=True, text=True, check=True)
+        for line in result.stdout.splitlines():
+            if "Hardware Model" in line:
+                self.model = line.strip().split(':', 1)[1]
+            elif "Hardware Vendor" in line:
+                self.vender = line.strip().split(':', 1)[1]
+            elif "Static hostname" in line:
+                self.hostname = line.strip().split(':', 1)[1]
+            elif "Operating System" in line:
+                self.os = line.strip().split(':', 1)[1]
 
     # Return size of the root drive
     def get_disk(self):
@@ -11,11 +25,27 @@ class Utils():
 
     # Return host name
     def get_hostname(self):
-        f = open('/etc/hostname', 'r')
-        hostname = f.read()
-        f.close()
+        return self.hostname
 
-        return hostname.rstrip()
+    # Get vender
+    def get_vender(self):
+        return self.vender
+
+    # Get model
+    def get_model(self):
+        return self.model
+
+    # Get OS
+    def get_os(self):
+        return self.os
+
+    # Get installer
+    def get_installer(self):
+        return ""
+
+    # Get landscape_reg
+    def get_landscape_reg(self):
+        return ""
 
     # Return MemTotal
     def get_mem(self):
