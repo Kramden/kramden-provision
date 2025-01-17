@@ -89,6 +89,10 @@ class Application(Adw.Application):
         super().__init__(application_id='org.kramden.FinalTest')
         Adw.init()
 
+        # Set Adwaita dark theme preference using Adw.StyleManager
+        style_manager = Adw.StyleManager.get_default()
+        style_manager.set_color_scheme(Adw.ColorScheme.PREFER_DARK)
+
     def do_activate(self):
         window = WizardWindow(self)
         self.add_window(window)
