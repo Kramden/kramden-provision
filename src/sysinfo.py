@@ -32,12 +32,12 @@ class SysInfo(Adw.Bin):
         row2 = Adw.EntryRow()
         row2.set_title("Memory")
         row2.set_text("16 GB")
-        row1.set_editable(False)
+        row2.set_editable(False)
 
         row3 = Adw.EntryRow()
         row3.set_title("Disk")
         row3.set_text("512 GB SSD")
-        row1.set_editable(False)
+        row3.set_editable(False)
 
         # Add rows to the list box
         list_box.append(row1)
