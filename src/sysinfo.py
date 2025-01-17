@@ -2,10 +2,12 @@ import gi
 gi.require_version('Adw', '1')
 gi.require_version('Gtk', '4.0')
 from gi.repository import Adw, Gtk
+from utils import Utils
 
 class SysInfo(Adw.Bin):
     def __init__(self):
         super().__init__()
+        utils = Utils()
         self.set_margin_top(20)
         self.set_margin_bottom(20)
         self.set_margin_start(20)
@@ -24,25 +26,49 @@ class SysInfo(Adw.Bin):
         list_box.set_selection_mode(Gtk.SelectionMode.NONE)
 
         # Create Adwaita rows
-        row1 = Adw.EntryRow()
-        row1.set_title("CPU")
-        row1.set_text("Intel Core i7")
-        row1.set_editable(False)
+        hostname_row = Adw.EntryRow()
+        hostname_row.set_title("K-Number")
+        hostname_row.set_text(utils.get_hostname())
+        hostname_row.set_editable(False)
 
-        row2 = Adw.EntryRow()
-        row2.set_title("Memory")
-        row2.set_text("16 GB")
-        row2.set_editable(False)
+        vender_row = Adw.EntryRow()
+        vender_row.set_title("Manufacturer")
+        vender_row.set_text(utils.get_vender())
+        vender_row.set_editable(False)
 
-        row3 = Adw.EntryRow()
-        row3.set_title("Disk")
-        row3.set_text("512 GB SSD")
-        row3.set_editable(False)
+        model_row = Adw.EntryRow()
+        model_row.set_title("Model")
+        model_row.set_text(utils.get_model())
+        model_row.set_editable(False)
+
+        os_row = Adw.EntryRow()
+        os_row.set_title("OS")
+        os_row.set_text(utils.get_os())
+        os_row.set_editable(False)
+
+        cpu_row = Adw.EntryRow()
+        cpu_row.set_title("CPU")
+        cpu_row.set_text(utils.get_cpu_info())
+        cpu_row.set_editable(False)
+
+        mem_row = Adw.EntryRow()
+        mem_row.set_title("Memory")
+        mem_row.set_text(utils.get_mem() + " GB")
+        mem_row.set_editable(False)
+
+        disk_row = Adw.EntryRow()
+        disk_row.set_title("Disk")
+        disk_row.set_text(utils.get_disk() + " GB")
+        disk_row.set_editable(False)
 
         # Add rows to the list box
-        list_box.append(row1)
-        list_box.append(row2)
-        list_box.append(row3)
+        list_box.append(hostname_row)
+        list_box.append(vender_row)
+        list_box.append(model_row)
+        list_box.append(cpu_row)
+        list_box.append(os_row)
+        list_box.append(mem_row)
+        list_box.append(disk_row)
 
         # Add header and list box to the vertical box
         vbox.append(header)
