@@ -12,7 +12,7 @@ class WizardWindow(Gtk.ApplicationWindow):
     def __init__(self, app):
         super().__init__(application=app, title="Kramden - Final Test")
 
-        self.set_default_size(800, 600)
+        self.set_default_size(800, 800)
 
         # Create Gtk.HeaderBar
         header_bar = Gtk.HeaderBar()
@@ -40,9 +40,21 @@ class WizardWindow(Gtk.ApplicationWindow):
         self.stack.add_named(self.page1, "page1")
         self.stack.add_named(self.page2, "page2")
         self.stack.add_named(self.page3, "page3")
+        self.stack.set_vexpand(True)  # Ensure the stack expands vertically
 
+        # Create footer
+        footer = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        footer.set_hexpand(True)  # Ensure the footer expands horizontally
+        image_path = "getlearngive.png"
+        picture = Gtk.Picture.new_for_filename(image_path)
+        picture.set_content_fit(Gtk.ContentFit.CONTAIN)
+        picture.set_size_request(800, 0)  # Set desired width and height
+        footer.append(picture)
+
+        # Content Box
         content_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         content_box.append(self.stack)
+        content_box.append(footer)
 
         self.set_child(content_box)
         self.current_page = 0
