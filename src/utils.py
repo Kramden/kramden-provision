@@ -27,9 +27,9 @@ class Utils():
     def get_hostname(self):
         return self.hostname
 
+    # Set the system hostname
     def set_hostname(self, hostname):
         result = subprocess.run(['hostnamectl', 'set-hostname', hostname])
-        print(result.returncode)
         return result.returncode == 0
 
     # Get vender

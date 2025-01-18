@@ -22,6 +22,34 @@ Hardware Model: Test Model'''
     def test_get_hostname(self):
         self.assertEqual(self.utils.get_hostname(), " testhost")
 
+    @patch('subprocess.run')
+    def test_set_hostname_success(self, mock_run):
+        # Mock subprocess.run to simulate a successful call
+        mock_run.return_value = MagicMock(returncode=0)
+
+        # Call the function
+        result = self.utils.set_hostname('new-hostname')
+
+        # Assert that the function returns True
+        self.assertTrue(result)
+
+        # Assert that subprocess.run was called with the correct arguments
+        mock_run.assert_called_with(['hostnamectl', 'set-hostname', 'new-hostname'])
+
+    @patch('subprocess.run')
+    def test_set_hostname_failure(self, mock_run):
+        # Mock subprocess.run to simulate a failed call
+        mock_run.return_value = MagicMock(returncode=1)
+
+        # Call the function
+        result = self.utils.set_hostname('new-hostname')
+
+        # Assert that the function returns False
+        self.assertFalse(result)
+
+        # Assert that subprocess.run was called with the correct arguments
+        mock_run.assert_called_with(['hostnamectl', 'set-hostname', 'new-hostname'])
+
     def test_get_os(self):
         self.assertEqual(self.utils.get_os(), " Test OS 1.0")
 
