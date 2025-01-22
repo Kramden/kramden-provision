@@ -26,40 +26,59 @@ class SysInfo(Adw.Bin):
         list_box.set_selection_mode(Gtk.SelectionMode.NONE)
 
         # Create Adwaita rows
-        hostname_row = Adw.EntryRow()
+        hostname_row = Adw.ActionRow()
         hostname_row.set_title("K-Number")
-        hostname_row.set_text(utils.get_hostname())
-        hostname_row.set_editable(False)
+        hostname_row.set_subtitle(utils.get_hostname())
+        # If the K-Number doesn't start with a "K" show a problem
+        if "K-" in hostname_row.get_subtitle() :
+            hostname_row.set_icon_name("emblem-ok-symbolic")
+        else :
+            hostname_row.set_icon_name("emblem-important-symbolic")
 
-        vender_row = Adw.EntryRow()
+        vender_row = Adw.ActionRow()
         vender_row.set_title("Manufacturer")
-        vender_row.set_text(utils.get_vender())
-        vender_row.set_editable(False)
+        vender_row.set_subtitle(utils.get_vender())
+        # Manufacturer should be good no matter what, set it to good symbol
+        vender_row.set_icon_name("emblem-ok-symbolic")
 
-        model_row = Adw.EntryRow()
+        model_row = Adw.ActionRow()
         model_row.set_title("Model")
-        model_row.set_text(utils.get_model())
-        model_row.set_editable(False)
+        model_row.set_subtitle(utils.get_model())
+        # Model should be good no matter what, set it to good symbol
+        model_row.set_icon_name("emblem-ok-symbolic")
 
-        os_row = Adw.EntryRow()
+        os_row = Adw.ActionRow()
         os_row.set_title("OS")
-        os_row.set_text(utils.get_os())
-        os_row.set_editable(False)
+        os_row.set_subtitle(utils.get_os())
+        # Set to good symbol if Ubuntu is listed else bad symbol
+        if "Ubuntu" in os_row.get_subtitle() :
+            os_row.set_icon_name("emblem-ok-symbolic")
+        else :
+            os_row.set_icon_name("emblem-important-symbolic")
 
-        cpu_row = Adw.EntryRow()
+        cpu_row = Adw.ActionRow()
         cpu_row.set_title("CPU")
-        cpu_row.set_text(utils.get_cpu_info())
-        cpu_row.set_editable(False)
+        cpu_row.set_subtitle(utils.get_cpu_info())
 
-        mem_row = Adw.EntryRow()
+        mem_row = Adw.ActionRow()
         mem_row.set_title("Memory")
-        mem_row.set_text(utils.get_mem() + " GB")
-        mem_row.set_editable(False)
+        mem_row.set_subtitle(utils.get_mem() + " GB")
+        # If memory is 8 GB or more, display good symbol else display bad symbol
+        mem = int(utils.get_mem())
+        if mem >= 8 :
+            mem_row.set_icon_name("emblem-ok-symbolic")
+        else :
+            mem_row.set_icon_name("emblem-important-symbolic")
 
-        disk_row = Adw.EntryRow()
+        disk_row = Adw.ActionRow()
         disk_row.set_title("Disk")
-        disk_row.set_text(utils.get_disk() + " GB")
-        disk_row.set_editable(False)
+        disk_row.set_subtitle(utils.get_disk() + " GB")
+        # If disk capacity is 120 GB or more, display good symbol, else display bad symbol
+        disk = int(utils.get_disk())
+        if disk >= 120 :
+            disk_row.set_icon_name("emblem-ok-symbolic")
+        else :
+            disk_row.set_icon_name("emblem-important-symbolic")
 
         # Add rows to the list box
         list_box.append(hostname_row)
