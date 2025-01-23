@@ -40,7 +40,11 @@ class ManualTest(Adw.Bin):
         browser_row = Adw.ActionRow()
         browser_button = Gtk.CheckButton()
         browser_row.add_prefix(browser_button)
-        browser_row.set_title("Browser with video and audio playback - Click here")
+        browser_row.set_title("Browser with video and audio playback")
+
+        # Click here button to open a browser
+        browser_clickhere = Gtk.Button(label = "Click Here")
+        browser_row.add_suffix(browser_clickhere)
 
         wifi_row = Adw.ActionRow()
         wifi_button = Gtk.CheckButton()
@@ -50,12 +54,20 @@ class ManualTest(Adw.Bin):
         webcam_row = Adw.ActionRow()
         webcam_button = Gtk.CheckButton()
         webcam_row.add_prefix(webcam_button)
-        webcam_row.set_title("Webcam - Click here")
+        webcam_row.set_title("Webcam")
+
+        # Click here button to open camera app
+        webcam_clickhere = Gtk.Button(label = "Click Here")
+        webcam_row.add_suffix(webcam_clickhere)
 
         keyboard_row = Adw.ActionRow()
         keyboard_button = Gtk.CheckButton()
         keyboard_row.add_prefix(keyboard_button)
-        keyboard_row.set_title("Keyboard (Do all the keys work and report correctly?) - Click here")
+        keyboard_row.set_title("Keyboard (Do all the keys work and report correctly?)")
+
+        # Click here button to open libre office writer
+        keyboard_clickhere = Gtk.Button(label = "Click Here")
+        keyboard_row.add_suffix(keyboard_clickhere)
 
         touchpad_row = Adw.ActionRow()
         touchpad_button = Gtk.CheckButton()
@@ -65,7 +77,11 @@ class ManualTest(Adw.Bin):
         screentest_row = Adw.ActionRow()
         screentest_button = Gtk.CheckButton()
         screentest_row.add_prefix(screentest_button)
-        screentest_row.set_title("Screen Test - Click here")
+        screentest_row.set_title("Screen Test")
+
+        # Click here button to open screen-test
+        screentest_clickhere = Gtk.Button(label = "Click Here")
+        screentest_row.add_suffix(screentest_clickhere)
 
         # Add Adwaita rows to the list box
         required_list_box.append(usb_row)
