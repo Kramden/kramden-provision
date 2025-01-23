@@ -29,8 +29,8 @@ class SysInfo(Adw.Bin):
         hostname_row = Adw.ActionRow()
         hostname_row.set_title("K-Number")
         hostname_row.set_subtitle(utils.get_hostname())
-        # If the K-Number doesn't start with a "K" show a problem
-        if "K-" in hostname_row.get_subtitle() :
+        # If the K-Number doesn't start with a "k" show a problem
+        if hostname_row.get_subtitle().lower().startswith("k"):
             hostname_row.set_icon_name("emblem-ok-symbolic")
         else :
             hostname_row.set_icon_name("emblem-important-symbolic")
@@ -38,19 +38,19 @@ class SysInfo(Adw.Bin):
         vender_row = Adw.ActionRow()
         vender_row.set_title("Manufacturer")
         vender_row.set_subtitle(utils.get_vender())
-        # Manufacturer should be good no matter what, set it to good symbol
+        # Set Vender row to emblem-ok-symbolic
         vender_row.set_icon_name("emblem-ok-symbolic")
 
         model_row = Adw.ActionRow()
         model_row.set_title("Model")
         model_row.set_subtitle(utils.get_model())
-        # Model should be good no matter what, set it to good symbol
+        # Set Model row to emblem-ok-symbolic
         model_row.set_icon_name("emblem-ok-symbolic")
 
         os_row = Adw.ActionRow()
         os_row.set_title("OS")
         os_row.set_subtitle(utils.get_os())
-        # Set to good symbol if Ubuntu is listed else bad symbol
+        # Set OS row to emblem-ok-symbolic if the OS is Ubuntu, else set row to emblem-important-symbolic
         if "Ubuntu" in os_row.get_subtitle() :
             os_row.set_icon_name("emblem-ok-symbolic")
         else :
@@ -59,11 +59,13 @@ class SysInfo(Adw.Bin):
         cpu_row = Adw.ActionRow()
         cpu_row.set_title("CPU")
         cpu_row.set_subtitle(utils.get_cpu_info())
+        # Set CPU row to emblem-ok-symbolic
+        cpu_row.set_icon_name("emblem-ok-symbolic")
 
         mem_row = Adw.ActionRow()
         mem_row.set_title("Memory")
         mem_row.set_subtitle(utils.get_mem() + " GB")
-        # If memory is 8 GB or more, display good symbol else display bad symbol
+        # Set Memory row to emblem-ok-symbolic if memory is greater than or equal to 8 GB, else set row to emblem-important-symbolic
         mem = int(utils.get_mem())
         if mem >= 8 :
             mem_row.set_icon_name("emblem-ok-symbolic")
@@ -73,7 +75,7 @@ class SysInfo(Adw.Bin):
         disk_row = Adw.ActionRow()
         disk_row.set_title("Disk")
         disk_row.set_subtitle(utils.get_disk() + " GB")
-        # If disk capacity is 120 GB or more, display good symbol, else display bad symbol
+        # Set Disk row to emblem-ok-symbolic if disk capacity is 120 GB or greater, else set row to emblem-important-symbolic
         disk = int(utils.get_disk())
         if disk >= 120 :
             disk_row.set_icon_name("emblem-ok-symbolic")
