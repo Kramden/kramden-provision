@@ -5,6 +5,7 @@ gi.require_version('Adw', '1')
 from gi.repository import Gdk, Gtk, Adw
 
 from sysinfo import SysInfo
+from check_packages import CheckPackages
 from manualtest import ManualTest
 from finaltestcomplete import FinalTestComplete
 
@@ -34,12 +35,15 @@ class WizardWindow(Gtk.ApplicationWindow):
         # View Stack
         self.stack = Adw.ViewStack()
         self.page1 = SysInfo()
-        self.page2 = ManualTest()
-        self.page3 = FinalTestComplete()
+        self.page2 = CheckPackages()
+        self.page3 = ManualTest()
+        self.page4 = FinalTestComplete()
         
         self.stack.add_named(self.page1, "page1")
         self.stack.add_named(self.page2, "page2")
         self.stack.add_named(self.page3, "page3")
+        self.stack.add_named(self.page4, "page4")
+
         self.stack.set_vexpand(True)  # Ensure the stack expands vertically
 
         # Create footer
@@ -76,7 +80,7 @@ class WizardWindow(Gtk.ApplicationWindow):
             self.update_buttons()
 
     def on_next_clicked(self, button):
-        if self.current_page < 2:
+        if self.current_page < 3:
             self.current_page += 1
             self.stack.set_visible_child_name(f"page{self.current_page + 1}")
             self.update_buttons()
