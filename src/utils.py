@@ -1,5 +1,10 @@
 import psutil
 import subprocess
+from package_lists import snap_packages, deb_packages
+import gi
+gi.require_version('Snapd','2')
+from gi.repository import Snapd, GLib
+import apt
 
 # Utility class for functions used throughout the app
 class Utils():
@@ -74,7 +79,32 @@ class Utils():
 
         return cpu_info['model name']
 
+    def check_snaps(self, packages):
+        result = {}
+        client = Snapd.Client()
+        snaps_installed = [snap.get_name() for snap in client.get_snaps_sync(Snapd.GetAppsFlags.NONE, packages, None)]
+        for p in packages:
+            if p in snaps_installed:
+                result[p] = True
+            else:
+                result[p] = False
+        return result
+
+    def check_debs(self, packages):
+        result = {}
+        cache = apt.cache.Cache()
+        cache.open(None)
+        debs_installed = [p.name for p in cache if p.is_installed]
+        for p in packages:
+            if p in debs_installed:
+                result[p] = True
+            else:
+                result[p] = False
+        return result
+
 if __name__ == "__main__":
     utils = Utils()
     print("Disk Capacity: " + str(utils.get_disk()) + " GB")
     print("CPU Model: " + utils.get_cpu_info())
+    print("Snaps: " + str(utils.check_snaps(snap_packages)))
+    print("Debs: " + str(utils.check_debs(deb_packages)))

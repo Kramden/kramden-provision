@@ -2,6 +2,7 @@ import gi
 gi.require_version('Adw', '1')
 from gi.repository import Adw, Gtk
 from utils import Utils
+from package_lists import snap_packages, deb_packages
 
 class CheckPackages(Adw.Bin):
     def __init__(self):
@@ -20,13 +21,12 @@ class CheckPackages(Adw.Bin):
         header.set_decoration_layout("") # Remove window controls
         header.set_title_widget(Gtk.Label(label="Check Software"))
 
-        snaps = ['firefox', 'copilot-desktop', 'gemini-desktop', 'snap-store']
-        debs = ['libreoffice', 'kramden-desktop']
         check_snaps_row = Adw.ExpanderRow(title="Check Snaps")
-        for snap in snaps:
+        snaps_installed = self.utils.check_snaps(snap_packages)
+        for snap in snaps_installed.keys():
             row = Adw.ActionRow(title=snap)
             check_snaps_row.add_row(row)
-            if snap == 'gemini-desktop':
+            if not snaps_installed[snap]:
                 row.set_icon_name("emblem-important-symbolic")
                 button = Gtk.Button(label='Fix')
                 button.connect('clicked', self.on_fix_clicked, snap)
@@ -36,10 +36,11 @@ class CheckPackages(Adw.Bin):
                 row.set_icon_name("emblem-ok-symbolic")
 
         check_debs_row = Adw.ExpanderRow(title="Check System Packages")
-        for deb in debs:
+        debs_installed = self.utils.check_debs(deb_packages)
+        for deb in debs_installed.keys():
             row = Adw.ActionRow(title=deb)
             check_debs_row.add_row(row)
-            if deb == 'kramden-desktop':
+            if not debs_installed[deb]:
                 row.set_icon_name("emblem-important-symbolic")
                 button = Gtk.Button(label="Fix")
                 button.connect('clicked', self.on_fix_clicked, deb)
