@@ -17,12 +17,16 @@ class WizardWindow(Gtk.ApplicationWindow):
 
         self.set_default_size(800, 800)
 
+        # Create scrollable window
+        scrolled_window = Gtk.ScrolledWindow()
+        scrolled_window.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+
         # Create Gtk.HeaderBar
         header_bar = Gtk.HeaderBar()
         header_bar_title = Gtk.Label(label="Kramden - Final Test")
         header_bar.set_title_widget(header_bar_title)
         header_bar.set_show_title_buttons(True)
-        
+
         # Navigation Buttons
         self.prev_button = Gtk.Button(label="Previous")
         self.prev_button.connect("clicked", self.on_prev_clicked)
@@ -47,6 +51,7 @@ class WizardWindow(Gtk.ApplicationWindow):
         self.stack.add_named(self.page4, "page4")
 
         self.stack.set_vexpand(True)  # Ensure the stack expands vertically
+        scrolled_window.set_child(self.stack)
 
         # Create footer
         footer = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
@@ -59,7 +64,7 @@ class WizardWindow(Gtk.ApplicationWindow):
 
         # Content Box
         content_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        content_box.append(self.stack)
+        content_box.append(scrolled_window)
         content_box.append(footer)
 
         self.set_child(content_box)
