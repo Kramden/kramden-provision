@@ -2,7 +2,7 @@ import gi
 gi.require_version('Adw', '1')
 from gi.repository import Adw, Gtk
 from utils import Utils
-from package_lists import snap_packages, deb_packages
+from constants import snap_packages, deb_packages
 
 class CheckPackages(Adw.Bin):
     def __init__(self):

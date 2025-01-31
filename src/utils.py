@@ -1,6 +1,6 @@
 import psutil
 import subprocess
-from package_lists import snap_packages, deb_packages
+from constants import snap_packages, deb_packages
 import gi
 gi.require_version('Snapd','2')
 from gi.repository import Snapd, GLib
