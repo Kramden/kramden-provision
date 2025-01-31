@@ -11,13 +11,15 @@ sudo apt install python3-gi gir1.2-gtk-4.0 python3-psutil
 ## Running OS Load
 
 ```bash
-python3 src/osload.py
+cd src/
+./osload.py
 ```
 
 ## Running Final Test
 
 ```bash
-python3 src/finaltest.py
+cd src/
+./finaltest.py
 ```
 
 ## Run Unit Tests
