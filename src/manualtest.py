@@ -9,14 +9,10 @@ class ManualTest(Adw.Bin):
         self.set_margin_bottom(20)
         self.set_margin_start(20)
         self.set_margin_end(20)
+        self.title = "Perform the following manual tests:"
 
-        # Create a box to hold the header and content
+        # Create a box to hold the content
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
-
-        # Create a header
-        header = Adw.HeaderBar()
-        header.set_decoration_layout("")  # Remove window controls
-        header.set_title_widget(Gtk.Label(label="Perform the following manual tests:"))
 
         # Create window titles for required and optional list boxes
         required_windowtitle = Adw.WindowTitle()
@@ -92,8 +88,7 @@ class ManualTest(Adw.Bin):
         optional_list_box.append(touchpad_row)
         optional_list_box.append(screentest_row)
 
-        # Add headers and list boxes to the vertical box
-        vbox.append(header)
+        # Add list boxes to the vertical box
         vbox.append(required_windowtitle)
         vbox.append(required_list_box)
         vbox.append(optional_windowtitle)

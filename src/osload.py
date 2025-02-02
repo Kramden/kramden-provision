@@ -34,6 +34,14 @@ class WizardWindow(Gtk.ApplicationWindow):
 
         self.set_titlebar(header_bar)
 
+        # Create a page title widget
+        self.title_widget = Gtk.Label(label="OS Load")
+
+        # Create a header
+        header = Adw.HeaderBar()
+        header.set_decoration_layout("") # Remove window controls
+        header.set_title_widget(self.title_widget)
+
         # View Stack
         self.stack = Adw.ViewStack()
         self.page1 = KramdenNumber()
@@ -58,6 +66,7 @@ class WizardWindow(Gtk.ApplicationWindow):
 
         # Content Box
         content_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        content_box.append(header)
         content_box.append(self.stack)
         content_box.append(footer)
 
@@ -73,6 +82,14 @@ class WizardWindow(Gtk.ApplicationWindow):
             css_provider,
             Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
         )
+
+        # Set title_widget after page was set
+        self.stack.connect("notify::visible-child", self.on_visible_page_changed)
+        self.title_widget.set_label(self.stack.get_visible_child().title)
+
+    def on_visible_page_changed(self, stack, params):
+        print("on_visible_page_changed")
+        self.title_widget.set_label(stack.get_visible_child().title)
 
     def on_prev_clicked(self, button):
         if self.current_page > 0:

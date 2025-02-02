@@ -9,6 +9,7 @@ class FinalTestComplete(Adw.Bin):
         self.set_margin_bottom(20)
         self.set_margin_start(20)
         self.set_margin_end(20)
+        self.title = "Final Test Complete!"
         
         label = Gtk.Label(label="Final Test Complete!")
         self.set_child(label)
