@@ -21,6 +21,10 @@ class CheckPackages(Adw.Bin):
         header.set_decoration_layout("") # Remove window controls
         header.set_title_widget(Gtk.Label(label="Check Software"))
 
+        # Create scrollable window
+        scrolled_window = Gtk.ScrolledWindow()
+        scrolled_window.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+
         check_snaps_row = Adw.ExpanderRow(title="Check Snaps")
         snaps_installed = self.utils.check_snaps(snap_packages)
         for snap in snaps_installed.keys():
@@ -52,7 +56,8 @@ class CheckPackages(Adw.Bin):
         vbox.append(header)
         vbox.append(check_snaps_row)
         vbox.append(check_debs_row)
-        self.set_child(vbox)
+        scrolled_window.set_child(vbox)
+        self.set_child(scrolled_window)
 
     def on_fix_clicked(self, button, package):
         print('on_fix_clicked: ' + package)
