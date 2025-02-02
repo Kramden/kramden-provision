@@ -12,14 +12,10 @@ class CheckPackages(Adw.Bin):
         self.set_margin_bottom(20)
         self.set_margin_start(20)
         self.set_margin_end(20)
+        self.title = "Check Software"
 
         # Create vbox
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
-
-        # Create a header
-        header = Adw.HeaderBar()
-        header.set_decoration_layout("") # Remove window controls
-        header.set_title_widget(Gtk.Label(label="Check Software"))
 
         # Create scrollable window
         scrolled_window = Gtk.ScrolledWindow()
@@ -53,7 +49,6 @@ class CheckPackages(Adw.Bin):
             else:
                 row.set_icon_name("emblem-ok-symbolic")
 
-        vbox.append(header)
         vbox.append(check_snaps_row)
         vbox.append(check_debs_row)
         scrolled_window.set_child(vbox)

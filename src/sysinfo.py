@@ -12,14 +12,10 @@ class SysInfo(Adw.Bin):
         self.set_margin_bottom(20)
         self.set_margin_start(20)
         self.set_margin_end(20)
-        
-        # Create a box to hold the header and content
-        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        self.title = "System Information"
 
-        # Create a header
-        header = Adw.HeaderBar()
-        header.set_decoration_layout("")  # Remove window controls
-        header.set_title_widget(Gtk.Label(label="System Information"))
+        # Create a box to hold the content
+        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
 
         # Create a list box to hold the rows
         list_box = Gtk.ListBox()
@@ -91,8 +87,6 @@ class SysInfo(Adw.Bin):
         list_box.append(mem_row)
         list_box.append(disk_row)
 
-        # Add header and list box to the vertical box
-        vbox.append(header)
         vbox.append(list_box)
 
         # Add the vertical box to the page

@@ -34,6 +34,14 @@ class WizardWindow(Gtk.ApplicationWindow):
 
         self.set_titlebar(header_bar)
 
+        # Create a page title widget
+        self.title_widget = Gtk.Label(label="Final Test")
+
+        # Create a header
+        header = Adw.HeaderBar()
+        header.set_decoration_layout("") # Remove window controls
+        header.set_title_widget(self.title_widget)
+
         # View Stack
         self.stack = Adw.ViewStack()
         self.page1 = SysInfo()
@@ -59,6 +67,7 @@ class WizardWindow(Gtk.ApplicationWindow):
 
         # Content Box
         content_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        content_box.append(header)
         content_box.append(self.stack)
         content_box.append(footer)
 
@@ -74,6 +83,14 @@ class WizardWindow(Gtk.ApplicationWindow):
             css_provider,
             Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
         )
+
+        # Set title_widget after page was set
+        self.stack.connect("notify::visible-child", self.on_visible_page_changed)
+        self.title_widget.set_label(self.stack.get_visible_child().title)
+
+    def on_visible_page_changed(self, stack, params):
+        print("on_visible_page_changed")
+        self.title_widget.set_label(stack.get_visible_child().title)
 
     def on_prev_clicked(self, button):
         if self.current_page > 0:
@@ -91,8 +108,8 @@ class WizardWindow(Gtk.ApplicationWindow):
 
     def update_buttons(self):
         self.prev_button.set_sensitive(self.current_page > 0)
-        self.next_button.set_sensitive(self.current_page <= 2)
-        if self.current_page == 2:
+        self.next_button.set_sensitive(self.current_page <= 3)
+        if self.current_page == 3:
             self.next_button.set_label("Complete")
             self.next_button.add_css_class("button-next-last-page")
         else:
