@@ -20,7 +20,7 @@ class Utils():
             elif "Hardware Vendor" in line:
                 self.vender = line.strip().split(':', 1)[1]
             elif "Static hostname" in line:
-                self.hostname = line.strip().split(':', 1)[1]
+                self.hostname = line.strip().split(':', 1)[1].strip()
             elif "Operating System" in line:
                 self.os = line.strip().split(':', 1)[1]
 

@@ -10,6 +10,7 @@ class ManualTest(Adw.Bin):
         self.set_margin_start(20)
         self.set_margin_end(20)
         self.title = "Perform the following manual tests:"
+        self.passed = False
 
         # Create a box to hold the content
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
@@ -96,3 +97,6 @@ class ManualTest(Adw.Bin):
 
         # Add the vertical box to the page
         self.set_child(vbox)
+
+    def on_shown(self):
+        pass
