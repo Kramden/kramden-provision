@@ -13,3 +13,6 @@ class FinalTestComplete(Adw.Bin):
         
         label = Gtk.Label(label="Final Test Complete!")
         self.set_child(label)
+
+    def on_shown(self):
+        pass

@@ -10,6 +10,10 @@ class Landscape(Adw.Bin):
         self.set_margin_start(20)
         self.set_margin_end(20)
         self.title = "Landscape Registration"
+        self.passed = True
         
         label = Gtk.Label(label="Landscape Registration")
         self.set_child(label)
+
+    def on_shown(self):
+        pass

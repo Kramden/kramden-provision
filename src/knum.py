@@ -12,6 +12,7 @@ class KramdenNumber(Adw.Bin):
         self.set_margin_start(20)
         self.set_margin_end(20)
         self.title = "Identify"
+        self.passed = False
         
         #Create a Gtk.Entry
         self.entry = Gtk.Entry()
@@ -52,3 +53,12 @@ class KramdenNumber(Adw.Bin):
         entered_text = self.entry.get_text()
         if self.utils.set_hostname(entered_text):
             self.hostname.set_text(entered_text)
+            if entered_text.lower().startswith("k"):
+                print("Valid Knum")
+                self.passed = True
+            else:
+                print("Invalid Knum")
+                self.passed = False
+
+    def on_shown(self):
+        pass
