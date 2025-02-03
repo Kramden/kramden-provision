@@ -13,6 +13,7 @@ class SysInfo(Adw.Bin):
         self.set_margin_start(20)
         self.set_margin_end(20)
         self.title = "System Information"
+        self.passed = False
 
         # Create a box to hold the content
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
@@ -22,14 +23,8 @@ class SysInfo(Adw.Bin):
         list_box.set_selection_mode(Gtk.SelectionMode.NONE)
 
         # Create Adwaita rows
-        hostname_row = Adw.ActionRow()
-        hostname_row.set_title("K-Number")
-        hostname_row.set_subtitle(utils.get_hostname())
-        # If the K-Number doesn't start with a "k" show a problem
-        if hostname_row.get_subtitle().lower().startswith("k"):
-            hostname_row.set_icon_name("emblem-ok-symbolic")
-        else :
-            hostname_row.set_icon_name("emblem-important-symbolic")
+        self.hostname_row = Adw.ActionRow()
+        self.hostname_row.set_title("K-Number")
 
         vender_row = Adw.ActionRow()
         vender_row.set_title("Manufacturer")
@@ -79,7 +74,7 @@ class SysInfo(Adw.Bin):
             disk_row.set_icon_name("emblem-important-symbolic")
 
         # Add rows to the list box
-        list_box.append(hostname_row)
+        list_box.append(self.hostname_row)
         list_box.append(vender_row)
         list_box.append(model_row)
         list_box.append(cpu_row)
@@ -91,3 +86,14 @@ class SysInfo(Adw.Bin):
 
         # Add the vertical box to the page
         self.set_child(vbox)
+
+    def on_shown(self):
+        print("on_shown")
+        utils = Utils()
+
+        self.hostname_row.set_subtitle(utils.get_hostname())
+        # If the K-Number doesn't start with a "k" show a problem
+        if self.hostname_row.get_subtitle().lower().startswith("k"):
+            self.hostname_row.set_icon_name("emblem-ok-symbolic")
+        else :
+            self.hostname_row.set_icon_name("emblem-important-symbolic")

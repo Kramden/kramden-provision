@@ -90,7 +90,9 @@ class WizardWindow(Gtk.ApplicationWindow):
 
     def on_visible_page_changed(self, stack, params):
         print("on_visible_page_changed")
-        self.title_widget.set_label(stack.get_visible_child().title)
+        current = stack.get_visible_child()
+        self.title_widget.set_label(current.title)
+        current.on_shown()
 
     def on_prev_clicked(self, button):
         if self.current_page > 0:

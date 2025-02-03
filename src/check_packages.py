@@ -13,6 +13,7 @@ class CheckPackages(Adw.Bin):
         self.set_margin_start(20)
         self.set_margin_end(20)
         self.title = "Check Software"
+        self.passed = False
 
         # Create vbox
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
@@ -56,3 +57,6 @@ class CheckPackages(Adw.Bin):
 
     def on_fix_clicked(self, button, package):
         print('on_fix_clicked: ' + package)
+
+    def on_shown(self):
+        pass
