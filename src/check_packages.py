@@ -13,6 +13,10 @@ class CheckPackages(Adw.Bin):
         self.set_margin_start(20)
         self.set_margin_end(20)
         self.title = "Check Software"
+        # Used to keep references to the Adw.ActionRow for each snap
+        self.known_snap_rows = {}
+        # Used to keep references to the Adw.ActionRow for each deb
+        self.known_deb_rows = {}
 
         # Create vbox
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
@@ -37,8 +41,15 @@ class CheckPackages(Adw.Bin):
         passed = True
         snaps_installed = self.utils.check_snaps(snap_packages)
         for snap in snaps_installed.keys():
-            row = Adw.ActionRow(title=snap)
-            self.check_snaps_row.add_row(row)
+            if not snap in self.known_snap_rows.keys():
+                row = Adw.ActionRow(title=snap)
+                # Keep track of ActionRows to prevent duplication
+                self.known_snap_rows[snap] = row
+                self.check_snaps_row.add_row(row)
+            else:
+                row = self.known_snap_rows[snap]
+
+            # If not installed flag
             if not snaps_installed[snap]:
                 row.set_icon_name("emblem-important-symbolic")
                 button = Gtk.Button(label='Fix')
@@ -48,10 +59,18 @@ class CheckPackages(Adw.Bin):
                 passed = False
             else:
                 row.set_icon_name("emblem-ok-symbolic")
+
         debs_installed = self.utils.check_debs(deb_packages)
         for deb in debs_installed.keys():
-            row = Adw.ActionRow(title=deb)
-            self.check_debs_row.add_row(row)
+            if not deb in self.known_deb_rows.keys():
+                row = Adw.ActionRow(title=deb)
+                # Keep track of ActionRows to prevent duplication
+                self.known_deb_rows[deb] = row
+                self.check_debs_row.add_row(row)
+            else:
+                row = self.known_deb_rows[deb]
+
+            # If not installed flag
             if not debs_installed[deb]:
                 row.set_icon_name("emblem-important-symbolic")
                 button = Gtk.Button(label="Fix")
