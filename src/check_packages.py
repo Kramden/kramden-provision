@@ -41,13 +41,15 @@ class CheckPackages(Adw.Bin):
         passed = True
         snaps_installed = self.utils.check_snaps(snap_packages)
         for snap in snaps_installed.keys():
-            if not snap in self.known_snap_rows.keys():
-                row = Adw.ActionRow(title=snap)
-                # Keep track of ActionRows to prevent duplication
-                self.known_snap_rows[snap] = row
-                self.check_snaps_row.add_row(row)
-            else:
-                row = self.known_snap_rows[snap]
+            # If we have an ActionRow already, remove it
+            if snap in self.known_snap_rows.keys():
+                self.check_snaps_row.remove(self.known_snap_rows[snap])
+                del self.known_snap_rows[snap]
+
+            row = Adw.ActionRow(title=snap)
+            # Keep track of ActionRows to prevent duplication
+            self.known_snap_rows[snap] = row
+            self.check_snaps_row.add_row(row)
 
             # If not installed flag
             if not snaps_installed[snap]:
@@ -62,13 +64,15 @@ class CheckPackages(Adw.Bin):
 
         debs_installed = self.utils.check_debs(deb_packages)
         for deb in debs_installed.keys():
-            if not deb in self.known_deb_rows.keys():
-                row = Adw.ActionRow(title=deb)
-                # Keep track of ActionRows to prevent duplication
-                self.known_deb_rows[deb] = row
-                self.check_debs_row.add_row(row)
-            else:
-                row = self.known_deb_rows[deb]
+            # If we have an ActionRow already, remove it
+            if deb in self.known_deb_rows.keys():
+                self.check_debs_row.remove(self.known_deb_rows[deb])
+                del self.known_deb_rows[deb]
+
+            row = Adw.ActionRow(title=deb)
+            # Keep track of ActionRows to prevent duplication
+            self.known_deb_rows[deb] = row
+            self.check_debs_row.add_row(row)
 
             # If not installed flag
             if not debs_installed[deb]:
