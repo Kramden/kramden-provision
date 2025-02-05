@@ -34,6 +34,9 @@ class Utils():
 
     # Set the system hostname
     def set_hostname(self, hostname):
+        # Ensure hostname isn't empty
+        if len(hostname) < 1:
+            return False
         result = subprocess.run(['hostnamectl', 'set-hostname', hostname])
         return result.returncode == 0
 
