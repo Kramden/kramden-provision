@@ -16,11 +16,13 @@ class KramdenNumber(Adw.Bin):
         #Create a Gtk.Entry
         self.entry = Gtk.Entry()
         self.entry.set_placeholder_text("Enter K-Number...")
+        self.entry.connect("changed", self.on_entry_changed)
 
         #Create a Set Button
-        set_button = Gtk.Button.new_with_label("Set")
-        set_button.connect("clicked", self.on_set_clicked)
-        set_button.add_css_class("button-green")
+        self.set_button = Gtk.Button.new_with_label("Set")
+        self.set_button.set_sensitive(False)
+        self.set_button.connect("clicked", self.on_set_clicked)
+        self.set_button.add_css_class("button-green")
 
         hostname_label = Gtk.Label.new("K-Number: ")
         self.hostname = Gtk.Label.new(utils.get_hostname())
@@ -35,7 +37,7 @@ class KramdenNumber(Adw.Bin):
         #Add entry and button to a box
         entry_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
         entry_box.append(self.entry)
-        entry_box.append(set_button)
+        entry_box.append(self.set_button)
 
         #Add entry_box to the window
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
@@ -47,6 +49,13 @@ class KramdenNumber(Adw.Bin):
         alignment.append(vbox)
         alignment.set_halign(Gtk.Align.CENTER)
         self.set_child(alignment)
+
+    def on_entry_changed(self, widget):
+        # Enable the button if the entry is not empty, else disable it
+        if self.entry.get_text():
+            self.set_button.set_sensitive(True)
+        else:
+            self.set_button.set_sensitive(False)
 
     def on_set_clicked(self, button):
         state = self.state.get_value()
