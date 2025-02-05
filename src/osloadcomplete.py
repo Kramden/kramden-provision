@@ -11,8 +11,15 @@ class OSLoadComplete(Adw.Bin):
         self.set_margin_end(20)
         self.title = "OS Load Complete!"
 
-        label = Gtk.Label(label="OS Load Complete!")
-        self.set_child(label)
+        self.label = Gtk.Label(label="OS Load Complete!")
+        self.set_child(self.label)
 
+    # on_shown is called when the page is shown in the stack
     def on_shown(self):
-        pass
+        state = self.state.get_value()
+        if all(state.values()):
+            print("All passed")
+            self.label.set_text("OS Load Complete!")
+        else:
+            print("Failed")
+            self.label.set_text("OS Load Failed")
