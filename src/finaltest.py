@@ -24,6 +24,12 @@ class WizardWindow(Gtk.ApplicationWindow):
         observer = StateObserver()
         self.observable_property.add_observer(observer)
 
+        # Initialize the observable property for tracking state
+        self.observable_property = ObservableProperty({"SysInfo": False, "CheckPackages": False, "ManualTest": False})
+        # Create and add an observer
+        observer = StateObserver()
+        self.observable_property.add_observer(observer)
+
         # Create Gtk.HeaderBar
         header_bar = Gtk.HeaderBar()
         header_bar_title = Gtk.Label(label="Kramden - Final Test")
