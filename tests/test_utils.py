@@ -1,6 +1,8 @@
+import sys, os
 import unittest
 from unittest.mock import patch, mock_open, MagicMock
-from src.utils import Utils
+sys.path.insert(1, os.path.dirname(os.path.realpath(__file__))+"/../src/")
+from utils import Utils
 
 class TestUtils(unittest.TestCase):
     def setUp(self):
@@ -20,7 +22,7 @@ Hardware Model: Test Model'''
         patch.stopall()
 
     def test_get_hostname(self):
-        self.assertEqual(self.utils.get_hostname(), " testhost")
+        self.assertEqual(self.utils.get_hostname(), "testhost")
 
     @patch('subprocess.run')
     def test_set_hostname_success(self, mock_run):
