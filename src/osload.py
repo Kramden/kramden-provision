@@ -15,7 +15,8 @@ from observable import ObservableProperty, StateObserver
 class WizardWindow(Gtk.ApplicationWindow):
     def __init__(self, app):
         super().__init__(application=app, title="Kramden - OS Load")
-        self.set_default_size(800, 800)
+
+        self.set_default_size(800, 1024)
 
         # Initialize the observable property for tracking state
         self.observable_property = ObservableProperty({"KramdenNumber": False, "Landscape": False, "SysInfo": False})
