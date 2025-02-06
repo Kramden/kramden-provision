@@ -18,6 +18,10 @@ class SysInfo(Adw.Bin):
         # Create a box to hold the content
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
 
+        # Create scrollable window
+        scrolled_window = Gtk.ScrolledWindow()
+        scrolled_window.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+
         # Create a list box to hold the rows
         list_box = Gtk.ListBox()
         list_box.set_selection_mode(Gtk.SelectionMode.NONE)
@@ -73,6 +77,31 @@ class SysInfo(Adw.Bin):
         else :
             disk_row.set_icon_name("emblem-important-symbolic")
 
+        batteries = utils.get_battery_capacities()
+        battery_row = None
+        if len(batteries.keys()) == 1:
+            battery_row = Adw.ActionRow()
+            battery_row.set_title("Battery Capacity")
+            print(list(batteries.items())[0][1])
+            battery_row.set_subtitle(f'{str(list(batteries.items())[0][1])}%')
+            # Set Battery row to emblem-ok-symbolic if battery capacity is greater than 70%, else set row to emblem-important-symbolic
+            if int(list(batteries.items())[0][1]) >= 70:
+                battery_row.set_icon_name("emblem-ok-symbolic")
+            else:
+                battery_row.set_icon_name("emblem-important-symbolic")
+        elif len(batteries.keys()) > 1:
+            battery_row = Adw.ExpanderRow(title="Batteries")
+            for battery in batteries.keys():
+                row = Adw.ActionRow(title=battery, subtitle=f'{batteries[battery]}%')
+                battery_row.add_row(row)
+                # Set Battery row to emblem-ok-symbolic if battery capacity is greater than 70%, else set row to emblem-important-symbolic
+                if int(batteries[battery]) >= 70:
+                    battery_row.set_expanded(False)
+                    row.set_icon_name("emblem-ok-symbolic")
+                else:
+                    battery_row.set_expanded(True)
+                    row.set_icon_name("emblem-important-symbolic")
+
         # Add rows to the list box
         list_box.append(self.hostname_row)
         list_box.append(vender_row)
@@ -81,11 +110,12 @@ class SysInfo(Adw.Bin):
         list_box.append(os_row)
         list_box.append(mem_row)
         list_box.append(disk_row)
+        if battery_row: 
+            list_box.append(battery_row)
 
         vbox.append(list_box)
-
-        # Add the vertical box to the page
-        self.set_child(vbox)
+        scrolled_window.set_child(vbox)
+        self.set_child(scrolled_window)
 
     def on_shown(self):
         print("on_shown")
