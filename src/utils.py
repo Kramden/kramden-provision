@@ -115,7 +115,7 @@ class Utils():
         # Get the list of all power devices
         devices = manager.EnumerateDevices()
 
-        capacities = {"fubar":70, "barfu":'60'}
+        capacities = {}
         for device_path in devices:
             device = bus.get_object('org.freedesktop.UPower', device_path)
             device_properties = dbus.Interface(device, 'org.freedesktop.DBus.Properties')
