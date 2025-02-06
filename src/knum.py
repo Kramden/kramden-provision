@@ -67,7 +67,8 @@ class KramdenNumber(Adw.Bin):
                 state['KramdenNumber'] = True
             else:
                 state['KramdenNumber'] = False
-        self.state.set_value(state)
+        #self.state.set_value(state)
+        print("knum:on_set_clicked " + str(self.state.get_value()))
 
     # on_shown is called when the page is shown in the stack
     def on_shown(self):
@@ -78,5 +79,4 @@ class KramdenNumber(Adw.Bin):
             state['KramdenNumber'] = True
         else:
             state['KramdenNumber'] = False
-        self.state.set_value(state)
-        print("on_shown: " + str(self.state.get_value()))
+        print("knum:on_shown " + str(self.state.get_value()))

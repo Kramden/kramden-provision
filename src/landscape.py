@@ -16,6 +16,6 @@ class Landscape(Adw.Bin):
 
     # on_shown is called when the page is shown in the stack
     def on_shown(self):
-       state = self.state.get_value()
-       state['Landscape'] = True
-       self.state.set_value(state)
+        state = self.state.get_value()
+        state['Landscape'] = True
+        print("landscape:on_shown " + str(self.state.get_value()))

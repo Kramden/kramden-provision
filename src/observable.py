@@ -16,15 +16,13 @@ class ObservableProperty:
         self._observers = []
 
     def set_value(self, new_value):
-        print("set_value: new_value is " + str(new_value))
-        print("set_value: old_value is " + str(self._value))
+        print("ObservableProperty:set_value " + str(new_value))
         if new_value != self._value:
-            print("NO MATCH")
             self._value = new_value
             self.notify_observers()
 
     def get_value(self):
-        print("get_value: " + str(self._value))
+        print("ObservableProperty:get_value " + str(self._value))
         return self._value
 
     def add_observer(self, observer):

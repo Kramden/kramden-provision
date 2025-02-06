@@ -76,7 +76,6 @@ class SysInfo(Adw.Bin):
 
     # on_shown is called when the page is shown in the stack
     def on_shown(self):
-        print("on_shown")
         utils = Utils()
 
         # Start with default of passed and set to False if we find any failures
@@ -110,5 +109,4 @@ class SysInfo(Adw.Bin):
 
         state = self.state.get_value()
         state['SysInfo'] = passed
-        self.state.set_value(state)
-        print("on_shown: " + str(self.state.get_value()))
+        print("sysinfo:on_shown " + str(self.state.get_value()))

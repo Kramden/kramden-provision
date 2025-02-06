@@ -13,7 +13,6 @@ class CheckPackages(Adw.Bin):
         self.set_margin_start(20)
         self.set_margin_end(20)
         self.title = "Check Software"
-        self.passed = True
 
         # Create vbox
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
@@ -35,7 +34,7 @@ class CheckPackages(Adw.Bin):
 
     # on_shown is called when the page is shown in the stack
     def on_shown(self):
-        self.passed = True
+        passed = True
         snaps_installed = self.utils.check_snaps(snap_packages)
         for snap in snaps_installed.keys():
             row = Adw.ActionRow(title=snap)
@@ -46,7 +45,7 @@ class CheckPackages(Adw.Bin):
                 button.connect('clicked', self.on_fix_clicked, snap)
                 row.add_suffix(button)
                 self.check_snaps_row.set_expanded(True)
-                self.passed = False
+                passed = False
             else:
                 row.set_icon_name("emblem-ok-symbolic")
         debs_installed = self.utils.check_debs(deb_packages)
@@ -59,10 +58,10 @@ class CheckPackages(Adw.Bin):
                 button.connect('clicked', self.on_fix_clicked, deb)
                 row.add_suffix(button)
                 self.check_debs_row.set_expanded(True)
-                self.passed = False
+                passed = False
             else:
                 row.set_icon_name("emblem-ok-symbolic")
 
         state = self.state.get_value()
-        state['CheckPackages'] = self.passed
-        self.state.set_value(state)
+        state['CheckPackages'] = passed
+        print("check_packages:on_shown " + str(self.state.get_value()))

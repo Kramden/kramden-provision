@@ -10,7 +10,6 @@ class ManualTest(Adw.Bin):
         self.set_margin_start(20)
         self.set_margin_end(20)
         self.title = "Perform the following manual tests:"
-        self.passed = True
 
         # Create a box to hold the content
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
@@ -101,6 +100,7 @@ class ManualTest(Adw.Bin):
     # on_shown is called when the page is shown in the stack
     def on_shown(self):
         # Until manual tests are fully implemented, let's just pass
+        passed = True
         state = self.state.get_value()
-        state['ManualTest'] = self.passed
-        self.state.set_value(state)
+        state['ManualTest'] = passed
+        print("manualtest:on_shown " + str(self.state.get_value()))
