@@ -15,7 +15,7 @@ class WizardWindow(Gtk.ApplicationWindow):
     def __init__(self, app):
         super().__init__(application=app, title="Kramden - OS Load")
 
-        self.set_default_size(800, 800)
+        self.set_default_size(800, 1024)
 
         # Create Gtk.HeaderBar
         header_bar = Gtk.HeaderBar()
