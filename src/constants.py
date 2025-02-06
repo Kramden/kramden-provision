@@ -1,6 +1,2 @@
-# FIXME
-#deb_packages = ['kramden-overrides', 'kramden-desktop', 'libreoffice-writer']
-#snap_packages = ['frogsquash', 'gnome-2048', 'gnome-chess', 'gnome-dictionary', 'gnome-nibbles', 'gnome-weather', 'iagno', 'mc-installer', 'quadrapassel', 'snap-store', 'spotify', 'vlc', 'zoom-client']
-
-deb_packages = ['vim', 'dpkg']
-snap_packages = ['firefox', 'snap-store']
+deb_packages = ['kramden-overrides', 'kramden-desktop', 'libreoffice-writer']
+snap_packages = ['frogsquash', 'gnome-2048', 'gnome-chess', 'gnome-dictionary', 'gnome-nibbles', 'gnome-weather', 'iagno', 'mc-installer', 'quadrapassel', 'snap-store', 'spotify', 'vlc', 'zoom-client']
