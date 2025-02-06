@@ -27,3 +27,32 @@ cd src/
 ```bash
 python3 -m unittest discover tests
 ```
+
+# Installation Instructions
+## Build
+
+### Dependances
+
+- build-essential
+- meson
+
+### Build
+
+```
+rm -rf builddir
+meson setup -Dprefix=$HOME/.local builddir
+meson compile -C builddir --verbose
+```
+
+### Install
+
+```
+meson install -C builddir
+```
+
+### Run
+
+```
+$HOME/.local/bin/kramden-provision-osload
+$HOME/.local/bin/kramden-provision-finaltest
+```
