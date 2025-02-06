@@ -63,7 +63,6 @@ class SysInfo(Adw.Bin):
         self.disk_row = Adw.ActionRow()
         self.disk_row.set_title("Disk")
         self.disk_row.set_subtitle(utils.get_disk() + " GB")
-<<<<<<< HEAD
 
         batteries = utils.get_battery_capacities()
         battery_row = None
@@ -89,8 +88,6 @@ class SysInfo(Adw.Bin):
                 else:
                     battery_row.set_expanded(True)
                     row.set_icon_name("emblem-important-symbolic")
-=======
->>>>>>> d5fa011 (feat: Use an Observer to track state through the app.)
 
         # Add rows to the list box
         list_box.append(self.hostname_row)
@@ -100,22 +97,13 @@ class SysInfo(Adw.Bin):
         list_box.append(os_row)
         list_box.append(self.mem_row)
         list_box.append(self.disk_row)
-<<<<<<< HEAD
         if battery_row: 
             list_box.append(battery_row)
-=======
->>>>>>> d5fa011 (feat: Use an Observer to track state through the app.)
 
         vbox.append(list_box)
         scrolled_window.set_child(vbox)
         self.set_child(scrolled_window)
 
-<<<<<<< HEAD
-=======
-        # Add the vertical box to the page
-        self.set_child(vbox)
-
->>>>>>> d5fa011 (feat: Use an Observer to track state through the app.)
     # on_shown is called when the page is shown in the stack
     def on_shown(self):
         utils = Utils()
@@ -151,9 +139,4 @@ class SysInfo(Adw.Bin):
 
         state = self.state.get_value()
         state['SysInfo'] = passed
-<<<<<<< HEAD
         print("sysinfo:on_shown " + str(self.state.get_value()))
-=======
-        self.state.set_value(state)
-        print("on_shown: " + str(self.state.get_value()))
->>>>>>> d5fa011 (feat: Use an Observer to track state through the app.)
