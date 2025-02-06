@@ -60,6 +60,29 @@ class SysInfo(Adw.Bin):
         self.disk_row.set_title("Disk")
         self.disk_row.set_subtitle(utils.get_disk() + " GB")
 
+        batteries = utils.get_battery_capacities()
+        battery_row = None
+        if len(batteries.keys()) == 1:
+            battery_row = Adw.ActionRow()
+            battery_row.set_title("Battery Capacity")
+            print(list(batteries.items())[0][1])
+            battery_row.set_subtitle(f'{str(list(batteries.items())[0][1])}%')
+            # Set Battery row to emblem-ok-symbolic if battery capacity is greater than 70%, else set row to emblem-important-symbolic
+            if int(list(batteries.items())[0][1]) >= 70:
+                battery_row.set_icon_name("emblem-ok-symbolic")
+            else:
+                battery_row.set_icon_name("emblem-important-symbolic")
+        elif len(batteries.keys()) > 1:
+            battery_row = Adw.ExpanderRow(title="Batteries")
+            for battery in batteries.keys():
+                row = Adw.ActionRow(title=battery, subtitle=batteries[battery])
+                battery_row.add_row(row)
+                # Set Battery row to emblem-ok-symbolic if battery capacity is greater than 70%, else set row to emblem-important-symbolic
+                if int(batteries[battery]) >= 70:
+                    row.set_icon_name("emblem-ok-symbolic")
+                else:
+                    row.set_icon_name("emblem-important-symbolic")
+
         # Add rows to the list box
         list_box.append(self.hostname_row)
         list_box.append(vender_row)
@@ -68,6 +91,8 @@ class SysInfo(Adw.Bin):
         list_box.append(os_row)
         list_box.append(self.mem_row)
         list_box.append(self.disk_row)
+        if battery_row: 
+            list_box.append(battery_row)
 
         vbox.append(list_box)
 
