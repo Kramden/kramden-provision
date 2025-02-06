@@ -1,14 +1,11 @@
 import psutil
 import subprocess
-<<<<<<< HEAD
 from constants import snap_packages, deb_packages
 import gi
 gi.require_version('Snapd','2')
 from gi.repository import Snapd, GLib
 import apt
-=======
 import dbus
->>>>>>> dbfe59f (feat: Implemented battery_capacity in sysinfo)
 
 # Utility class for functions used throughout the app
 class Utils():
