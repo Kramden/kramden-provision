@@ -1,10 +1,14 @@
 import psutil
 import subprocess
+<<<<<<< HEAD
 from constants import snap_packages, deb_packages
 import gi
 gi.require_version('Snapd','2')
 from gi.repository import Snapd, GLib
 import apt
+=======
+import dbus
+>>>>>>> dbfe59f (feat: Implemented battery_capacity in sysinfo)
 
 # Utility class for functions used throughout the app
 class Utils():
@@ -105,9 +109,36 @@ class Utils():
                 result[p] = False
         return result
 
+    # Return battery capacity
+    def get_battery_capacities(self):
+        bus = dbus.SystemBus()
+        upower = bus.get_object('org.freedesktop.UPower', '/org/freedesktop/UPower')
+        manager = dbus.Interface(upower, 'org.freedesktop.UPower')
+
+        # Get the list of all power devices
+        devices = manager.EnumerateDevices()
+
+        capacities = {"fubar":70, "barfu":'60'}
+        for device_path in devices:
+            device = bus.get_object('org.freedesktop.UPower', device_path)
+            device_properties = dbus.Interface(device, 'org.freedesktop.DBus.Properties')
+            device_type = device_properties.Get('org.freedesktop.UPower.Device', 'Type')
+
+            # UPower.DeviceType for battery is 2
+            if device_type == 2:
+                capacity = device_properties.Get('org.freedesktop.UPower.Device', 'Capacity')
+                model = device_properties.Get('org.freedesktop.UPower.Device', 'Model')
+                capacities[model] = capacity
+
+        return capacities
+
 if __name__ == "__main__":
     utils = Utils()
+    capacities = get_battery_capacities()
+    for battery in capacities.keys():
+        print(f"Battery {idx + 1} Capacity: {capacity}%")
     print("Disk Capacity: " + str(utils.get_disk()) + " GB")
     print("CPU Model: " + utils.get_cpu_info())
     print("Snaps: " + str(utils.check_snaps(snap_packages)))
     print("Debs: " + str(utils.check_debs(deb_packages)))
+    print(f"Battery Capacity: {capacity}%")
