@@ -17,7 +17,6 @@ class CheckPackages(Adw.Bin):
         self.known_snap_rows = {}
         # Used to keep references to the Adw.ActionRow for each deb
         self.known_deb_rows = {}
-        self.passed = True
 
         # Create vbox
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
@@ -39,7 +38,7 @@ class CheckPackages(Adw.Bin):
 
     # on_shown is called when the page is shown in the stack
     def on_shown(self):
-        self.passed = True
+        passed = True
         snaps_installed = self.utils.check_snaps(snap_packages)
         for snap in snaps_installed.keys():
             # If we have an ActionRow already, remove it
@@ -59,7 +58,7 @@ class CheckPackages(Adw.Bin):
                 button.connect('clicked', self.on_fix_clicked, snap)
                 row.add_suffix(button)
                 self.check_snaps_row.set_expanded(True)
-                self.passed = False
+                passed = False
             else:
                 row.set_icon_name("emblem-ok-symbolic")
 
@@ -82,6 +81,10 @@ class CheckPackages(Adw.Bin):
                 button.connect('clicked', self.on_fix_clicked, deb)
                 row.add_suffix(button)
                 self.check_debs_row.set_expanded(True)
-                self.passed = False
+                passed = False
             else:
                 row.set_icon_name("emblem-ok-symbolic")
+
+        state = self.state.get_value()
+        state['CheckPackages'] = passed
+        print("check_packages:on_shown " + str(self.state.get_value()))

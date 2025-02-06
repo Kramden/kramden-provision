@@ -6,13 +6,12 @@ from utils import Utils
 class KramdenNumber(Adw.Bin):
     def __init__(self):
         super().__init__()
-        self.utils = Utils()
+        utils = Utils()
         self.set_margin_top(20)
         self.set_margin_bottom(20)
         self.set_margin_start(20)
         self.set_margin_end(20)
         self.title = "Identify"
-        self.passed = False
         
         #Create a Gtk.Entry
         self.entry = Gtk.Entry()
@@ -26,7 +25,7 @@ class KramdenNumber(Adw.Bin):
         self.set_button.add_css_class("button-green")
 
         hostname_label = Gtk.Label.new("K-Number: ")
-        self.hostname = Gtk.Label.new(self.utils.get_hostname())
+        self.hostname = Gtk.Label.new(utils.get_hostname())
         knum_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
         knum_box.append(hostname_label)
         knum_box.append(self.hostname)
@@ -59,15 +58,24 @@ class KramdenNumber(Adw.Bin):
             self.set_button.set_sensitive(False)
 
     def on_set_clicked(self, button):
+        state = self.state.get_value()
+        utils = Utils()
         entered_text = self.entry.get_text()
-        if self.utils.set_hostname(entered_text):
+        if utils.set_hostname(entered_text):
             self.hostname.set_text(entered_text)
             if entered_text.lower().startswith("k"):
-                print("Valid Knum")
-                self.passed = True
+                state['KramdenNumber'] = True
             else:
-                print("Invalid Knum")
-                self.passed = False
+                state['KramdenNumber'] = False
+        print("knum:on_set_clicked " + str(self.state.get_value()))
 
+    # on_shown is called when the page is shown in the stack
     def on_shown(self):
-        pass
+        utils = Utils()
+        hostname = utils.get_hostname()
+        state = self.state.get_value()
+        if hostname.lower().startswith("k"):
+            state['KramdenNumber'] = True
+        else:
+            state['KramdenNumber'] = False
+        print("knum:on_shown " + str(self.state.get_value()))

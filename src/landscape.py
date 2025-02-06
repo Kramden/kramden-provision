@@ -10,10 +10,12 @@ class Landscape(Adw.Bin):
         self.set_margin_start(20)
         self.set_margin_end(20)
         self.title = "Landscape Registration"
-        self.passed = True
         
         label = Gtk.Label(label="Landscape Registration")
         self.set_child(label)
 
+    # on_shown is called when the page is shown in the stack
     def on_shown(self):
-        pass
+        state = self.state.get_value()
+        state['Landscape'] = True
+        print("landscape:on_shown " + str(self.state.get_value()))

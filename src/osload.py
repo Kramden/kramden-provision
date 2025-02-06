@@ -10,12 +10,25 @@ from knum import KramdenNumber
 from sysinfo import SysInfo
 from landscape import Landscape
 from osloadcomplete import OSLoadComplete
+from observable import ObservableProperty, StateObserver
 
 class WizardWindow(Gtk.ApplicationWindow):
     def __init__(self, app):
         super().__init__(application=app, title="Kramden - OS Load")
 
         self.set_default_size(800, 1024)
+
+        # Initialize the observable property for tracking state
+        self.observable_property = ObservableProperty({"KramdenNumber": False, "Landscape": False, "SysInfo": False})
+        # Create and add an observer
+        observer = StateObserver()
+        self.observable_property.add_observer(observer)
+
+        # Initialize the observable property for tracking state
+        self.observable_property = ObservableProperty({"KramdenNumber": False, "Landscape": False, "SysInfo": False})
+        # Create and add an observer
+        observer = StateObserver()
+        self.observable_property.add_observer(observer)
 
         # Create Gtk.HeaderBar
         header_bar = Gtk.HeaderBar()
@@ -44,10 +57,16 @@ class WizardWindow(Gtk.ApplicationWindow):
 
         # View Stack
         self.stack = Adw.ViewStack()
+
         self.page1 = KramdenNumber()
-        self.page2 = SysInfo()
-        self.page3 = Landscape()
+        self.page2 = Landscape()
+        self.page3 = SysInfo()
         self.page4 = OSLoadComplete()
+
+        self.page1.state = self.observable_property
+        self.page2.state = self.observable_property
+        self.page3.state = self.observable_property
+        self.page4.state = self.observable_property
         
         self.stack.add_named(self.page1, "page1")
         self.stack.add_named(self.page2, "page2")
@@ -73,6 +92,9 @@ class WizardWindow(Gtk.ApplicationWindow):
         self.set_child(content_box)
         self.current_page = 0
         self.update_buttons()
+
+        # Fake visible change to set state info
+        self.page1.on_shown()
 
         # Apply CSS
         css_provider = Gtk.CssProvider()
@@ -113,6 +135,8 @@ class WizardWindow(Gtk.ApplicationWindow):
         if self.current_page == 3:
             self.next_button.set_label("Complete")
             self.next_button.add_css_class("button-next-last-page")
+            state = self.observable_property.get_value()
+            self.next_button.set_sensitive(all(state.values()))
         else:
             self.next_button.remove_css_class("button-next-last-page")
             self.next_button.set_label("Next")

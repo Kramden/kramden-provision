@@ -10,12 +10,25 @@ from sysinfo import SysInfo
 from check_packages import CheckPackages
 from manualtest import ManualTest
 from finaltestcomplete import FinalTestComplete
+from observable import ObservableProperty, StateObserver
 
 class WizardWindow(Gtk.ApplicationWindow):
     def __init__(self, app):
         super().__init__(application=app, title="Kramden - Final Test")
 
         self.set_default_size(800, 1024)
+
+        # Initialize the observable property for tracking state
+        self.observable_property = ObservableProperty({"SysInfo": False, "CheckPackages": False, "ManualTest": False})
+        # Create and add an observer
+        observer = StateObserver()
+        self.observable_property.add_observer(observer)
+
+        # Initialize the observable property for tracking state
+        self.observable_property = ObservableProperty({"SysInfo": False, "CheckPackages": False, "ManualTest": False})
+        # Create and add an observer
+        observer = StateObserver()
+        self.observable_property.add_observer(observer)
 
         # Create Gtk.HeaderBar
         header_bar = Gtk.HeaderBar()
@@ -48,6 +61,12 @@ class WizardWindow(Gtk.ApplicationWindow):
         self.page2 = CheckPackages()
         self.page3 = ManualTest()
         self.page4 = FinalTestComplete()
+
+        self.page1.state = self.observable_property
+        self.page2.state = self.observable_property
+        self.page3.state = self.observable_property
+        self.page4.state = self.observable_property
+
         
         self.stack.add_named(self.page1, "page1")
         self.stack.add_named(self.page2, "page2")
@@ -88,6 +107,9 @@ class WizardWindow(Gtk.ApplicationWindow):
         self.stack.connect("notify::visible-child", self.on_visible_page_changed)
         self.title_widget.set_label(self.stack.get_visible_child().title)
 
+        # Fake visible change to set state info
+        self.page1.on_shown()
+
     def on_visible_page_changed(self, stack, params):
         print("on_visible_page_changed")
         current = stack.get_visible_child()
@@ -114,6 +136,8 @@ class WizardWindow(Gtk.ApplicationWindow):
         if self.current_page == 3:
             self.next_button.set_label("Complete")
             self.next_button.add_css_class("button-next-last-page")
+            state = self.observable_property.get_value()
+            self.next_button.set_sensitive(all(state.values()))
         else:
             self.next_button.remove_css_class("button-next-last-page")
             self.next_button.set_label("Next")
