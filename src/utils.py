@@ -123,7 +123,8 @@ class Utils():
 
             # UPower.DeviceType for battery is 2
             if device_type == 2:
-                capacity = device_properties.Get('org.freedesktop.UPower.Device', 'Capacity')
+                # display number should be an int, but float always has something after the decimal e.g. "80.0"
+                capacity = int(round(float(device_properties.Get('org.freedesktop.UPower.Device', 'Capacity')), 0))
                 model = device_properties.Get('org.freedesktop.UPower.Device', 'Model')
                 capacities[model] = capacity
 

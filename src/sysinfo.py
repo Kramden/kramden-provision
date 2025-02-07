@@ -94,10 +94,10 @@ class SysInfo(Adw.Bin):
         if len(batteries.keys()) == 1:
             battery_row = Adw.ActionRow()
             battery_row.set_title("Battery Capacity")
-            print(list(batteries.items())[0][1])
-            battery_row.set_subtitle(f'{str(list(batteries.items())[0][1])}%')
+            battery_list = list(batteries.items())[0][1]
+            battery_row.set_subtitle(f'{str(battery_list)}%')
             # Set Battery row to emblem-ok-symbolic if battery capacity is greater than 70%, else set row to emblem-important-symbolic
-            if int(list(batteries.items())[0][1]) >= 70:
+            if int(battery_list) >= 70:
                 battery_row.set_icon_name("emblem-ok-symbolic")
             else:
                 battery_row.set_icon_name("emblem-important-symbolic")
