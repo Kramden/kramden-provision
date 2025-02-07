@@ -29,6 +29,9 @@ class SysInfo(Adw.Bin):
         self.hostname_row = Adw.ActionRow()
         self.hostname_row.set_title("K-Number")
 
+        self.landscape_row = Adw.ActionRow()
+        self.landscape_row.set_title("Landscape Status")
+
         vender_row = Adw.ActionRow()
         vender_row.set_title("Manufacturer")
         vender_row.set_subtitle(utils.get_vender())
@@ -116,6 +119,7 @@ class SysInfo(Adw.Bin):
 
         # Add rows to the list box
         list_box.append(self.hostname_row)
+        list_box.append(self.landscape_row)
         list_box.append(vender_row)
         list_box.append(model_row)
         list_box.append(cpu_row)
@@ -139,9 +143,17 @@ class SysInfo(Adw.Bin):
         # If the K-Number doesn't start with a "k" show a problem
         if self.hostname_row.get_subtitle().lower().startswith("k"):
             self.hostname_row.set_icon_name("emblem-ok-symbolic")
-            passed = True
         else:
             self.hostname_row.set_icon_name("emblem-important-symbolic")
+            passed = False
+
+        # Landscape registration status
+        if utils.is_registered():
+            self.landscape_row.set_subtitle("Registered")
+            self.landscape_row.set_icon_name("emblem-ok-symbolic")
+        else:
+            self.landscape_row.set_subtitle("Not registered")
+            self.landscape_row.set_icon_name("emblem-important-symbolic")
             passed = False
 
         # Set Memory row to emblem-ok-symbolic if memory is greater than or equal to 8 GB, else set row to emblem-important-symbolic
@@ -150,8 +162,7 @@ class SysInfo(Adw.Bin):
             self.mem_row.set_icon_name("emblem-ok-symbolic")
         else:
             self.mem_row.set_icon_name("emblem-important-symbolic")
-            if passed:
-                passed = False
+            passed = False
 
         # Set Disk row to emblem-ok-symbolic if disk capacity is 120 GB or greater, else set row to emblem-important-symbolic
         disk = int(utils.get_disk())
@@ -159,8 +170,7 @@ class SysInfo(Adw.Bin):
             self.disk_row.set_icon_name("emblem-ok-symbolic")
         else:
             self.disk_row.set_icon_name("emblem-important-symbolic")
-            if passed:
-                passed = False
+            passed = False
 
         state = self.state.get_value()
         state['SysInfo'] = passed

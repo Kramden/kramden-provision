@@ -57,10 +57,6 @@ class Utils():
     def get_installer(self):
         return ""
 
-    # Get landscape_reg
-    def get_landscape_reg(self):
-        return ""
-
     # Return MemTotal
     def get_mem(self):
         mem_info = {}
@@ -129,6 +125,41 @@ class Utils():
                 capacities[model] = capacity
 
         return capacities
+
+    # Register with landscape, returns True if successful
+    def register_landscape(self):
+        args = [
+            "pkexec",
+            "landscape-config",
+            "--silent",
+            "--url",
+            "https://landscape.kramden.org/message-system",
+            "--ping-url",
+            "https://landscape.kramden.org/ping",
+            "--account-name",
+            "standalone",
+            "--computer-title",
+            self.get_hostname(),
+            "--script-users=ALL",
+            "--access-group=global"
+                ]
+        val = False
+        try:
+            result = subprocess.run(args, capture_output=True, text=True, check=True)
+            val = result.returncode == 0
+        except:
+            pass
+        return val
+
+    # Checks to see if registered with Landscape
+    def is_registered(self):
+        val = False
+        try:
+            result = subprocess.run(["pkexec", "landscape-config", "--is-registered"], capture_output=True, text=True, check=True)
+            val = result.returncode == 0
+        except:
+            pass
+        return val
 
 if __name__ == "__main__":
     utils = Utils()
