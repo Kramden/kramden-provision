@@ -6,6 +6,7 @@ gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 from gi.repository import Gdk, Gtk, Adw
 
+import os
 from sysinfo import SysInfo
 from check_packages import CheckPackages
 from manualtest import ManualTest
@@ -78,7 +79,7 @@ class WizardWindow(Gtk.ApplicationWindow):
         # Create footer
         footer = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
         footer.set_hexpand(True)  # Ensure the footer expands horizontally
-        image_path = "getlearngive.png"
+        image_path = os.path.dirname(os.path.realpath(__file__)) + "/getlearngive.png"
         picture = Gtk.Picture.new_for_filename(image_path)
         picture.set_content_fit(Gtk.ContentFit.CONTAIN)
         picture.set_size_request(800, 0)  # Set desired width and height
@@ -96,7 +97,7 @@ class WizardWindow(Gtk.ApplicationWindow):
 
         # Apply CSS
         css_provider = Gtk.CssProvider()
-        css_provider.load_from_path('style.css')
+        css_provider.load_from_path(os.path.dirname(os.path.realpath(__file__)) + '/css/style.css')
         Gtk.StyleContext.add_provider_for_display(
             Gdk.Display.get_default(),
             css_provider,
