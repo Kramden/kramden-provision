@@ -73,7 +73,6 @@ dmypy.json
 *.lo
 .libs/
 m4/
-*.in
 *.stamp
 Makefile
 Makefile.in

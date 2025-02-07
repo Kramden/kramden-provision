@@ -1,0 +1,11 @@
+#!@PYTHON@
+
+import sys
+
+VERSION = '@VERSION@'
+pkgdatadir = '@pkgdatadir@'
+
+sys.path.insert(1, pkgdatadir+"/kramden_provision")
+
+if __name__ == '__main__':
+    import osload
