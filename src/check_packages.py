@@ -54,9 +54,10 @@ class CheckPackages(Adw.Bin):
             # If not installed flag
             if not snaps_installed[snap]:
                 row.set_icon_name("emblem-important-symbolic")
-                button = Gtk.Button(label='Fix')
-                button.connect('clicked', self.on_fix_clicked, snap)
-                row.add_suffix(button)
+                # FIXME: Disable fix button until implemented
+                # button = Gtk.Button(label='Fix')
+                # button.connect('clicked', self.on_fix_clicked, snap)
+                # row.add_suffix(button)
                 self.check_snaps_row.set_expanded(True)
                 passed = False
             else:
@@ -77,9 +78,10 @@ class CheckPackages(Adw.Bin):
             # If not installed flag
             if not debs_installed[deb]:
                 row.set_icon_name("emblem-important-symbolic")
-                button = Gtk.Button(label="Fix")
-                button.connect('clicked', self.on_fix_clicked, deb)
-                row.add_suffix(button)
+                # FIXME: Disable fix button until implemented
+                # button = Gtk.Button(label="Fix")
+                # button.connect('clicked', self.on_fix_clicked, deb)
+                # row.add_suffix(button)
                 self.check_debs_row.set_expanded(True)
                 passed = False
             else:
