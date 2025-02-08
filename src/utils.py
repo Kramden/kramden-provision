@@ -161,6 +161,13 @@ class Utils():
             pass
         return val
 
+    # Launch arbitrary app
+    def launch_app(self, command):
+        try:
+            subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+        except:
+            pass
+
 if __name__ == "__main__":
     utils = Utils()
     capacities = get_battery_capacities()

@@ -1,6 +1,7 @@
 import gi
 gi.require_version('Adw', '1')
 from gi.repository import Adw, Gtk
+from utils import Utils
 
 class ManualTest(Adw.Bin):
     def __init__(self):
@@ -10,6 +11,9 @@ class ManualTest(Adw.Bin):
         self.set_margin_start(20)
         self.set_margin_end(20)
         self.title = "Perform the following manual tests:"
+        self.utils = Utils()
+        self.required_tests = {"USB": False, "Browser": False}
+        self.optional_tests = {"WebCam": False, "Keyboard": False, "WiFi": False, "Touchpad": False, "ScreenTest": False}
 
         # Create a box to hold the content
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
@@ -72,12 +76,14 @@ class ManualTest(Adw.Bin):
 
         screentest_row = Adw.ActionRow()
         screentest_button = Gtk.CheckButton()
+        screentest_button.connect("toggled", self.on_screentest_toggled)
         screentest_row.add_prefix(screentest_button)
         screentest_row.set_title("Screen Test")
 
         # Click here button to open screen-test
         screentest_clickhere = Gtk.Button(label = "Click Here")
         screentest_row.add_suffix(screentest_clickhere)
+        screentest_clickhere.connect("clicked", self.on_screentest_clicked)
 
         # Add Adwaita rows to the list box
         required_list_box.append(usb_row)
@@ -97,10 +103,25 @@ class ManualTest(Adw.Bin):
         # Add the vertical box to the page
         self.set_child(vbox)
 
+    # Handle toggled event for the screentest button
+    def on_screentest_toggled(self, button):
+        print("ManualTest:on_screentest_toggled")
+        self.optional_tests["ScreenTest"] = button.get_active()
+        print(self.optional_tests)
+        self.check_status()
+
+    # Launch the screen-test app when clicked
+    def on_screentest_clicked(self, button):
+        print("ManualTest:on_screentest_clicked")
+        self.utils.launch_app("screen-test")
+
+    def check_status(self):
+        print("ManualTest:check_status")
+        state = self.state.get_value()
+        state['ManualTest'] = all(self.required_tests.values())
+        print("manualtest:check_status State:" + str(state))
+
     # on_shown is called when the page is shown in the stack
     def on_shown(self):
-        # Until manual tests are fully implemented, let's just pass
-        passed = True
-        state = self.state.get_value()
-        state['ManualTest'] = passed
-        print("manualtest:on_shown " + str(self.state.get_value()))
+        print("ManualTest:on_shown")
+        self.check_status()
