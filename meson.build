@@ -1,6 +1,6 @@
 project('kramden-provision', version: '0.0.1')
 
-#subdir('data')
+subdir('data')
 subdir('src')
 #subdir('tests')
 
