@@ -1,4 +1,4 @@
 usr/bin/kramden-provision-finaltest
 usr/bin/kramden-provision-osload
-usr/are/applications/kramden-provision-osload.desktop
-usr/are/applications/kramden-provision-finaltest.desktop
+usr/share/applications/kramden-provision-osload.desktop
+usr/share/applications/kramden-provision-finaltest.desktop
