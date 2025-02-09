@@ -17,7 +17,7 @@ class WizardWindow(Gtk.ApplicationWindow):
     def __init__(self, app):
         super().__init__(application=app, title="Kramden - OS Load")
 
-        self.set_default_size(800, 1024)
+        self.set_default_size(800, 800)
 
         # Initialize the observable property for tracking state
         self.observable_property = ObservableProperty({"KramdenNumber": False, "Landscape": False, "SysInfo": False})
@@ -75,20 +75,10 @@ class WizardWindow(Gtk.ApplicationWindow):
         self.stack.add_named(self.page4, "page4")
         self.stack.set_vexpand(True)  # Ensure the stack expands vertically
 
-        # Create footer
-        footer = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-        footer.set_hexpand(True)  # Ensure the footer expands horizontally
-        image_path = os.path.dirname(os.path.realpath(__file__)) + "/getlearngive.png"
-        picture = Gtk.Picture.new_for_filename(image_path)
-        picture.set_content_fit(Gtk.ContentFit.CONTAIN)
-        picture.set_size_request(800, 0)  # Set desired width and height
-        footer.append(picture)
-
         # Content Box
         content_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         content_box.append(header)
         content_box.append(self.stack)
-        content_box.append(footer)
 
         self.set_child(content_box)
         self.current_page = 0
