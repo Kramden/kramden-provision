@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import gi
 gi.require_version('Gdk', '4.0')
 gi.require_version('Gtk', '4.0')
@@ -53,21 +55,10 @@ class WizardWindow(Gtk.ApplicationWindow):
 
         # View Stack
         self.stack = Adw.ViewStack()
-
-        # self.page1 = KramdenNumber()
-        # self.page2 = Landscape()
         self.page1 = SysInfo()
-        # self.page4 = OSLoadComplete()
-
         self.page1.state = self.observable_property
-        # self.page2.state = self.observable_property
-        # self.page3.state = self.observable_property
-        # self.page4.state = self.observable_property
 
         self.stack.add_named(self.page1, "page1")
-        # self.stack.add_named(self.page3, "page2")
-        # self.stack.add_named(self.page3, "page3")
-        # self.stack.add_named(self.page4, "page4")
         self.stack.set_vexpand(True)  # Ensure the stack expands vertically
 
         # Create footer
@@ -102,9 +93,9 @@ class WizardWindow(Gtk.ApplicationWindow):
         )
 
         # Set title_widget after page was set
-        # self.stack.connect("notify::visible-child", self.on_visible_page_changed)
+        self.stack.connect("notify::visible-child", self.on_visible_page_changed)
         self.title_widget.set_label(self.stack.get_visible_child().title)
-'''
+
     def on_visible_page_changed(self, stack, params):
         print("on_visible_page_changed")
         current = stack.get_visible_child()
@@ -139,7 +130,7 @@ class WizardWindow(Gtk.ApplicationWindow):
 
     def complete(self):
         print("Complete Clicked")
-'''
+
 class Application(Adw.Application):
     def __init__(self):
         super().__init__(application_id='org.kramden.DeviceInfo')
