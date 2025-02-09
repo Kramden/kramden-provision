@@ -1,5 +1,6 @@
 import psutil
 import subprocess
+import os
 from constants import snap_packages, deb_packages
 import gi
 gi.require_version('Snapd','2')
@@ -154,8 +155,10 @@ class Utils():
     # Checks to see if registered with Landscape
     def is_registered(self):
         val = False
+        if not self.file_exists_and_readable("/etc/landscape/client.conf"):
+            subprocess.Popen(["pkexec", "chmod", "0644", "/etc/landscape/client.conf"])
         try:
-            result = subprocess.run(["pkexec", "landscape-config", "--is-registered"], capture_output=True, text=True, check=True)
+            result = subprocess.run(["landscape-config", "--is-registered"], capture_output=True, text=True, check=True)
             val = result.returncode == 0
         except:
             pass
@@ -167,6 +170,9 @@ class Utils():
             subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
         except:
             pass
+
+    def file_exists_and_readable(self, filepath):
+        return os.path.isfile(filepath) and os.access(filepath, os.R_OK)
 
 if __name__ == "__main__":
     utils = Utils()
