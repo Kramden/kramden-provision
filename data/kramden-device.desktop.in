@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Kramden Device
+Comment=Kramden Device Info
+Keywords=kramden;setup;
+Exec=kramden-device
+Icon=kramden.png
+Terminal=false
+Categories=Utilities;

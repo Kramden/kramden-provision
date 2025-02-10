@@ -27,9 +27,19 @@ configure_file(
   install_mode: 'rwxr-xr-x'
 )
 
+configure_file(
+  input: 'kramden-device.in',
+  output: 'kramden-device',
+  configuration: conf,
+  install: true,
+  install_dir: get_option('bindir'),
+  install_mode: 'rwxr-xr-x'
+)
+
 sources = [
   'check_packages.py',
   'constants.py',
+  'deviceinfo.py',
   'finaltestcomplete.py',
   'finaltest.py',
   'knum.py',

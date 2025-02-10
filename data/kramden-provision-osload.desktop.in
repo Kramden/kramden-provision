@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Kramden Provision OS Load
+Comment=Kramden Provision OS Load
+Keywords=kramden;setup;
+Exec=kramden-provision-osload
+Icon=kramden.png
+Terminal=false
+Categories=Utilities;
+NoDisplay=true

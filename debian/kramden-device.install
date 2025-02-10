@@ -1,1 +1,4 @@
 usr/share/kramden-provision
+usr/share/applications/kramden-device.desktop
+usr/share/pixmaps
+usr/bin/kramden-device
