@@ -7,5 +7,5 @@ Keywords=kramden;setup;
 Exec=kramden-provision-finaltest
 Icon=kramden.png
 Terminal=false
-Categories=Utilities;
+Categories=Utility;
 NoDisplay=true
