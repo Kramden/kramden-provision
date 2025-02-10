@@ -1,5 +1,6 @@
 import psutil
 import subprocess
+import threading
 import os
 from constants import snap_packages, deb_packages
 import gi
@@ -127,9 +128,26 @@ class Utils():
 
         return capacities
 
+    # Checks to see if registered with Landscape
+    def is_registered(self):
+        val = False
+        if not self.file_exists_and_readable("/etc/landscape/client.conf"):
+            subprocess.Popen(["pkexec", "chmod", "0644", "/etc/landscape/client.conf"])
+        try:
+            result = subprocess.run(["landscape-config", "--is-registered"], capture_output=True, text=True, check=True)
+            val = result.returncode == 0
+        except:
+            pass
+        return val
+      
     # Register with landscape, returns True if successful
-    def register_landscape(self):
-        args = [
+    def register_landscape(self, label=None, button=None, spinner=None):
+        print("Utils:register_landscape")
+        if button:
+            button.set_sensitive(False)
+        if spinner:
+            spinner.start()
+        command = [
             "pkexec",
             "landscape-config",
             "--silent",
@@ -144,28 +162,45 @@ class Utils():
             "--script-users=ALL",
             "--access-group=global"
                 ]
-        val = False
-        try:
-            result = subprocess.run(args, capture_output=True, text=True, check=True)
-            val = result.returncode == 0
-        except:
-            pass
-        return val
+        thread = threading.Thread(target=self._run_subprocess, args=(command, label, button, spinner))
+        thread.start()
 
-    # Checks to see if registered with Landscape
-    def is_registered(self):
-        val = False
-        if not self.file_exists_and_readable("/etc/landscape/client.conf"):
-            subprocess.Popen(["pkexec", "chmod", "0644", "/etc/landscape/client.conf"])
+    def _run_subprocess(self, command, label=None, button=None, spinner=None):
+        print("Utils:_run_subprocess")
         try:
-            result = subprocess.run(["landscape-config", "--is-registered"], capture_output=True, text=True, check=True)
-            val = result.returncode == 0
-        except:
-            pass
-        return val
+            process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            stdout, stderr = process.communicate()
+            GLib.idle_add(self._update_label, label, stdout.decode(), stderr.decode())
+        except Exception as e:
+            GLib.idle_add(_update_label, label, f"Error: {e}", "")
+        finally:
+            GLib.idle_add(self._finish_run_subprocess, label, button, spinner)
+
+    def _update_label(self, label, stdout, stderr):
+        print("Utils:_update_label: " + stdout)
+        label_text = ""
+        if stdout:
+            label_text += "Stdout:\n" + stdout
+        if stderr:
+            label_text += "\nStderr:\n" + stderr
+        if label:
+            label.set_label(label_text)
+        return False
+
+    def _finish_run_subprocess(self, label=None, button=None, spinner=None):
+        print("Utils:_finish_run_subprocess")
+        if button:
+            if self.is_registered():
+                button.set_sensitive(False)
+            else:
+                button.set_sensitive(True)
+        if spinner:
+            spinner.stop()
+        return False
 
     # Launch arbitrary app
     def launch_app(self, command):
+        print("Utils:launch_app")
         try:
             subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
         except:

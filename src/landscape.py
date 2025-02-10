@@ -19,12 +19,17 @@ class Landscape(Adw.Bin):
         landscape_image.set_content_fit(Gtk.ContentFit.CONTAIN)
         landscape_image.set_size_request(300, 0)  # Set desired width and height
 
-
-        # Create a Register Button
+        # Create a Register Button with Spinner
+        register_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        register_box.set_halign(Gtk.Align.CENTER)
         self.register_button = Gtk.Button.new_with_label("Register")
-        self.register_button.set_sensitive(False)
+        self.register_button.set_sensitive(True)
         self.register_button.connect("clicked", self.on_register_clicked)
         self.register_button.add_css_class("button-green")
+        self.spinner = Gtk.Spinner()
+        self.spinner.set_halign(Gtk.Align.CENTER)
+        register_box.append(self.spinner)
+        register_box.append(self.register_button)
 
         self.hostname_label = Gtk.Label.new("K-Number: ")
 
@@ -32,7 +37,7 @@ class Landscape(Adw.Bin):
 
         self.info_label.set_visible(False)
 
-        # Add entry_box to the window
+        # Add alignment to center
         alignment = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, hexpand=True)
         alignment.set_halign(Gtk.Align.CENTER)
 
@@ -40,7 +45,7 @@ class Landscape(Adw.Bin):
         vbox.append(landscape_image)
         vbox.append(self.hostname_label)
         vbox.append(self.info_label)
-        vbox.append(self.register_button)
+        vbox.append(register_box)
 
         alignment.append(vbox)
         self.set_child(alignment)
@@ -48,8 +53,8 @@ class Landscape(Adw.Bin):
     def on_register_clicked(self, button):
         print('Landscape: on_register_clicked')
         utils = Utils()
-        result = utils.register_landscape()
-        self.update_registration_status(result)
+        utils.register_landscape(None, button, self.spinner)
+        #self.update_registration_status(result)
 
     def update_registration_status(self, registered, hostname=None):
         print('Landscape: update_registration_status' + str(registered))
@@ -67,6 +72,7 @@ class Landscape(Adw.Bin):
 
     # on_shown is called when the page is shown in the stack
     def on_shown(self):
+        print("Landscape:on_shown")
         utils = Utils()
         hostname = utils.get_hostname()
         registered = utils.is_registered()
