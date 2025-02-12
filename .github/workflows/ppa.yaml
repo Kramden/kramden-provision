@@ -1,0 +1,25 @@
+name: Publish PPA kramden-test
+on:
+  workflow_dispatch:
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    strategy:
+      max-parallel: 1
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v4
+    - name: Prepare build
+      run: |
+        sudo apt-get install -y dpkg-dev rsync
+        VERSION=$(dpkg-parsechangelog -S Version|awk -F "-" '{print $1}')
+        mkdir -p ${{ github.workspace }}/artifacts/kramden-provision-$VERSION
+        rsync -r --exclude=.git --exclude=.github --exclude=artifacts . ${{ github.workspace }}/artifacts/kramden-provision-$VERSION/
+    - name: Publish build
+      uses: yuezk/publish-ppa-package@v1
+      with:
+        repository: 'ppa:kramden-team/kramden-test'
+        gpg_private_key: ${{ secrets.PPA_GPG_PRIVATE_KEY }}
+        gpg_passphrase: ${{ secrets.PPA_GPG_PASSPHRASE }}
+        series: "noble"
+        pkgdir: '${{ github.workspace }}/artifacts/kramden-provision-*/'
