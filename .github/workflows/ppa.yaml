@@ -1,4 +1,4 @@
-name: Publish PPA kramden-test
+name: Publish to PPA kramden-test
 on:
   workflow_dispatch:
 jobs:
@@ -24,7 +24,5 @@ jobs:
         gpg_private_key: ${{ secrets.PPA_GPG_PRIVATE_KEY }}
         gpg_passphrase: ${{ secrets.PPA_GPG_PASSPHRASE }}
         series: "noble"
-        pkgdir: '${{ github.workspace }}/artifacts/kramden-provision-*/'
-            pkgdir: '${{ github.workspace }}/artifacts/deb-build/globalprotect-openconnect*/'
         tarball: '${{ github.workspace }}/artifacts/kramden-provision-$VERSION.tar.xz'
         debmake_arguments: "-b python3"
