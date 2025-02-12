@@ -209,6 +209,23 @@ class Utils():
     def file_exists_and_readable(self, filepath):
         return os.path.isfile(filepath) and os.access(filepath, os.R_OK)
 
+    def file_exists_and_executable(self, filepath):
+        return os.path.isfile(filepath) and os.access(filepath, os.X_OK)
+
+   # Perform reset
+    def complete_reset(self, stage):
+        val = False
+        print("Utils: complete_reset")
+        script = f"/usr/share/kramden-provision/scripts/kramden-reset-{stage}"
+        print("Utils: " + script)
+        if self.file_exists_and_executable(script):
+            try:
+                result = subprocess.run([script], capture_output=True, text=True, check=True)
+                val = result.returncode == 0
+            except:
+                pass
+        return val
+
 if __name__ == "__main__":
     utils = Utils()
     capacities = get_battery_capacities()
