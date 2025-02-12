@@ -16,11 +16,12 @@ Depends: gir1.2-adw-1,
          python3,
          python3-gi,
          python3-psutil,
+         kramden-device (= ${binary:Version}),
          ${python3:Depends},
          ${misc:Depends},
-         kramden-device
-Description: Utility for OS Load and Final Test stages of the
- refurbishing process
+Description: Utility for OS Load and Final Test stages
+ Utility for OS Load and Final Test stages of the
+ refurbishing process.
 
 Package: kramden-device
 Architecture: all
@@ -30,5 +31,6 @@ Depends: gir1.2-adw-1,
          python3-gi,
          python3-psutil,
          ${python3:Depends},
-         ${misc:Depends}
+         ${misc:Depends},
 Description: Utility for Kramden Devices
+ Device Information for Kramden Devices.
