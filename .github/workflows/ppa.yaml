@@ -13,8 +13,10 @@ jobs:
       run: |
         sudo apt-get install -y dpkg-dev rsync
         VERSION=$(dpkg-parsechangelog -S Version|awk -F "-" '{print $1}')
-        mkdir -p ${{ github.workspace }}/artifacts/kramden-provision-$VERSION
-        rsync -r --exclude=.git --exclude=.github --exclude=artifacts . ${{ github.workspace }}/artifacts/kramden-provision-$VERSION/
+        meson setup builddir
+        cd builddir
+        meson dist
+        cp meson-dist/kramden-provision-$VERSION.tar.xz ${{ github.workspace }}/artifacts/
     - name: Publish build
       uses: yuezk/publish-ppa-package@v2
       with:
@@ -23,4 +25,6 @@ jobs:
         gpg_passphrase: ${{ secrets.PPA_GPG_PASSPHRASE }}
         series: "noble"
         pkgdir: '${{ github.workspace }}/artifacts/kramden-provision-*/'
+            pkgdir: '${{ github.workspace }}/artifacts/deb-build/globalprotect-openconnect*/'
+        tarball: '${{ github.workspace }}/artifacts/kramden-provision-$VERSION.tar.xz'
         debmake_arguments: "-b python3"
