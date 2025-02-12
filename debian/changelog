@@ -1,5 +1,12 @@
+kramden-provision (0.0.2) noble; urgency=medium
+
+  * debian/control
+    - Added build-depend for gtk-update-icon-cache and desktop-file-utils
+
+ -- Ken VanDine <ken.vandine@canonical.com>  Wed, 12 Feb 2025 18:04:57 -0500
+
 kramden-provision (0.0.1) noble; urgency=medium
 
   * Initial release.
 
- -- Ken VanDine <ken.vandine@ubuntu.com>  Thu, 12 Feb 2025 22:35:15 -0500
+ -- Ken VanDine <ken.vandine@ubuntu.com>  Thu, 12 Feb 2025 17:35:15 -0500

@@ -5,7 +5,9 @@ Maintainer: Ken VanDine <ken@vandine.org>
 Build-Depends: debhelper-compat (= 13),
                dh-python,
                python3,
-               meson (>= 0.61)
+               meson (>= 0.61),
+               gtk-update-icon-cache,
+               desktop-file-utils,
 Standards-Version: 4.6.0
 Homepage: https://github.com/kramden/kramden-provision
 
