@@ -16,10 +16,11 @@ jobs:
         mkdir -p ${{ github.workspace }}/artifacts/kramden-provision-$VERSION
         rsync -r --exclude=.git --exclude=.github --exclude=artifacts . ${{ github.workspace }}/artifacts/kramden-provision-$VERSION/
     - name: Publish build
-      uses: yuezk/publish-ppa-package@v1
+      uses: yuezk/publish-ppa-package@v2
       with:
         repository: 'ppa:kramden-team/kramden-test'
         gpg_private_key: ${{ secrets.PPA_GPG_PRIVATE_KEY }}
         gpg_passphrase: ${{ secrets.PPA_GPG_PASSPHRASE }}
         series: "noble"
         pkgdir: '${{ github.workspace }}/artifacts/kramden-provision-*/'
+        debmake_arguments: "-b python3"
