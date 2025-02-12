@@ -1,3 +1,10 @@
+kramden-provision (0.0.3) noble; urgency=medium
+
+  * debian/control
+    - Added depends for gir1.2-glib-2.0, gir1.2-snapd-2, and python3-apt
+
+ -- Ken VanDine <ken.vandine@ubuntu.com>  Wed, 12 Feb 2025 18:10:37 -0500
+
 kramden-provision (0.0.2) noble; urgency=medium
 
   * debian/control
