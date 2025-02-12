@@ -133,7 +133,7 @@ class WizardWindow(Gtk.ApplicationWindow):
 
 class Application(Adw.Application):
     def __init__(self):
-        super().__init__(application_id='org.kramden.FinalTest')
+        super().__init__()
         Adw.init()
 
         # Set Adwaita dark theme preference using Adw.StyleManager
