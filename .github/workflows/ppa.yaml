@@ -11,7 +11,7 @@ jobs:
       uses: actions/checkout@v4
     - name: Prepare build
       run: |
-        sudo apt-get install -y dpkg-dev rsync
+        sudo apt-get install -y dpkg-dev meson
         VERSION=$(dpkg-parsechangelog -S Version|awk -F "-" '{print $1}')
         meson setup builddir
         cd builddir
