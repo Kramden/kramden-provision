@@ -1,5 +1,5 @@
-kramden-provision (0.0.1) UNRELEASED; urgency=medium
+kramden-provision (0.0.1) noble; urgency=medium
 
   * Initial release.
 
- -- Ken VanDine <ken.vandine@ubuntu.com>  Thu, 06 Feb 2025 15:35:15 -0500
+ -- Ken VanDine <ken.vandine@ubuntu.com>  Thu, 12 Feb 2025 22:35:15 -0500
