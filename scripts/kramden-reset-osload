@@ -1,0 +1,11 @@
+#!/bin/bash
+#
+if [ "$USER" = "osload" ];
+then
+  # delete rc.local as it was only needed for provisioning
+  rm -f /etc/rc.local
+  # delete osload user and homedir
+  userdel -rf osload
+  # poweroff
+  poweroff
+fi

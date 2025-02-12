@@ -129,6 +129,7 @@ class WizardWindow(Gtk.ApplicationWindow):
 
     def complete(self):
         print("Complete Clicked")
+        self.page4.complete()
 
 class Application(Adw.Application):
     def __init__(self):
