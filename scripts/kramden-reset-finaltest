@@ -12,5 +12,5 @@ then
   # delete finaltest user and homedir
   sudo userdel -rf finaltest
   # poweroff
-  sudo poweroff
+  poweroff
 fi

@@ -7,5 +7,5 @@ then
   # delete osload user and homedir
   sudo userdel -rf osload
   # poweroff
-  sudo poweroff
+  poweroff
 fi
