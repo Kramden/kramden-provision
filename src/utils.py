@@ -131,7 +131,7 @@ class Utils():
     # Checks to see if registered with Landscape
     def is_registered(self):
         val = False
-        if not os.environ["USER"] in ["osload", "finaltest"]:
+        if not os.environ["USER"] in ["osload", "finaltest", "owner"]:
             command = ["pkexec", "landscape-config", "--is-registered"]
         else:
             command = ["sudo", "landscape-config", "--is-registered"]
@@ -149,7 +149,7 @@ class Utils():
             button.set_sensitive(False)
         if spinner:
             spinner.start()
-        if not os.environ["USER"] in ["osload", "finaltest"]:
+        if not os.environ["USER"] in ["osload", "finaltest", "owner"]:
             sudo = "pkexec"
         else:
             sudo = "sudo"
