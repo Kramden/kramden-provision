@@ -27,3 +27,5 @@ jobs:
         series: "noble"
         tarball: '${{ github.workspace }}/artifacts/kramden-provision-$VERSION.tar.xz'
         debmake_arguments: "-b python3"
+        deb_email: "ken.vandine@ubuntu.com"
+        deb_fullname: "Ken VanDine"
