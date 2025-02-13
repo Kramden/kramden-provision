@@ -29,7 +29,7 @@ class OSLoadComplete(Adw.Bin):
         self.set_child(list_box)
 
     def complete(self):
-        print("FinatTestComplete: complete")
+        print("OSLoadComplete: complete")
         utils = Utils()
         utils.complete_reset("osload")
 
