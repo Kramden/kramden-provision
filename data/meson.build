@@ -26,3 +26,4 @@ device_file = configure_file(
 )
 
 subdir('icons')
+subdir('documents')

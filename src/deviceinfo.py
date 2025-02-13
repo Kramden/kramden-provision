@@ -8,79 +8,69 @@ from gi.repository import Gdk, Gtk, Adw
 
 import os
 from sysinfo import SysInfo
+from guide import KramdenGuide
 from observable import ObservableProperty, StateObserver
 
 class WizardWindow(Gtk.ApplicationWindow):
     def __init__(self, app):
-        super().__init__(application=app, title="Kramden - OS Load")
+        super().__init__(application=app, title="Kramden - Guide")
 
         self.set_default_size(800, 800)
+        self.connect('close-request', self.on_close)
 
         # Initialize the observable property for tracking state
-        self.observable_property = ObservableProperty({"KramdenNumber": False, "Landscape": False, "SysInfo": False})
-        # Create and add an observer
-        observer = StateObserver()
-        self.observable_property.add_observer(observer)
-
-        # Initialize the observable property for tracking state
-        self.observable_property = ObservableProperty({"KramdenNumber": False, "Landscape": False, "SysInfo": False})
+        self.observable_property = ObservableProperty({"SysInfo": True})
         # Create and add an observer
         observer = StateObserver()
         self.observable_property.add_observer(observer)
 
         # Create Gtk.HeaderBar
         header_bar = Gtk.HeaderBar()
-        header_bar_title = Gtk.Label(label="Kramden - Device Info")
-        header_bar.set_title_widget(header_bar_title)
-        header_bar.set_show_title_buttons(True)
+        header_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        header_bar.set_title_widget(header_box)
 
         # Navigation Buttons
-        # self.prev_button = Gtk.Button(label="Previous")
-        # self.prev_button.connect("clicked", self.on_prev_clicked)
-        # self.next_button = Gtk.Button(label="Next")
-        # self.next_button.connect("clicked", self.on_next_clicked)
+        self.sysinfo_button = Gtk.Button(label="Device Information")
+        self.sysinfo_button.connect("clicked", self.on_sysinfo_clicked)
+        self.guide_button = Gtk.Button(label="Kramden Guide")
+        self.guide_button.connect("clicked", self.on_guide_clicked)
 
-        # header_bar.pack_start(self.prev_button)
-        # header_bar.pack_end(self.next_button)
+        header_box.append(self.guide_button)
+        header_box.append(self.sysinfo_button)
 
         self.set_titlebar(header_bar)
 
         # Create a page title widget
         self.title_widget = Gtk.Label(label="OS Load")
 
-        # Create a header
-        header = Adw.HeaderBar()
-        header.set_decoration_layout("") # Remove window controls
-        header.set_title_widget(self.title_widget)
-
         # View Stack
         self.stack = Adw.ViewStack()
-        self.page1 = SysInfo()
+        self.page1 = KramdenGuide()
         self.page1.state = self.observable_property
+        self.page2 = SysInfo()
+        self.page2.state = self.observable_property
 
         self.stack.add_named(self.page1, "page1")
+        self.stack.add_named(self.page2, "page2")
         self.stack.set_vexpand(True)  # Ensure the stack expands vertically
 
         # Create footer
-        footer = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-        footer.set_hexpand(True)  # Ensure the footer expands horizontally
+        self.footer = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        self.footer.set_hexpand(True)  # Ensure the footer expands horizontally
         image_path = os.path.dirname(os.path.realpath(__file__)) + "/getlearngive.png"
         picture = Gtk.Picture.new_for_filename(image_path)
         picture.set_content_fit(Gtk.ContentFit.CONTAIN)
-        picture.set_size_request(800, 0)  # Set desired width and height
-        footer.append(picture)
+        picture.set_size_request(800, 0)
+        self.footer.append(picture)
+        self.footer.set_visible(False) # Hide footer by default
 
         # Content Box
         content_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        content_box.append(header)
         content_box.append(self.stack)
-        content_box.append(footer)
+        content_box.append(self.footer)
 
         self.set_child(content_box)
-        self.current_page = 0
-        # self.update_buttons()
 
-        # Fake visible change to set state info
         self.page1.on_shown()
 
         # Apply CSS
@@ -102,34 +92,23 @@ class WizardWindow(Gtk.ApplicationWindow):
         self.title_widget.set_label(current.title)
         current.on_shown()
 
-    def on_prev_clicked(self, button):
-        if self.current_page > 0:
-            self.current_page -= 1
-            self.stack.set_visible_child_name(f"page{self.current_page + 1}")
-            self.update_buttons()
+    def on_guide_clicked(self, button):
+        self.footer.set_visible(False)
+        self.stack.set_visible_child_name(f"page1")
+        self.guide_button.set_sensitive(False)
+        self.sysinfo_button.set_sensitive(True)
 
-    def on_next_clicked(self, button):
-        if self.current_page < 3:
-            self.current_page += 1
-            self.stack.set_visible_child_name(f"page{self.current_page + 1}")
-            self.update_buttons()
-        else:
-            self.complete()
+    def on_sysinfo_clicked(self, button):
+        self.footer.set_visible(True)
+        self.stack.set_visible_child_name(f"page2")
+        self.guide_button.set_sensitive(True)
+        self.sysinfo_button.set_sensitive(False)
 
-    def update_buttons(self):
-        self.prev_button.set_sensitive(self.current_page > 0)
-        self.next_button.set_sensitive(self.current_page <= 3)
-        if self.current_page == 3:
-            self.next_button.set_label("Complete")
-            self.next_button.add_css_class("button-next-last-page")
-            state = self.observable_property.get_value()
-            self.next_button.set_sensitive(all(state.values()))
-        else:
-            self.next_button.remove_css_class("button-next-last-page")
-            self.next_button.set_label("Next")
-
-    def complete(self):
-        print("Complete Clicked")
+    def on_close(self, widget, arg=None):
+        print("DeviceInfo: on_close")
+        # Create file so we know we've launched before
+        viewed_path = os.path.join(os.path.expanduser('~'), ".config", "kramden-intro-done")
+        open(viewed_path, "w").close()
 
 class Application(Adw.Application):
     def __init__(self):
@@ -145,6 +124,11 @@ class Application(Adw.Application):
         self.add_window(window)
         window.present()
 
-app = Application()
-app.run([])
+# Run the application
+if __name__ == "__main__":
 
+    if os.getlogin() in ['ubuntu', 'osload', 'finaltest']:
+        quit()
+
+    app = Application()
+    app.run([])
