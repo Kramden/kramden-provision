@@ -1,3 +1,9 @@
+kramden-provision (0.0.4) noble; urgency=medium
+
+  * Release 0.0.4
+
+ -- Ken VanDine <ken.vandine@canonical.com>  Wed, 12 Feb 2025 21:20:27 -0500
+
 kramden-provision (0.0.3) noble; urgency=medium
 
   * debian/control

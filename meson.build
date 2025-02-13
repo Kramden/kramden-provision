@@ -1,4 +1,4 @@
-project('kramden-provision', version: '0.0.3')
+project('kramden-provision', version: '0.0.4')
 
 gnome = import('gnome')
 
