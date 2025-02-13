@@ -51,6 +51,7 @@ sources = [
   'utils.py',
   'getlearngive.png',
   'landscape_dark.png',
+  'guide.py',
 ]
 
 install_emptydir(moduledir / 'css')

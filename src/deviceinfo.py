@@ -124,11 +124,5 @@ class Application(Adw.Application):
         self.add_window(window)
         window.present()
 
-# Run the application
-if __name__ == "__main__":
-
-    if os.getlogin() in ['ubuntu', 'osload', 'finaltest']:
-        quit()
-
-    app = Application()
-    app.run([])
+app = Application()
+app.run([])
