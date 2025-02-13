@@ -10,7 +10,7 @@ then
   nmcli device wifi connect "Kramden Guest" password iamatkramden name kramden-guest 2/dev/null || true
 
   # delete finaltest user and homedir
-  userdel -rf finaltest
+  sudo userdel -rf finaltest
   # poweroff
-  poweroff
+  sudo poweroff
 fi

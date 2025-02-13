@@ -131,10 +131,12 @@ class Utils():
     # Checks to see if registered with Landscape
     def is_registered(self):
         val = False
-        if not self.file_exists_and_readable("/etc/landscape/client.conf"):
-            subprocess.Popen(["pkexec", "chmod", "0644", "/etc/landscape/client.conf"])
+        if not os.environ["USER"] in ["osload", "finaltest"]:
+            command = ["pkexec", "landscape-config", "--is-registered"]
+        else:
+            command = ["sudo", "landscape-config", "--is-registered"]
         try:
-            result = subprocess.run(["landscape-config", "--is-registered"], capture_output=True, text=True, check=True)
+            result = subprocess.run(command, capture_output=True, text=True, check=True)
             val = result.returncode == 0
         except:
             pass
@@ -147,8 +149,13 @@ class Utils():
             button.set_sensitive(False)
         if spinner:
             spinner.start()
+        if not os.environ["USER"] in ["osload", "finaltest"]:
+            sudo = "pkexec"
+        else:
+            sudo = "sudo"
+
         command = [
-            "pkexec",
+            sudo,
             "landscape-config",
             "--silent",
             "--url",
@@ -218,7 +225,7 @@ class Utils():
         print("Utils: complete_reset")
         script = f"/usr/share/kramden-provision/scripts/kramden-reset-{stage}"
         print("Utils: " + script)
-        if self.file_exists_and_executable(script):
+        if self.file_exists_and_executable(script) and os.environ["USER"] in ["osload", "finaltest"]:
             try:
                 result = subprocess.run([script], capture_output=True, text=True, check=True)
                 val = result.returncode == 0

@@ -3,9 +3,9 @@
 if [ "$USER" = "osload" ];
 then
   # delete rc.local as it was only needed for provisioning
-  rm -f /etc/rc.local
+  sudo rm -f /etc/rc.local
   # delete osload user and homedir
-  userdel -rf osload
+  sudo userdel -rf osload
   # poweroff
-  poweroff
+  sudo poweroff
 fi
