@@ -16,6 +16,7 @@ jobs:
         meson setup builddir
         cd builddir
         meson dist
+        mkdir -p ${{ github.workspace }}/artifacts
         cp meson-dist/kramden-provision-$VERSION.tar.xz ${{ github.workspace }}/artifacts/
     - name: Publish build
       uses: yuezk/publish-ppa-package@v2
