@@ -1,3 +1,9 @@
+kramden-provision (0.0.8) noble; urgency=medium
+
+  * Added autostart condition for kramden-device
+
+ -- Ken VanDine <ken.vandine@canonical.com>  Sat, 15 Mar 2025 17:43:52 -0400
+
 kramden-provision (0.0.7) noble; urgency=medium
 
   * Rebuild with new version number
