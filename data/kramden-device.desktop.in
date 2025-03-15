@@ -8,3 +8,4 @@ Exec=kramden-device
 Icon=kramden.png
 Terminal=false
 Categories=Utility;
+AutostartCondition=unless-exists kramden-intro-done
