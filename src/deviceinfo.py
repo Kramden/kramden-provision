@@ -11,7 +11,7 @@ from sysinfo import SysInfo
 from guide import KramdenGuide
 from observable import ObservableProperty, StateObserver
 
-class WizardWindow(Gtk.ApplicationWindow):
+class KramdenDevice(Adw.ApplicationWindow):
     def __init__(self, app):
         super().__init__(application=app, title="Kramden - Guide")
 
@@ -24,10 +24,17 @@ class WizardWindow(Gtk.ApplicationWindow):
         observer = StateObserver()
         self.observable_property.add_observer(observer)
 
-        # Create Gtk.HeaderBar
-        header_bar = Gtk.HeaderBar()
+        # Create Adw.ToolbarView and add Adw.HeaderBar as the top bar
+        toolbar_view = Adw.ToolbarView()
+        header_bar = Adw.HeaderBar()
+
+        header_bar.set_show_end_title_buttons(True)
+
+        toolbar_view.add_top_bar(header_bar)
+        self.set_content(toolbar_view)
+
+        # Create HeaderBar
         header_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-        header_bar.set_title_widget(header_box)
 
         # Navigation Buttons
         self.sysinfo_button = Gtk.Button(label="Device Information")
@@ -38,10 +45,7 @@ class WizardWindow(Gtk.ApplicationWindow):
         header_box.append(self.guide_button)
         header_box.append(self.sysinfo_button)
 
-        self.set_titlebar(header_bar)
-
-        # Create a page title widget
-        self.title_widget = Gtk.Label(label="OS Load")
+        header_bar.set_title_widget(header_box)
 
         # View Stack
         self.stack = Adw.ViewStack()
@@ -69,7 +73,7 @@ class WizardWindow(Gtk.ApplicationWindow):
         content_box.append(self.stack)
         content_box.append(self.footer)
 
-        self.set_child(content_box)
+        toolbar_view.set_content(content_box)
 
         self.page1.on_shown()
 
@@ -84,12 +88,10 @@ class WizardWindow(Gtk.ApplicationWindow):
 
         # Set title_widget after page was set
         self.stack.connect("notify::visible-child", self.on_visible_page_changed)
-        self.title_widget.set_label(self.stack.get_visible_child().title)
 
     def on_visible_page_changed(self, stack, params):
         print("on_visible_page_changed")
         current = stack.get_visible_child()
-        self.title_widget.set_label(current.title)
         current.on_shown()
 
     def on_guide_clicked(self, button):
@@ -120,7 +122,7 @@ class Application(Adw.Application):
         style_manager.set_color_scheme(Adw.ColorScheme.PREFER_DARK)
 
     def do_activate(self):
-        window = WizardWindow(self)
+        window = KramdenDevice(self)
         self.add_window(window)
         window.present()
 

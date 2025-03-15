@@ -132,7 +132,10 @@ class Utils():
     def is_registered(self):
         val = False
         if not os.environ["USER"] in ["osload", "finaltest", "owner"]:
-            command = ["pkexec", "landscape-config", "--is-registered"]
+            if os.path.isfile("/etc/landscape/client.conf") and os.access("/etc/landscape/client.conf", os.R_OK):
+                command = ["landscape-config", "--is-registered"]
+            else:
+                command = ["pkexec", "landscape-config", "--is-registered"]
         else:
             command = ["sudo", "landscape-config", "--is-registered"]
         try:
