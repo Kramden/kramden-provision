@@ -25,5 +25,13 @@ device_file = configure_file(
   install_dir: join_paths(get_option('datadir'), 'applications')
 )
 
+device_file = configure_file(
+  input: 'kramden-device.desktop.in',
+  output: 'kramden-device.desktop',
+  copy: true,
+  install: true,
+  install_dir: join_paths(get_option('sysconfdir'), 'xdg/autostart')
+)
+
 subdir('icons')
 subdir('documents')
