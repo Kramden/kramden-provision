@@ -144,6 +144,7 @@ class SysInfo(Adw.Bin):
             self.hostname_row.set_icon_name("emblem-ok-symbolic")
         else:
             self.hostname_row.set_icon_name("emblem-important-symbolic")
+            self.hostname_row.add_css_class("text-error")
             passed = False
 
         # Landscape registration status
@@ -153,6 +154,7 @@ class SysInfo(Adw.Bin):
         else:
             self.landscape_row.set_subtitle("Not registered")
             self.landscape_row.set_icon_name("emblem-important-symbolic")
+            self.landscape_row.add_css_class("text-error")
             passed = False
 
         # Set Memory row to emblem-ok-symbolic if memory is greater than or equal to 7 GB, else set row to emblem-important-symbolic
@@ -161,6 +163,7 @@ class SysInfo(Adw.Bin):
             self.mem_row.set_icon_name("emblem-ok-symbolic")
         else:
             self.mem_row.set_icon_name("emblem-important-symbolic")
+            self.mem_row.add_css_class("text-error")
 
         # Set Disk row to emblem-ok-symbolic if disk capacity is 120 GB or greater, else set row to emblem-important-symbolic
         disk = int(utils.get_disk())
@@ -168,6 +171,7 @@ class SysInfo(Adw.Bin):
             self.disk_row.set_icon_name("emblem-ok-symbolic")
         else:
             self.disk_row.set_icon_name("emblem-important-symbolic")
+            self.disk_row.add_css_class("text-error")
 
         state = self.state.get_value()
         state['SysInfo'] = passed
