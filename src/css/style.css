@@ -7,3 +7,7 @@
     background-color: #3fe35a; /* Green color */
     color: white; /* Text color */
 }
+
+.text-error {
+    color: #E95420; /* Text color */
+}
