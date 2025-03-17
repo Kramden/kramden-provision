@@ -161,7 +161,6 @@ class SysInfo(Adw.Bin):
             self.mem_row.set_icon_name("emblem-ok-symbolic")
         else:
             self.mem_row.set_icon_name("emblem-important-symbolic")
-            passed = False
 
         # Set Disk row to emblem-ok-symbolic if disk capacity is 120 GB or greater, else set row to emblem-important-symbolic
         disk = int(utils.get_disk())
@@ -169,7 +168,6 @@ class SysInfo(Adw.Bin):
             self.disk_row.set_icon_name("emblem-ok-symbolic")
         else:
             self.disk_row.set_icon_name("emblem-important-symbolic")
-            passed = False
 
         state = self.state.get_value()
         state['SysInfo'] = passed
