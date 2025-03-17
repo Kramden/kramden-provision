@@ -3,7 +3,6 @@ gi.require_version('Adw', '1')
 gi.require_version('Gtk', '4.0')
 from gi.repository import Adw, Gtk
 from utils import Utils
-from colorama import Fore, Style
 
 class SysInfo(Adw.Bin):
     def __init__(self):
