@@ -155,9 +155,9 @@ class SysInfo(Adw.Bin):
             self.landscape_row.set_icon_name("emblem-important-symbolic")
             passed = False
 
-        # Set Memory row to emblem-ok-symbolic if memory is greater than or equal to 8 GB, else set row to emblem-important-symbolic
+        # Set Memory row to emblem-ok-symbolic if memory is greater than or equal to 7 GB, else set row to emblem-important-symbolic
         mem = int(utils.get_mem())
-        if mem >= 8:
+        if mem >= 7:
             self.mem_row.set_icon_name("emblem-ok-symbolic")
         else:
             self.mem_row.set_icon_name("emblem-important-symbolic")
