@@ -11,6 +11,10 @@ then
 
   # delete finaltest user and homedir
   sudo userdel -rf finaltest
+
+  # eject CD/DVD drive to ensure empty
+  eject
+
   # poweroff
   poweroff
 fi
