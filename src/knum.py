@@ -12,7 +12,9 @@ class KramdenNumber(Adw.Bin):
         self.set_margin_start(20)
         self.set_margin_end(20)
         self.title = "Identify"
-        
+        self.next = None
+        self.skip = None
+
         #Create a Gtk.Entry
         self.entry = Gtk.Entry()
         self.entry.set_placeholder_text("Enter K-Number...")
@@ -65,6 +67,8 @@ class KramdenNumber(Adw.Bin):
             self.hostname.set_text(entered_text)
             if entered_text.lower().startswith("k"):
                 state['KramdenNumber'] = True
+                self.next()
+                self.skip = True
             else:
                 state['KramdenNumber'] = False
         print("knum:on_set_clicked " + str(self.state.get_value()))
