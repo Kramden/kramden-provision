@@ -13,6 +13,7 @@ class SysInfo(Adw.Bin):
         self.set_margin_start(20)
         self.set_margin_end(20)
         self.title = "System Information"
+        self.skip = None
 
         # Create a box to hold the content
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
