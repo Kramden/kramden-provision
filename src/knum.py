@@ -19,11 +19,13 @@ class KramdenNumber(Adw.Bin):
         self.entry = Gtk.Entry()
         self.entry.set_placeholder_text("Enter K-Number...")
         self.entry.connect("changed", self.on_entry_changed)
+        self.entry.connect("activate", self.on_set_clicked)
 
         #Create a Set Button
         self.set_button = Gtk.Button.new_with_label("Set")
         self.set_button.set_sensitive(False)
         self.set_button.connect("clicked", self.on_set_clicked)
+
         self.set_button.add_css_class("button-green")
 
         hostname_label = Gtk.Label.new("K-Number: ")
