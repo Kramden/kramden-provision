@@ -12,7 +12,9 @@ class Landscape(Adw.Bin):
         self.set_margin_start(20)
         self.set_margin_end(20)
         self.title = "Landscape Registration"
-        
+        self.next = None
+        self.skip = None
+
         # Add Landscape branding
         image_path = os.path.dirname(os.path.realpath(__file__)) + "/landscape_dark.png"
         landscape_image = Gtk.Picture.new_for_filename(image_path)
@@ -54,7 +56,7 @@ class Landscape(Adw.Bin):
         print('Landscape: on_register_clicked')
         utils = Utils()
         utils.register_landscape(None, button, self.spinner)
-        #self.update_registration_status(result)
+        self.next()
 
     def update_registration_status(self, registered, hostname=None):
         print('Landscape: update_registration_status' + str(registered))
@@ -62,6 +64,7 @@ class Landscape(Adw.Bin):
             self.info_label.set_label("Registered with Landscape")
             self.info_label.set_visible(True)
             self.register_button.set_sensitive(False)
+            self.skip = True
         else:
             if not hostname.lower().startswith('k'):
                 self.info_label.set_label("K-Number Invalid (Must start with a \'K\')")
@@ -77,13 +80,14 @@ class Landscape(Adw.Bin):
         hostname = utils.get_hostname()
         registered = utils.is_registered()
         self.update_registration_status(registered, hostname)
-
+        
         if hostname.lower().startswith('k') and not registered:
             self.info_label.set_visible(False)
             self.register_button.set_sensitive(True)
         else:
             self.info_label.set_visible(True)
             self.register_button.set_sensitive(False)
+        
         state = self.state.get_value()
         state['Landscape'] = True
         self.hostname_label.set_label(f"K-Number: {hostname}")

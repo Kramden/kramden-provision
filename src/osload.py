@@ -63,6 +63,10 @@ class WizardWindow(Gtk.ApplicationWindow):
         self.page3.state = self.observable_property
         self.page4.state = self.observable_property
         
+        # Expose next button function
+        self.page1.next = self.on_next_clicked
+        self.page2.next = self.on_next_clicked
+
         self.stack.add_named(self.page1, "page1")
         self.stack.add_named(self.page2, "page2")
         self.stack.add_named(self.page3, "page3")
@@ -100,17 +104,25 @@ class WizardWindow(Gtk.ApplicationWindow):
         self.title_widget.set_label(current.title)
         current.on_shown()
 
-    def on_prev_clicked(self, button):
+    def on_prev_clicked(self, button=None):
         if self.current_page > 0:
             self.current_page -= 1
             self.stack.set_visible_child_name(f"page{self.current_page + 1}")
             self.update_buttons()
+            page = eval(f"self.page{self.current_page + 1}")
+            if page.skip:
+                print(f"on_prev_clicked: page{self.current_page + 1} skipped")
+                self.on_prev_clicked()
 
-    def on_next_clicked(self, button):
+    def on_next_clicked(self, button=None):
         if self.current_page < 3:
             self.current_page += 1
             self.stack.set_visible_child_name(f"page{self.current_page + 1}")
             self.update_buttons()
+            page = eval(f"self.page{self.current_page + 1}")
+            if page.skip:
+                print(f"on_next_clicked: page{self.current_page + 1} skipped")
+                self.on_next_clicked()
         else:
             self.complete()
 
