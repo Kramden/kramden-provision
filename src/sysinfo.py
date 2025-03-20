@@ -143,6 +143,8 @@ class SysInfo(Adw.Bin):
         # If the K-Number doesn't start with a "k" show a problem
         if self.hostname_row.get_subtitle().lower().startswith("k"):
             self.hostname_row.set_icon_name("emblem-ok-symbolic")
+            if self.hostname_row.has_css_class("text-error"):
+                self.hostname_row.remove_css_class("text-error")
         else:
             self.hostname_row.set_icon_name("emblem-important-symbolic")
             self.hostname_row.add_css_class("text-error")
@@ -152,6 +154,8 @@ class SysInfo(Adw.Bin):
         if utils.is_registered():
             self.landscape_row.set_subtitle("Registered")
             self.landscape_row.set_icon_name("emblem-ok-symbolic")
+            if self.landscape_row.has_css_class("text-error"):
+                self.landscape_row.remove_css_class("text-error")
         else:
             self.landscape_row.set_subtitle("Not registered")
             self.landscape_row.set_icon_name("emblem-important-symbolic")
@@ -162,6 +166,8 @@ class SysInfo(Adw.Bin):
         mem = int(utils.get_mem())
         if mem >= 7:
             self.mem_row.set_icon_name("emblem-ok-symbolic")
+            if self.mem_row.has_css_class("text-error"):
+                self.mem_row.remove_css_class("text-error")
         else:
             self.mem_row.set_icon_name("emblem-important-symbolic")
             self.mem_row.add_css_class("text-error")
@@ -170,6 +176,8 @@ class SysInfo(Adw.Bin):
         disk = int(utils.get_disk())
         if disk >= 120:
             self.disk_row.set_icon_name("emblem-ok-symbolic")
+            if self.disk_row.has_css_class("text-error"):
+                self.disk_row.remove_css_class("text-error")
         else:
             self.disk_row.set_icon_name("emblem-important-symbolic")
             self.disk_row.add_css_class("text-error")
