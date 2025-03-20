@@ -11,6 +11,7 @@ class OSLoadComplete(Adw.Bin):
         self.set_margin_start(20)
         self.set_margin_end(20)
         self.title = "OS Load Complete"
+        self.skip = False
         
         # Create a list box to hold the rows
         list_box = Gtk.ListBox()

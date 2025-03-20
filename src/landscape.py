@@ -13,7 +13,7 @@ class Landscape(Adw.Bin):
         self.set_margin_end(20)
         self.title = "Landscape Registration"
         self.next = None
-        self.skip = None
+        self.skip = False
 
         # Add Landscape branding
         image_path = os.path.dirname(os.path.realpath(__file__)) + "/landscape_dark.png"
