@@ -55,8 +55,7 @@ class Landscape(Adw.Bin):
     def on_register_clicked(self, button):
         print('Landscape: on_register_clicked')
         utils = Utils()
-        utils.register_landscape(None, button, self.spinner)
-        self.next()
+        utils.register_landscape(None, button, self.spinner, self.next)
 
     def update_registration_status(self, registered, hostname=None):
         print('Landscape: update_registration_status' + str(registered))
