@@ -1,8 +1,9 @@
-kramden-provision (0.1.0) UNRELEASED; urgency=medium
+kramden-provision (0.1.0) noble; urgency=medium
 
   * New release
     * FinalTest: Eject CD/DVD drive after final test
     * Sysinfo: Make RAM and Disk size failures non-fatal
+    * CheckPackages: Set error text color for missing packages
 
   [ Drew VanDine ]
   * KramdenNumber: Auto progress after successfully entering K-Num
