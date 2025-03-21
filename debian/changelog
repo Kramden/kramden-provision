@@ -11,7 +11,7 @@ kramden-provision (0.1.0) noble; urgency=medium
   * Landscape: Auto progress landscape when registered
   * Sysinfo: Change color for failed items
 
- -- Ken VanDine <ken@monster>  Thu, 20 Mar 2025 20:28:08 -0400
+ -- Ken VanDine <ken.vandine@canonical.com>  Thu, 20 Mar 2025 20:28:08 -0400
 
 kramden-provision (0.0.9) noble; urgency=medium
 
