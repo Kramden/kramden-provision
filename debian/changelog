@@ -1,3 +1,9 @@
+kramden-provision (0.1.1) noble; urgency=medium
+
+  * Don't auto-progress from the landscape page until registration is complete
+
+ -- Ken VanDine <ken.vandine@canonical.com>  Fri, 21 Mar 2025 09:55:42 -0400
+
 kramden-provision (0.1.0) noble; urgency=medium
 
   * New release
