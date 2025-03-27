@@ -14,6 +14,7 @@ class SysInfo(Adw.Bin):
         self.set_margin_end(20)
         self.title = "System Information"
         self.skip = False
+        self.batteries_populated = False
 
         # Create a box to hold the content
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
@@ -68,30 +69,9 @@ class SysInfo(Adw.Bin):
         self.disk_row.set_title("Disk")
         self.disk_row.set_subtitle(utils.get_disk() + " GB")
 
-        batteries = utils.get_battery_capacities()
-        battery_row = None
-        if len(batteries.keys()) == 1:
-            battery_row = Adw.ActionRow()
-            battery_row.set_title("Battery Capacity")
-            battery_list = list(batteries.items())[0][1]
-            battery_row.set_subtitle(f'{str(battery_list)}%')
-            # Set Battery row to emblem-ok-symbolic if battery capacity is greater than 70%, else set row to emblem-important-symbolic
-            if int(battery_list) >= 70:
-                battery_row.set_icon_name("emblem-ok-symbolic")
-            else:
-                battery_row.set_icon_name("emblem-important-symbolic")
-        elif len(batteries.keys()) > 1:
-            battery_row = Adw.ExpanderRow(title="Batteries")
-            for battery in batteries.keys():
-                row = Adw.ActionRow(title=battery, subtitle=f'{batteries[battery]}%')
-                battery_row.add_row(row)
-                # Set Battery row to emblem-ok-symbolic if battery capacity is greater than 70%, else set row to emblem-important-symbolic
-                if int(batteries[battery]) >= 70:
-                    battery_row.set_expanded(False)
-                    row.set_icon_name("emblem-ok-symbolic")
-                else:
-                    battery_row.set_expanded(True)
-                    row.set_icon_name("emblem-important-symbolic")
+        self.battery_row = Adw.ExpanderRow(title="Batteries")
+        self.battery_row.set_visible(False)
+        self.battery_row.set_expanded(True)
 
         # Add rows to the list box
         list_box.append(self.hostname_row)
@@ -102,8 +82,7 @@ class SysInfo(Adw.Bin):
         list_box.append(os_row)
         list_box.append(self.mem_row)
         list_box.append(self.disk_row)
-        if battery_row: 
-            list_box.append(battery_row)
+        list_box.append(self.battery_row)
 
         vbox.append(list_box)
         scrolled_window.set_child(vbox)
@@ -157,6 +136,28 @@ class SysInfo(Adw.Bin):
         else:
             self.disk_row.set_icon_name("emblem-important-symbolic")
             self.disk_row.add_css_class("text-error")
+
+        # Populate battery information
+        if not self.batteries_populated:
+            # Populate battery info
+            batteries = utils.get_battery_capacities()
+            if len(batteries) == 1:
+                self.battery_row.set_title("Battery")
+            for battery in batteries.keys():
+                print(f"{int(batteries[battery])}%")
+                row = Adw.ActionRow()
+                row.set_title(f"{str(battery)})")
+                row.set_subtitle(f'{str(batteries[battery])}%')
+                self.battery_row.add_row(row)
+                self.battery_row.set_expanded(True)
+                # Set Battery row to emblem-ok-symbolic if battery capacity is greater than 70%, else set row to emblem-important-symbolic
+                if int(batteries[battery]) >= 70:
+                    row.set_icon_name("emblem-ok-symbolic")
+                else:
+                    row.set_icon_name("emblem-important-symbolic")
+                self.battery_row.set_visible(True)
+            # Ensure we only create battery info once
+            self.batteries_populated = True
 
         state = self.state.get_value()
         state['SysInfo'] = passed
