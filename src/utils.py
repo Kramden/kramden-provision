@@ -146,7 +146,7 @@ class Utils():
         return val
       
     # Register with landscape, returns True if successful
-    def register_landscape(self, label=None, button=None, spinner=None):
+    def register_landscape(self, label=None, button=None, spinner=None, next_func=None):
         print("Utils:register_landscape")
         if button:
             button.set_sensitive(False)
@@ -172,10 +172,10 @@ class Utils():
             "--script-users=ALL",
             "--access-group=global"
                 ]
-        thread = threading.Thread(target=self._run_subprocess, args=(command, label, button, spinner))
+        thread = threading.Thread(target=self._run_subprocess, args=(command, label, button, spinner, next_func))
         thread.start()
 
-    def _run_subprocess(self, command, label=None, button=None, spinner=None):
+    def _run_subprocess(self, command, label=None, button=None, spinner=None, next_func=None):
         print("Utils:_run_subprocess")
         try:
             process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -184,7 +184,7 @@ class Utils():
         except Exception as e:
             GLib.idle_add(_update_label, label, f"Error: {e}", "")
         finally:
-            GLib.idle_add(self._finish_run_subprocess, label, button, spinner)
+            GLib.idle_add(self._finish_run_subprocess, label, button, spinner, next_func)
 
     def _update_label(self, label, stdout, stderr):
         print("Utils:_update_label: " + stdout)
@@ -197,11 +197,13 @@ class Utils():
             label.set_label(label_text)
         return False
 
-    def _finish_run_subprocess(self, label=None, button=None, spinner=None):
+    def _finish_run_subprocess(self, label=None, button=None, spinner=None, next_func=None):
         print("Utils:_finish_run_subprocess")
         if button:
             if self.is_registered():
                 button.set_sensitive(False)
+                if next_func:
+                    next_func()
             else:
                 button.set_sensitive(True)
         if spinner:

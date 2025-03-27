@@ -13,7 +13,7 @@ class KramdenNumber(Adw.Bin):
         self.set_margin_end(20)
         self.title = "Identify"
         self.next = None
-        self.skip = None
+        self.skip = False
 
         #Create a Gtk.Entry
         self.entry = Gtk.Entry()

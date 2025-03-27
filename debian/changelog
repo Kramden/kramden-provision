@@ -1,3 +1,24 @@
+kramden-provision (0.1.1) noble; urgency=medium
+
+  * Don't auto-progress from the landscape page until registration is complete
+
+ -- Ken VanDine <ken.vandine@canonical.com>  Fri, 21 Mar 2025 09:55:42 -0400
+
+kramden-provision (0.1.0) noble; urgency=medium
+
+  * New release
+    * FinalTest: Eject CD/DVD drive after final test
+    * Sysinfo: Make RAM and Disk size failures non-fatal
+    * CheckPackages: Set error text color for missing packages
+
+  [ Drew VanDine ]
+  * KramdenNumber: Auto progress after successfully entering K-Num
+  * KramdenNumber: Accept enter in text entry to set K-Num
+  * Landscape: Auto progress landscape when registered
+  * Sysinfo: Change color for failed items
+
+ -- Ken VanDine <ken.vandine@canonical.com>  Thu, 20 Mar 2025 20:28:08 -0400
+
 kramden-provision (0.0.9) noble; urgency=medium
 
   * Added autostart for intro

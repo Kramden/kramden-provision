@@ -54,6 +54,7 @@ class CheckPackages(Adw.Bin):
             # If not installed flag
             if not snaps_installed[snap]:
                 row.set_icon_name("emblem-important-symbolic")
+                row.add_css_class("text-error")
                 # FIXME: Disable fix button until implemented
                 # button = Gtk.Button(label='Fix')
                 # button.connect('clicked', self.on_fix_clicked, snap)
@@ -62,6 +63,8 @@ class CheckPackages(Adw.Bin):
                 passed = False
             else:
                 row.set_icon_name("emblem-ok-symbolic")
+                if row.has_css_class("text-error"):
+                    row.remove_css_class("text-error")
 
         debs_installed = self.utils.check_debs(deb_packages)
         for deb in debs_installed.keys():
@@ -78,6 +81,7 @@ class CheckPackages(Adw.Bin):
             # If not installed flag
             if not debs_installed[deb]:
                 row.set_icon_name("emblem-important-symbolic")
+                row.add_css_class("text-error")
                 # FIXME: Disable fix button until implemented
                 # button = Gtk.Button(label="Fix")
                 # button.connect('clicked', self.on_fix_clicked, deb)
@@ -86,6 +90,8 @@ class CheckPackages(Adw.Bin):
                 passed = False
             else:
                 row.set_icon_name("emblem-ok-symbolic")
+                if row.has_css_class("text-error"):
+                    row.remove_css_class("text-error")
 
         state = self.state.get_value()
         state['CheckPackages'] = passed
