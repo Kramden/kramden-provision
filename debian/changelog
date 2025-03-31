@@ -1,3 +1,13 @@
+kramden-provision (0.1.2) noble; urgency=medium
+
+  * New release 0.1.2
+  * fix: Use a single Adw.ExpanderRow for single battery and multiple batteries
+
+  [ Drew VanDine ]
+  * fix: fixed duplicated battery code in sysinfo
+
+ -- Ken VanDine <ken.vandine@canonical.com>  Mon, 31 Mar 2025 16:11:01 -0400
+
 kramden-provision (0.1.1) noble; urgency=medium
 
   * Don't auto-progress from the landscape page until registration is complete
