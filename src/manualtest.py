@@ -33,16 +33,20 @@ class ManualTest(Adw.Bin):
 
         # Create Adwaita rows
         usb_row = Adw.ActionRow()
-        usb_button = Gtk.CheckButton()
-        usb_button.connect("toggled", self.on_usb_toggled)
-        usb_row.add_prefix(usb_button)
+        self.usb_button = Gtk.CheckButton()
+        self.usb_button.connect("toggled", self.on_usb_toggled)
+        usb_row.add_prefix(self.usb_button)
         usb_row.set_title("USB Ports (Plug the mouse into each USB port and verify that it works)")
+        usb_row.set_activatable(True)
+        usb_row.connect("activated", self.on_usb_row_activated)
 
         browser_row = Adw.ActionRow()
-        browser_button = Gtk.CheckButton()
-        browser_button.connect("toggled", self.on_browser_toggled)
-        browser_row.add_prefix(browser_button)
+        self.browser_button = Gtk.CheckButton()
+        self.browser_button.connect("toggled", self.on_browser_toggled)
+        browser_row.add_prefix(self.browser_button)
         browser_row.set_title("Browser with video and audio playback")
+        browser_row.set_activatable(True)
+        browser_row.connect("activated", self.on_browser_row_activated)
 
         # Click here button to open a browser
         browser_clickhere = Gtk.Button(label = "Click Here")
@@ -50,16 +54,20 @@ class ManualTest(Adw.Bin):
         browser_clickhere.connect("clicked", self.on_browser_clicked)
 
         wifi_row = Adw.ActionRow()
-        wifi_button = Gtk.CheckButton()
-        wifi_button.connect("toggled", self.on_wifi_toggled)
-        wifi_row.add_prefix(wifi_button)
+        self.wifi_button = Gtk.CheckButton()
+        self.wifi_button.connect("toggled", self.on_wifi_toggled)
+        wifi_row.add_prefix(self.wifi_button)
         wifi_row.set_title("WiFi connectivity (Can it connect to the internet wirelessly?)")
+        wifi_row.set_activatable(True)
+        wifi_row.connect("activated", self.on_wifi_row_activated)
 
         webcam_row = Adw.ActionRow()
-        webcam_button = Gtk.CheckButton()
-        webcam_button.connect("toggled", self.on_webcam_toggled)
-        webcam_row.add_prefix(webcam_button)
+        self.webcam_button = Gtk.CheckButton()
+        self.webcam_button.connect("toggled", self.on_webcam_toggled)
+        webcam_row.add_prefix(self.webcam_button)
         webcam_row.set_title("Webcam")
+        webcam_row.set_activatable(True)
+        webcam_row.connect("activated", self.on_webcam_row_activated)
 
         # Click here button to open camera app
         webcam_clickhere = Gtk.Button(label = "Click Here")
@@ -67,10 +75,12 @@ class ManualTest(Adw.Bin):
         webcam_clickhere.connect("clicked", self.on_webcam_clicked)
 
         keyboard_row = Adw.ActionRow()
-        keyboard_button = Gtk.CheckButton()
-        keyboard_button.connect("toggled", self.on_keyboard_toggled)
-        keyboard_row.add_prefix(keyboard_button)
+        self.keyboard_button = Gtk.CheckButton()
+        self.keyboard_button.connect("toggled", self.on_keyboard_toggled)
+        keyboard_row.add_prefix(self.keyboard_button)
         keyboard_row.set_title("Keyboard (Do all the keys work and report correctly?)")
+        keyboard_row.set_activatable(True)
+        keyboard_row.connect("activated", self.on_keyboard_row_activated)
 
         # Click here button to open libre office writer
         keyboard_clickhere = Gtk.Button(label = "Click Here")
@@ -78,16 +88,20 @@ class ManualTest(Adw.Bin):
         keyboard_clickhere.connect("clicked", self.on_keyboard_clicked)
 
         touchpad_row = Adw.ActionRow()
-        touchpad_button = Gtk.CheckButton()
-        touchpad_button.connect("toggled", self.on_touchpad_toggled)
-        touchpad_row.add_prefix(touchpad_button)
+        self.touchpad_button = Gtk.CheckButton()
+        self.touchpad_button.connect("toggled", self.on_touchpad_toggled)
+        touchpad_row.add_prefix(self.touchpad_button)
         touchpad_row.set_title("Touchpad (Does the touchpad feel responsive?)")
+        touchpad_row.set_activatable(True)
+        touchpad_row.connect("activated", self.on_touchpad_row_activated)
 
         screentest_row = Adw.ActionRow()
-        screentest_button = Gtk.CheckButton()
-        screentest_button.connect("toggled", self.on_screentest_toggled)
-        screentest_row.add_prefix(screentest_button)
+        self.screentest_button = Gtk.CheckButton()
+        self.screentest_button.connect("toggled", self.on_screentest_toggled)
+        screentest_row.add_prefix(self.screentest_button)
         screentest_row.set_title("Screen Test")
+        screentest_row.set_activatable(True)
+        screentest_row.connect("activated", self.on_screentest_row_activated)
 
         # Click here button to open screen-test
         screentest_clickhere = Gtk.Button(label = "Click Here")
@@ -111,6 +125,40 @@ class ManualTest(Adw.Bin):
 
         # Add the vertical box to the page
         self.set_child(vbox)
+
+    # Make usb row clickable
+    def on_usb_row_activated(self, row):
+        current_state = self.usb_button.get_active()
+        self.usb_button.set_active(not current_state)
+
+    # Make browser row clickable
+    def on_browser_row_activated(self, row):
+        current_state = self.browser_button.get_active()
+        self.browser_button.set_active(not current_state)
+
+    # Make wifi row clickable
+    def on_wifi_row_activated(self, row):
+        current_state = self.wifi_button.get_active()
+        self.wifi_button.set_active(not current_state)
+
+    # Make webcam row clickable
+    def on_webcam_row_activated(self, row):
+        current_state = self.webcam_button.get_active()
+        self.webcam_button.set_active(not current_state)
+
+    # Make keyboard row clickable
+    def on_keyboard_row_activated(self, row):
+        current_state = self.keyboard_button.get_active()
+        self.keyboard_button.set_active(not current_state)
+
+    def on_touchpad_row_activated(self, row):
+        current_state = self.touchpad_button.get_active()
+        self.touchpad_button.set_active(not current_state)
+
+    # Make screentest row clickable
+    def on_screentest_row_activated(self, row):
+        current_state = self.screentest_button.get_active()
+        self.screentest_button.set_active(not current_state)
 
     # Handle toggled event for the screentest button
     def on_screentest_toggled(self, button):
