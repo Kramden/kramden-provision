@@ -127,6 +127,9 @@ class WizardWindow(Gtk.ApplicationWindow):
             self.next_button.remove_css_class("button-next-last-page")
             self.next_button.set_label("Next")
 
+        # Focus the next button
+        self.next_button.grab_focus()
+
     def complete(self):
         print("Complete Clicked")
         self.page4.complete()
