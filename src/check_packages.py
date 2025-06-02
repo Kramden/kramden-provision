@@ -13,6 +13,7 @@ class CheckPackages(Adw.Bin):
         self.set_margin_start(20)
         self.set_margin_end(20)
         self.title = "Check Software"
+        self.skip = False
         # Used to keep references to the Adw.ActionRow for each snap
         self.known_snap_rows = {}
         # Used to keep references to the Adw.ActionRow for each deb
@@ -95,4 +96,6 @@ class CheckPackages(Adw.Bin):
 
         state = self.state.get_value()
         state['CheckPackages'] = passed
+        if passed:
+            self.skip = True
         print("check_packages:on_shown " + str(self.state.get_value()))

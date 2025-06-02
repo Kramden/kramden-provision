@@ -14,6 +14,7 @@ class ManualTest(Adw.Bin):
         self.utils = Utils()
         self.required_tests = {"USB": False, "Browser": False}
         self.optional_tests = {"WebCam": False, "Keyboard": False, "WiFi": False, "Touchpad": False, "ScreenTest": False}
+        self.skip = False
 
         # Create a box to hold the content
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
