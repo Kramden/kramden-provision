@@ -96,6 +96,6 @@ class CheckPackages(Adw.Bin):
 
         state = self.state.get_value()
         state['CheckPackages'] = passed
-        if state['CheckPackages'] == passed:
+        if passed:
             self.skip = True
         print("check_packages:on_shown " + str(self.state.get_value()))
