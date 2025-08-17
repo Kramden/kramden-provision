@@ -15,6 +15,7 @@ class SysInfo(Adw.Bin):
         self.title = "System Information"
         self.skip = False
         self.batteries_populated = False
+        self.disks_populated = False
 
         # Create a box to hold the content
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
@@ -65,9 +66,10 @@ class SysInfo(Adw.Bin):
         self.mem_row.set_title("Memory")
         self.mem_row.set_subtitle(utils.get_mem() + " GB")
 
-        self.disk_row = Adw.ActionRow()
-        self.disk_row.set_title("Disk")
-        self.disk_row.set_subtitle(utils.get_disk() + " GB")
+        self.disks_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        #self.disk_row = Adw.ExpanderRow(title="Disks")
+        #self.disk_row.set_visible(False)
+        #self.disk_row.set_expanded(False)
 
         self.battery_row = Adw.ExpanderRow(title="Batteries")
         self.battery_row.set_visible(False)
@@ -81,7 +83,7 @@ class SysInfo(Adw.Bin):
         list_box.append(cpu_row)
         list_box.append(os_row)
         list_box.append(self.mem_row)
-        list_box.append(self.disk_row)
+        list_box.append(self.disks_box)
         list_box.append(self.battery_row)
 
         vbox.append(list_box)
@@ -127,15 +129,42 @@ class SysInfo(Adw.Bin):
             self.mem_row.set_icon_name("emblem-important-symbolic")
             self.mem_row.add_css_class("text-error")
 
-        # Set Disk row to emblem-ok-symbolic if disk capacity is 120 GB or greater, else set row to emblem-important-symbolic
-        disk = int(utils.get_disk())
-        if disk >= 120:
-            self.disk_row.set_icon_name("emblem-ok-symbolic")
-            if self.disk_row.has_css_class("text-error"):
-                self.disk_row.remove_css_class("text-error")
-        else:
-            self.disk_row.set_icon_name("emblem-important-symbolic")
-            self.disk_row.add_css_class("text-error")
+        # Populate disk information
+        if not self.disks_populated:
+            disks = utils.get_disks()
+            if len(disks.keys()) > 1:
+                disks_row = Adw.ExpanderRow(title="Disks")
+                disks_row.set_visible(True)
+                disks_row.set_expanded(True)
+                for disk in disks.keys():
+                    row = Adw.ActionRow()
+                    row.set_title(f"{str(disk)})")
+                    row.set_subtitle(f"{str(disks[disk])} GB")
+                    disks_row.add_row(row)
+                    disks_row.set_expanded(True)
+                    disks_row.set_visible(True)
+                    disks_row.set_icon_name("emblem-important-symbolic")
+                    disks_row.add_css_class("text-error")
+                self.disks_box.append(disks_row)
+            else:
+                disk = list(disks.items())
+                disk_row = Adw.ExpanderRow(title="Disk")
+                disk_row.set_visible(True)
+                disk_row.set_expanded(True)
+                row = Adw.ActionRow()
+                row.set_title(f"{str(disk[0][0])}")
+                row.set_subtitle(f"{str(disk[0][1])} GB")
+                if int(disk[0][1]) >= 100:
+                    row.set_icon_name("emblem-ok-symbolic")
+                    if row.has_css_class("text-error"):
+                        row.remove_css_class("text-error")
+                else:
+                    row.set_icon_name("emblem-important-symbolic")
+                    row.add_css_class("text-error")
+                disk_row.add_row(row)
+                self.disks_box.append(disk_row)
+            # Ensure we only create disk info once
+            self.disks_populated = True
 
         # Populate battery information
         if not self.batteries_populated:
@@ -144,7 +173,6 @@ class SysInfo(Adw.Bin):
             if len(batteries) == 1:
                 self.battery_row.set_title("Battery")
             for battery in batteries.keys():
-                print(f"{int(batteries[battery])}%")
                 row = Adw.ActionRow()
                 row.set_title(f"{str(battery)})")
                 row.set_subtitle(f'{str(batteries[battery])}%')
