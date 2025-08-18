@@ -1,3 +1,12 @@
+kramden-provision (0.1.3) noble; urgency=medium
+
+  * New release 0.1.3
+
+  [ Drew VanDine ]
+  * feat: Added ability to track multiple disks
+
+ -- Ken VanDine <ken.vandine@canonical.com>  Sun, 17 Aug 2025 22:15:08 -0400
+
 kramden-provision (0.1.2) noble; urgency=medium
 
   * New release 0.1.2

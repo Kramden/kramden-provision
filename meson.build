@@ -1,4 +1,4 @@
-project('kramden-provision', version: '0.0.5')
+project('kramden-provision', version: '0.1.3')
 pkgdatadir = join_paths(get_option('prefix'), get_option('datadir'), meson.project_name())
 
 gnome = import('gnome')
