@@ -8,6 +8,7 @@ gi.require_version('Snapd','2')
 from gi.repository import Snapd, GLib
 import apt
 import dbus
+import pyudev
 
 # Utility class for functions used throughout the app
 class Utils():
@@ -27,9 +28,14 @@ class Utils():
             elif "Operating System" in line:
                 self.os = line.strip().split(':', 1)[1]
 
-    # Return size of the root drive
-    def get_disk(self):
-        return (str(int(psutil.disk_usage('/').total/ (1024 ** 3))))
+    # Return the size of all detected necessary drives
+    def get_disks(self):
+        context = pyudev.Context()
+        disks = {}
+        for device in context.list_devices(subsystem='block', DEVTYPE='disk'):
+            if not 'loop' in device['DEVNAME'] and not 'sr0' in device['DEVNAME']:
+                disks[str(device['DEVNAME'])] = int(round(device.attributes.asint('size') * 512 / 1024 ** 3, 0))
+        return disks
 
     # Return host name
     def get_hostname(self):
