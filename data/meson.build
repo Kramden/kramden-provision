@@ -17,6 +17,14 @@ finaltest_file = configure_file(
   install_dir: join_paths(get_option('datadir'), 'applications')
 )
 
+spec_file = configure_file(
+  input: 'kramden-provision-spec.desktop.in',
+  output: 'kramden-provision-spec.desktop',
+  copy: true,
+  install: true,
+  install_dir: join_paths(get_option('datadir'), 'applications')
+)
+
 device_file = configure_file(
   input: 'kramden-device.desktop.in',
   output: 'kramden-device.desktop',

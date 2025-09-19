@@ -27,6 +27,15 @@ configure_file(
 )
 
 configure_file(
+  input: 'kramden-provision-spec.in',
+  output: 'kramden-provision-spec',
+  configuration: conf,
+  install: true,
+  install_dir: get_option('bindir'),
+  install_mode: 'rwxr-xr-x'
+)
+
+configure_file(
   input: 'kramden-device.in',
   output: 'kramden-device',
   configuration: conf,
@@ -47,6 +56,9 @@ sources = [
   'observable.py',
   'osloadcomplete.py',
   'osload.py',
+  'spec.py',
+  'speccomplete.py',
+  'specinfo.py',
   'sysinfo.py',
   'utils.py',
   'getlearngive.png',
