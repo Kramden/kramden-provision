@@ -230,7 +230,7 @@ class Utils():
     def file_exists_and_executable(self, filepath):
         return os.path.isfile(filepath) and os.access(filepath, os.X_OK)
 
-   # Perform reset
+    # Perform reset
     def complete_reset(self, stage):
         val = False
         print("Utils: complete_reset")
@@ -244,13 +244,35 @@ class Utils():
                 pass
         return val
 
+    # get asset tags
+    def get_asset_tags(self):
+        asset_tag = None
+        if "hp" in self.vender.lower():
+            print("Vendor is HP")
+            asset_tag = open('/sys/firmware/efi/efivars/HP_TAGS-fb3b9ece-4aba-4933-b49d-b4d67d892351', 'r').readline().strip()
+        elif "dell" in self.vender.lower():
+            print("Vendor is Dell")
+            if self.file_exists_and_executable("/opt/dell/dcc/cctk") and os.environ["USER"] in ["osload", "finaltest", "ubuntu"]:
+                try:
+                    result = subprocess.run(["/opt/dell/dcc/cctk", "--Asset"], capture_output=True, text=True, check=True)
+                    val = result.returncode == 0
+                    asset_tag = result.stdout.split("=")[1]
+                except:
+                    pass
+        elif "lenovo" in self.vender.lower():
+            print("Vendor is Lenovo")
+        else:
+            print("Unknown Vendor")
+        return asset_tag
+
 if __name__ == "__main__":
     utils = Utils()
-    capacities = get_battery_capacities()
-    for battery in capacities.keys():
-        print(f"Battery {idx + 1} Capacity: {capacity}%")
-    print("Disk Capacity: " + str(utils.get_disk()) + " GB")
+    vender = utils.get_asset_tags()
+    capacities = utils.get_battery_capacities()
+    #for battery in capacities.keys():
+    #    print(f"Battery {id + 1} Capacity: {capacity}%")
+    print("Disk Capacity: " + str(utils.get_disks()) + " GB")
     print("CPU Model: " + utils.get_cpu_info())
     print("Snaps: " + str(utils.check_snaps(snap_packages)))
     print("Debs: " + str(utils.check_debs(deb_packages)))
-    print(f"Battery Capacity: {capacity}%")
+    #print(f"Battery Capacity: {capacity}%")

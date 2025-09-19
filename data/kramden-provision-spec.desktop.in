@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Kramden Provision Spec
+Comment=Kramden Provision Spec
+Keywords=kramden;setup;
+Exec=kramden-provision-spec
+Icon=kramden.png
+Terminal=false
+Categories=Utility;
+NoDisplay=true
