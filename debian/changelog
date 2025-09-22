@@ -1,3 +1,9 @@
+kramden-provision (0.1.3.1) noble; urgency=medium
+
+  * New kramden-spec tool
+
+ -- Ken VanDine <ken.vandine@canonical.com>  Mon, 22 Sep 2025 12:19:32 -0400
+
 kramden-provision (0.1.3) noble; urgency=medium
 
   * New release 0.1.3
