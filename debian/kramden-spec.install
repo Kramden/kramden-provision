@@ -1,0 +1,5 @@
+usr/share/applications/kramden-spec.desktop
+usr/bin/kramden-spec
+etc/xdg/autostart/kramden-spec.desktop
+usr/share/kramden-provision/scripts/bios_password.sh
+usr/share/kramden-provision/scripts/dell.sh

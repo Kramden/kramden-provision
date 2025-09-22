@@ -27,8 +27,8 @@ configure_file(
 )
 
 configure_file(
-  input: 'kramden-provision-spec.in',
-  output: 'kramden-provision-spec',
+  input: 'kramden-spec.in',
+  output: 'kramden-spec',
   configuration: conf,
   install: true,
   install_dir: get_option('bindir'),
