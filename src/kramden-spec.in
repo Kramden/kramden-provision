@@ -1,11 +1,16 @@
 #!@PYTHON@
 
 import sys
+import os
 
 VERSION = '@VERSION@'
 pkgdatadir = '@pkgdatadir@'
+datadir = '@datadir@'
 
-sys.path.insert(1, pkgdatadir+"/kramden_provision")
+sys.path.insert(0, pkgdatadir)
+
+from spec import Application
 
 if __name__ == '__main__':
-    import spec
+    app = Application(datadir=datadir)
+    app.run(sys.argv)
