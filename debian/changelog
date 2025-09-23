@@ -1,3 +1,10 @@
+kramden-provision (0.1.3.3) noble; urgency=medium
+
+  * 99_kramden-spec.gschema.override
+    - Switched back to Google Chrome for default browser in spec image
+
+ -- Ken VanDine <ken.vandine@canonical.com>  Tue, 23 Sep 2025 14:27:57 -0400
+
 kramden-provision (0.1.3.2) noble; urgency=medium
 
   * New kramden-spec tool
