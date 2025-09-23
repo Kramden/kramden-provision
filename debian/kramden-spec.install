@@ -1,6 +1,6 @@
-usr/share/applications/kramden-spec.desktop
+usr/share/applications/org.kramden.spec.desktop
 usr/bin/kramden-spec
-etc/xdg/autostart/kramden-spec.desktop
+etc/xdg/autostart/org.kramden.spec.desktop
 usr/share/kramden-provision/scripts/bios_password.sh
 usr/share/kramden-provision/scripts/dell.sh
 kramden-wallpaper.png usr/share/backgrounds/
