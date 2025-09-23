@@ -1,6 +1,6 @@
 usr/share/kramden-provision/kramden_provision
-usr/share/applications/kramden-device.desktop
+usr/share/applications/org.kramden.device.desktop
 usr/share/kramden-provision/documents/Kramden_Computer_Info.pdf
 usr/share/pixmaps
 usr/bin/kramden-device
-etc/xdg/autostart/kramden-device.desktop
+etc/xdg/autostart/org.kramden.device.desktop

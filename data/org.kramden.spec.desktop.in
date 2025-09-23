@@ -5,6 +5,6 @@ Name=Kramden Spec
 Comment=Kramden Spec
 Keywords=kramden;setup;
 Exec=kramden-spec
-Icon=kramden.png
+Icon=kramden
 Terminal=false
 Categories=Utility;
