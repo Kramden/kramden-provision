@@ -13,8 +13,13 @@ from speccomplete import SpecComplete
 from observable import ObservableProperty, StateObserver
 
 class WizardWindow(Gtk.ApplicationWindow):
-    def __init__(self, app):
+    def __init__(self, app, datadir=None):
         super().__init__(application=app, title="Kramden - Spec")
+
+        if datadir:
+            icon_path = os.path.join(datadir, 'pixmaps', 'kramden.png')
+            if os.path.exists(icon_path):
+                self.set_icon_from_file(icon_path)
 
         self.set_default_size(800, 800)
 
@@ -139,8 +144,9 @@ class WizardWindow(Gtk.ApplicationWindow):
         self.page4.complete()
 
 class Application(Adw.Application):
-    def __init__(self):
+    def __init__(self, datadir=None):
         super().__init__()
+        self.datadir = datadir
         Adw.init()
 
         # Set Adwaita dark theme preference using Adw.StyleManager
@@ -148,9 +154,10 @@ class Application(Adw.Application):
         style_manager.set_color_scheme(Adw.ColorScheme.PREFER_DARK)
 
     def do_activate(self):
-        window = WizardWindow(self)
+        window = WizardWindow(self, datadir=self.datadir)
         self.add_window(window)
         window.present()
 
-app = Application()
-app.run([])
+if __name__ == '__main__':
+    app = Application()
+    app.run([])
