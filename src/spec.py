@@ -16,13 +16,7 @@ class WizardWindow(Gtk.ApplicationWindow):
     def __init__(self, app):
         super().__init__(application=app, title="Kramden - Spec")
 
-        # Set icon
-        script_dir = os.path.dirname(os.path.realpath(__file__))
-        # The script is in .../share/kramden-spec, icon is in .../share/pixmaps
-        icon_path = os.path.abspath(os.path.join(script_dir, '..', 'pixmaps', 'kramden.png'))
-        if os.path.exists(icon_path):
-            self.set_icon_from_file(icon_path)
-
+        self.set_icon_name("kramden")
         self.set_default_size(800, 800)
 
         # Initialize the observable property for tracking state
