@@ -1,3 +1,9 @@
+kramden-provision (0.1.9.1) noble; urgency=medium
+
+  * Improvements for disk handling, specifically for the spec tool
+
+ -- Ken VanDine <ken.vandine@canonical.com>  Tue, 23 Sep 2025 21:07:43 -0400
+
 kramden-provision (0.1.9.0) noble; urgency=medium
 
   * Major refactoring to handle icon matching for each application window
