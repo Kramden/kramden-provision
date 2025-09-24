@@ -9,6 +9,7 @@ from gi.repository import Snapd, GLib
 import apt
 import dbus
 import pyudev
+import re
 
 # Utility class for functions used throughout the app
 class Utils():
@@ -33,7 +34,7 @@ class Utils():
         context = pyudev.Context()
         disks = {}
         for device in context.list_devices(subsystem='block', DEVTYPE='disk'):
-            if not 'loop' in device['DEVNAME'] and not 'sr0' in device['DEVNAME']:
+            if not 'loop' in device['DEVNAME'] and not re.search(r'sr[0-9]', device['DEVNAME']):
                 disks[str(device['DEVNAME'])] = int(round(device.attributes.asint('size') * 512 / 1024 ** 3, 0))
         return disks
 
