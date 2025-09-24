@@ -104,7 +104,7 @@ class SpecInfo(Adw.Bin):
                     disks_row.set_icon_name("emblem-important-symbolic")
                     disks_row.add_css_class("text-error")
                 self.disks_box.append(disks_row)
-            else:
+            elif len(disks.keys()) == 1:
                 disk = list(disks.items())
                 disk_row = Adw.ExpanderRow(title="Disk")
                 disk_row.set_visible(True)
@@ -120,6 +120,11 @@ class SpecInfo(Adw.Bin):
                     row.set_icon_name("emblem-important-symbolic")
                     row.add_css_class("text-error")
                 disk_row.add_row(row)
+                self.disks_box.append(disk_row)
+            else:
+                disk_row = Adw.ActionRow(title="Disk")
+                disk_row.set_subtitle(f"No Disks Found")
+                disk_row.set_icon_name("emblem-ok-symbolic")
                 self.disks_box.append(disk_row)
             # Ensure we only create disk info once
             self.disks_populated = True
