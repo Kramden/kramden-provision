@@ -112,19 +112,16 @@ class SpecInfo(Adw.Bin):
                 row = Adw.ActionRow()
                 row.set_title(f"{str(disk[0][0])}")
                 row.set_subtitle(f"{str(disk[0][1])} GB")
-                if int(disk[0][1]) >= 100:
-                    row.set_icon_name("emblem-ok-symbolic")
-                    if row.has_css_class("text-error"):
-                        row.remove_css_class("text-error")
-                else:
-                    row.set_icon_name("emblem-important-symbolic")
-                    row.add_css_class("text-error")
+                row.set_icon_name("emblem-important-symbolic")
+                row.add_css_class("text-error")
                 disk_row.add_row(row)
                 self.disks_box.append(disk_row)
             else:
                 disk_row = Adw.ActionRow(title="Disk")
                 disk_row.set_subtitle(f"No Disks Found")
                 disk_row.set_icon_name("emblem-ok-symbolic")
+                if disk_row.has_css_class("text-error"):
+                    disk_row.remove_css_class("text-error")
                 self.disks_box.append(disk_row)
             # Ensure we only create disk info once
             self.disks_populated = True
