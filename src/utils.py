@@ -35,7 +35,8 @@ class Utils():
         disks = {}
         for device in context.list_devices(subsystem='block', DEVTYPE='disk'):
             if not 'loop' in device['DEVNAME'] and not re.search(r'sr[0-9]', device['DEVNAME']):
-                disks[str(device['DEVNAME'])] = int(round(device.attributes.asint('size') * 512 / 1024 ** 3, 0))
+                if device.attributes.asint('removable') != 1:
+                    disks[str(device['DEVNAME'])] = int(round(device.attributes.asint('size') * 512 / 1024 ** 3, 0))
         return disks
 
     # Return host name
