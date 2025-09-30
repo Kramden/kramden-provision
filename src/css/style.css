@@ -11,3 +11,7 @@
 .text-error {
     color: #E95420; /* Text color */
 }
+
+.text-view {
+    background-color: white;
+}

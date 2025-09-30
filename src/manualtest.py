@@ -1,6 +1,6 @@
 import gi
 gi.require_version('Adw', '1')
-from gi.repository import Adw, Gtk
+from gi.repository import Adw, Gtk, GLib
 from utils import Utils
 
 class ManualTest(Adw.Bin):
@@ -75,18 +75,24 @@ class ManualTest(Adw.Bin):
         webcam_row.add_suffix(webcam_clickhere)
         webcam_clickhere.connect("clicked", self.on_webcam_clicked)
 
-        keyboard_row = Adw.ActionRow()
+        self.keyboard_row = Adw.ExpanderRow()
+        self.keyboard_row.connect("notify::expanded", self.on_keyboard_row_expanded)
         self.keyboard_button = Gtk.CheckButton()
         self.keyboard_button.connect("toggled", self.on_keyboard_toggled)
-        keyboard_row.add_prefix(self.keyboard_button)
-        keyboard_row.set_title("Keyboard (Do all the keys work and report correctly?)")
-        keyboard_row.set_activatable(True)
-        keyboard_row.connect("activated", self.on_keyboard_row_activated)
+        self.keyboard_row.add_prefix(self.keyboard_button)
+        self.keyboard_row.set_title("Keyboard (Do all the keys work and report correctly?)")
+        self.keyboard_row.set_activatable(True)
+        #keyboard_row.connect("activated", self.on_keyboard_row_activated)
 
-        # Click here button to open libre office writer
-        keyboard_clickhere = Gtk.Button(label = "Click Here")
-        keyboard_row.add_suffix(keyboard_clickhere)
-        keyboard_clickhere.connect("clicked", self.on_keyboard_clicked)
+        self.keyboard_textview = Gtk.TextView()
+        self.keyboard_textview.set_wrap_mode(Gtk.WrapMode.WORD)
+        self.keyboard_textview.add_css_class("text-view")
+        self.keyboard_textview.get_buffer().set_text("Placeholder")
+        keyboard_scrolled_window = Gtk.ScrolledWindow()
+        keyboard_scrolled_window.set_child(self.keyboard_textview)
+        keyboard_scrolled_window.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+        keyboard_scrolled_window.set_size_request(-1, 100)
+        self.keyboard_row.add_row(keyboard_scrolled_window)
 
         touchpad_row = Adw.ActionRow()
         self.touchpad_button = Gtk.CheckButton()
@@ -114,7 +120,7 @@ class ManualTest(Adw.Bin):
         required_list_box.append(browser_row)
         optional_list_box.append(wifi_row)
         optional_list_box.append(webcam_row)
-        optional_list_box.append(keyboard_row)
+        optional_list_box.append(self.keyboard_row)
         optional_list_box.append(touchpad_row)
         optional_list_box.append(screentest_row)
 
@@ -126,6 +132,23 @@ class ManualTest(Adw.Bin):
 
         # Add the vertical box to the page
         self.set_child(vbox)
+
+    # Grab focus when keyboard row expanded
+    def on_keyboard_row_expanded(self, keyboard_row, pspec):
+        print("HERE")
+        if keyboard_row.get_expanded():
+            #self.keyboard_textview.grab_focus()
+            # The row is being expanded. We need to delay the focus grab.
+            # A timeout of 100ms is usually more than enough.
+            GLib.idle_add(self.grab_focus_with_delay)
+
+    def grab_focus_with_delay(self):
+        print("THERE")
+        # The text buffer is what really holds the cursor and content
+        self.keyboard_textview.set_editable(True)
+        self.keyboard_textview.grab_focus()
+        self.set_focus(self.keyboard_textview)
+        return GLib.SOURCE_REMOVE # Remove the timeout source
 
     # Make usb row clickable
     def on_usb_row_activated(self, row):
@@ -208,11 +231,6 @@ class ManualTest(Adw.Bin):
         print("ManualTest:on_screentest_clicked")
         self.utils.launch_app("screen-test")
 
-    # Launch the gnome-text-editor app when clicked
-    def on_keyboard_clicked(self, button):
-        print("ManualTest:on_keyboard_clicked")
-        self.utils.launch_app("gnome-text-editor")
-
     # Launch the cheese app when clicked
     def on_webcam_clicked(self,button):
         print("ManualTest:on_webcam_clicked")
@@ -240,3 +258,4 @@ class ManualTest(Adw.Bin):
     def on_shown(self):
         print("ManualTest:on_shown")
         self.check_status()
+        self.keyboard_row.set_expanded(True)
