@@ -59,6 +59,14 @@ class Utils():
             return result.returncode != 0
         return False
 
+    # Check if BIOS has Asset info, returns True if set
+    def has_asset_info(self):
+        asset_sh = "/usr/share/kramden-provision/scripts/asset.sh"
+        if self.file_exists_and_executable(asset_sh):
+            result = subprocess.run(['sudo', asset_sh])
+            return result.returncode != 0
+        return False
+
     # Get vender
     def get_vender(self):
         return self.vender
