@@ -56,13 +56,17 @@ class SpecInfo(Adw.Bin):
         self.battery_row.set_visible(False)
         self.battery_row.set_expanded(True)
 
-        self.bios_password_row = Adw.ActionRow(title="Batteries")
+        self.bios_password_row = Adw.ActionRow()
         self.bios_password_row.set_title("BIOS Password")
+
+        self.asset_info_row = Adw.ActionRow()
+        self.asset_info_row.set_title("Asset Info")
 
         # Add rows to the list box
         list_box.append(vender_row)
         list_box.append(model_row)
         list_box.append(self.bios_password_row)
+        list_box.append(self.asset_info_row)
         list_box.append(cpu_row)
         list_box.append(self.mem_row)
         list_box.append(self.disks_box)
@@ -97,6 +101,15 @@ class SpecInfo(Adw.Bin):
         else:
             self.bios_password_row.set_subtitle("No Password")
             self.bios_password_row.set_icon_name("emblem-ok-symbolic")
+
+        asset_info = utils.has_asset_info()
+        if asset_info:
+            self.asset_info_row.set_subtitle("Has Asset Info")
+            self.asset_info_row.set_icon_name("emblem-important-symbolic")
+            self.asset_info_row.add_css_class("text-error")
+        else:
+            self.asset_info_row.set_subtitle("No Asset Info")
+            self.asset_info_row.set_icon_name("emblem-ok-symbolic")
 
         # Populate disk information
         if not self.disks_populated:
