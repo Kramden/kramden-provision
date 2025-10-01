@@ -56,9 +56,13 @@ class SpecInfo(Adw.Bin):
         self.battery_row.set_visible(False)
         self.battery_row.set_expanded(True)
 
+        self.bios_password_row = Adw.ActionRow(title="Batteries")
+        self.bios_password_row.set_title("BIOS Password")
+
         # Add rows to the list box
         list_box.append(vender_row)
         list_box.append(model_row)
+        list_box.append(self.bios_password_row)
         list_box.append(cpu_row)
         list_box.append(self.mem_row)
         list_box.append(self.disks_box)
@@ -84,6 +88,15 @@ class SpecInfo(Adw.Bin):
         else:
             self.mem_row.set_icon_name("emblem-important-symbolic")
             self.mem_row.add_css_class("text-error")
+
+        bios_password = utils.has_bios_password()
+        if bios_password:
+            self.bios_password_row.set_subtitle("Has Password")
+            self.bios_password_row.set_icon_name("emblem-important-symbolic")
+            self.bios_password_row.add_css_class("text-error")
+        else:
+            self.bios_password_row.set_subtitle("No Password")
+            self.bios_password_row.set_icon_name("emblem-ok-symbolic")
 
         # Populate disk information
         if not self.disks_populated:

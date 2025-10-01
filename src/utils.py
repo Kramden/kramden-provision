@@ -51,6 +51,14 @@ class Utils():
         result = subprocess.run(['hostnamectl', 'set-hostname', hostname])
         return result.returncode == 0
 
+    # Check if BIOS Password is set, returns True if set
+    def has_bios_password(self):
+        bios_password_sh = "/usr/share/kramden-provision/scripts/bios_password.sh"
+        if self.file_exists_and_executable(bios_password_sh):
+            result = subprocess.run(['sudo', bios_password_sh])
+            return result.returncode != 0
+        return False
+
     # Get vender
     def get_vender(self):
         return self.vender
