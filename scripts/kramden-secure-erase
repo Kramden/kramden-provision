@@ -1,0 +1,51 @@
+#!/bin/bash
+#
+# For SATA:
+# Find device, for example /dev/sdX
+echo "Looking for SATA drives to securely erase"
+sata_disks=$(lsblk -n -d --output PATH,TYPE,RM | grep disk | grep -v nvme | grep " 0" | awk {'print $1'})
+if [[ -n $sata_disks ]];
+then
+    echo "Found ${#sata_disks[@]} SATA drives"
+    for disk in $sata_disks;
+    do
+        read -p "Confirm secure erase of SATA drive $disk y/n: " conf
+        echo $conf
+        if [[ "$conf" == "y" || "$conf" == "Y" ]];
+        then
+            echo "Securely erasing SATA drive $disk"
+            hdparm --yes-i-know-what-i-am-doing --sanitize-block-erase $disk >/dev/null
+            hdparm --sanitize-status $disk
+	    if [ "$?" -eq 0 ]; then
+                echo "Successfully erased $disk"
+            else
+                echo "Secure erase of $disk failed"
+            fi
+        fi
+    done
+fi
+
+
+# For NVME:
+# Find device, for example /dev/nvme0n1
+echo "Looking for NVME drives to securely erase"
+nvme_disks=$(lsblk -n --nvme -d --output PATH,TYPE,RM | grep disk | grep " 0" | awk {'print $1'})
+if [[ -n $nvme_disks ]];
+then
+    echo "Found ${#nvme_disks[@]} NVME drives"
+    for disk in $nvme_disks;
+    do
+        read -p "Confirm secure erase of NVME drive $disk y/n: " conf
+        echo $conf
+        if [[ "$conf" == "y" || "$conf" == "Y" ]];
+        then
+            echo "Securely erasing NVME drive $disk"
+            nvme format --force $disk
+            if [ "$?" -eq 0 ]; then
+                echo "Successfully erased $disk"
+            else
+                echo "Secure erase of $disk failed"
+            fi
+        fi
+    done
+fi
