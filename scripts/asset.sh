@@ -2,18 +2,23 @@
 
 echo "Checking for Asset Info"
 
-req=0
+declare -i ret
+ret=0
 vendor=$(cat /sys/devices/virtual/dmi/id/sys_vendor)
 if [[ $vendor =~ "HP" ]];
 then
     echo "Checking for HP Asset Tags"
-    tags=$(cat /sys/firmware/efi/efivars/HP_TAGS-fb3b9ece-4aba-4933-b49d-b4d67d892351 | tr -d '\0')
+    # Get product serial needed to strip from asset tag
+    serial=$(cat /sys/devices/virtual/dmi/id/product_serial)
+    rawtags=$(cat /sys/firmware/efi/efivars/HP_TAGS-fb3b9ece-4aba-4933-b49d-b4d67d892351 | tr -d '\0')
+    # strip leading serial from tag
+    tags=${rawtags/$serial/}
     # Check for greater than 1 because of null terminated variable
     if [[ ${#tags} > 1 ]];
     then
         echo "HP Tags found"
         echo "Tag: $tags"
-        req=1
+        ret=1
     else
         echo "HP Tags not found"
     fi
@@ -33,7 +38,7 @@ then
         if [[ ${#asset} > 1 ]];
         then
             echo "Failed to clear Dell Asset Tag"
-            req=1
+            ret=1
         fi
     else
         echo "Dell Asset Tags not found"
@@ -51,7 +56,7 @@ then
         if [[ ${#ownership} > 1 ]];
         then
             echo "Failed to clear Dell Ownership Tag"
-            req=1
+            ret=1
         fi
     else
         echo "Dell Ownership Tag not found"
@@ -59,7 +64,7 @@ then
 fi
 
 # Exit wth error
-if [[ $ret -ne 0 ]];
+if (( ret != 0 ));
 then
     echo "Failed"
     exit 1
