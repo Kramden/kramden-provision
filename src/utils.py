@@ -51,6 +51,14 @@ class Utils():
         result = subprocess.run(['hostnamectl', 'set-hostname', hostname])
         return result.returncode == 0
 
+    # Set timezone and sync hardware clock
+    def sync_clock(self):
+        clock_sh = "/usr/share/kramden-provision/scripts/clock.sh"
+        if self.file_exists_and_executable(clock_sh):
+            result = subprocess.run(['sudo', clock_sh])
+            return result.returncode != 0
+        return False
+
     # Check if BIOS Password is set, returns True if set
     def has_bios_password(self):
         bios_password_sh = "/usr/share/kramden-provision/scripts/bios_password.sh"
