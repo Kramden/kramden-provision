@@ -1,3 +1,11 @@
+kramden-provision (0.1.9.3) noble; urgency=medium
+
+  * kramden-spec: Improved handling of asset tag check
+  * kramden-spec: Set TZ and sync hardware clock
+  * kramden-spec: added kramden-secure-erase
+
+ -- Ken VanDine <ken.vandine@canonical.com>  Wed, 01 Oct 2025 20:27:36 -0400
+
 kramden-provision (0.1.9.2) noble; urgency=medium
 
   * Improved handling of disks, including non-exiting
