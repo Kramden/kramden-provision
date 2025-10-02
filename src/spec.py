@@ -8,7 +8,7 @@ from gi.repository import Gdk, Gtk, Adw
 
 import os
 from specinfo import SpecInfo
-from manualtest import ManualTest
+from specmanualtest import SpecManualTest
 from speccomplete import SpecComplete
 from observable import ObservableProperty, StateObserver
 
@@ -20,7 +20,7 @@ class WizardWindow(Gtk.ApplicationWindow):
         self.set_default_size(800, 800)
 
         # Initialize the observable property for tracking state
-        self.observable_property = ObservableProperty({"SpecInfo": False, "ManualTest": False})
+        self.observable_property = ObservableProperty({"SpecInfo": False, "SpecManualTest": False})
         # Create and add an observer
         observer = StateObserver()
         self.observable_property.add_observer(observer)
@@ -53,7 +53,7 @@ class WizardWindow(Gtk.ApplicationWindow):
         # View Stack
         self.stack = Adw.ViewStack()
         self.page1 = SpecInfo()
-        self.page2 = ManualTest()
+        self.page2 = SpecManualTest()
         self.page3 = SpecComplete()
 
         self.page1.state = self.observable_property
