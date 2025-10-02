@@ -79,6 +79,7 @@ class SpecInfo(Adw.Bin):
     # on_shown is called when the page is shown in the stack
     def on_shown(self):
         utils = Utils()
+        utils.sync_clock()
 
         # Start with default of passed and set to False if we find any failures
         passed = True
