@@ -285,7 +285,6 @@ class Utils():
             if self.file_exists_and_executable("/opt/dell/dcc/cctk") and os.environ["USER"] in ["osload", "finaltest", "ubuntu"]:
                 try:
                     result = subprocess.run(["/opt/dell/dcc/cctk", "--Asset"], capture_output=True, text=True, check=True)
-                    val = result.returncode == 0
                     asset_tag = result.stdout.split("=")[1]
                 except:
                     pass
