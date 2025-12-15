@@ -1,0 +1,10 @@
+usr/share/applications/org.kramden.spec.desktop
+usr/bin/kramden-spec
+etc/xdg/autostart/org.kramden.spec.desktop
+usr/share/kramden-provision/scripts/bios_password.sh
+usr/share/kramden-provision/scripts/dell.sh
+usr/share/kramden-provision/scripts/asset.sh
+usr/share/kramden-provision/scripts/clock.sh
+usr/share/kramden-provision/scripts/kramden-secure-erase
+kramden-wallpaper.png usr/share/backgrounds/
+99_kramden-spec.gschema.override usr/share/glib-2.0/schemas/

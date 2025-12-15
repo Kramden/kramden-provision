@@ -114,7 +114,7 @@ class KramdenDevice(Adw.ApplicationWindow):
 
 class Application(Adw.Application):
     def __init__(self):
-        super().__init__(application_id='org.kramden.DeviceInfo')
+        super().__init__(application_id='org.kramden.device')
         Adw.init()
 
         # Set Adwaita dark theme preference using Adw.StyleManager

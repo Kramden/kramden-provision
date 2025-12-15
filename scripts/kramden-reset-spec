@@ -1,0 +1,8 @@
+#!/bin/bash
+#
+
+if [ "$USER" = "ubuntu" ];
+then
+  # poweroff
+  poweroff
+fi

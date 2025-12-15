@@ -216,7 +216,12 @@ class ManualTest(Adw.Bin):
     # Launch the cheese app when clicked
     def on_webcam_clicked(self,button):
         print("ManualTest:on_webcam_clicked")
-        self.utils.launch_app("cheese")
+        if self.utils.file_exists_and_executable("/usr/bin/guvcview"):
+            self.utils.launch_app("guvcview")
+        elif self.utils.file_exists_and_executable("/usr/bin/cheese"):
+            self.utils.launch_app("cheese")
+        elif self.utils.file_exists_and_executable("/usr/bin/snapshot"):
+            self.utils.launch_app("snapshot")
 
     # Handle toggled event for the browser button
     def on_browser_toggled(self, button):

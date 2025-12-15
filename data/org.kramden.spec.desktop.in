@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Kramden Spec
+Comment=Kramden Spec
+Keywords=kramden;setup;
+Exec=kramden-spec
+Icon=kramden
+Terminal=false
+Categories=Utility;

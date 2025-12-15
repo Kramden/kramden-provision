@@ -17,6 +17,7 @@ class WizardWindow(Gtk.ApplicationWindow):
     def __init__(self, app):
         super().__init__(application=app, title="Kramden - Final Test")
 
+        self.set_icon_name("kramden")
         self.set_default_size(800, 800)
 
         # Initialize the observable property for tracking state
@@ -144,7 +145,7 @@ class WizardWindow(Gtk.ApplicationWindow):
 
 class Application(Adw.Application):
     def __init__(self):
-        super().__init__()
+        super().__init__(application_id='org.kramden.provision-finaltest')
         Adw.init()
 
         # Set Adwaita dark theme preference using Adw.StyleManager

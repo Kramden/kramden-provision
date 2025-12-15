@@ -1,0 +1,18 @@
+[org.gnome.desktop.background:ubuntu]
+picture-uri = 'file:///usr/share/backgrounds/kramden-wallpaper.png'
+picture-uri-dark = 'file:///usr/share/backgrounds/kramden-wallpaper.png'
+
+[org.gnome.shell:ubuntu]
+always-show-log-out = true
+favorite-apps = [ 'google-chrome.desktop', 'org.gnome.Nautilus.desktop', 'gparted.desktop', 'org.kramden.spec.desktop', 'org.gnome.Terminal.desktop' ]
+
+[org.gnome.desktop.interface]
+clock-format = '12h'
+
+[org.gnome.desktop.interface:ubuntu]
+color-scheme = 'prefer-dark'
+gtk-theme = 'Yaru-blue-dark'
+icon-theme = 'Yaru-blue-dark'
+
+[org.gnome.desktop.app-folders]
+folder-children = ['AudioVideo', 'Graphics', 'Game', 'Utilities', 'Accessories', 'Education']
