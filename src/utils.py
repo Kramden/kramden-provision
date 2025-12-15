@@ -275,7 +275,11 @@ class Utils():
         asset_tag = None
         if "hp" in self.vender.lower():
             print("Vendor is HP")
-            asset_tag = open('/sys/firmware/efi/efivars/HP_TAGS-fb3b9ece-4aba-4933-b49d-b4d67d892351', 'r').readline().strip()
+            try:
+                with open('/sys/firmware/efi/efivars/HP_TAGS-fb3b9ece-4aba-4933-b49d-b4d67d892351', 'r') as f:
+                    asset_tag = f.readline().strip()
+            except Exception as e:
+                print(f"Could not read HP asset tag: {e}")
         elif "dell" in self.vender.lower():
             print("Vendor is Dell")
             if self.file_exists_and_executable("/opt/dell/dcc/cctk") and os.environ["USER"] in ["osload", "finaltest", "ubuntu"]:
