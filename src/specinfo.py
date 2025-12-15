@@ -28,11 +28,11 @@ class SpecInfo(Adw.Bin):
         list_box = Gtk.ListBox()
         list_box.set_selection_mode(Gtk.SelectionMode.NONE)
 
-        vender_row = Adw.ActionRow()
-        vender_row.set_title("Manufacturer")
-        vender_row.set_subtitle(utils.get_vender())
+        vendor_row = Adw.ActionRow()
+        vendor_row.set_title("Manufacturer")
+        vendor_row.set_subtitle(utils.get_vendor())
         # Set Vender row to emblem-ok-symbolic
-        vender_row.set_icon_name("emblem-ok-symbolic")
+        vendor_row.set_icon_name("emblem-ok-symbolic")
 
         model_row = Adw.ActionRow()
         model_row.set_title("Model")
@@ -63,7 +63,7 @@ class SpecInfo(Adw.Bin):
         self.asset_info_row.set_title("Asset Info")
 
         # Add rows to the list box
-        list_box.append(vender_row)
+        list_box.append(vendor_row)
         list_box.append(model_row)
         list_box.append(self.bios_password_row)
         list_box.append(self.asset_info_row)

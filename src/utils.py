@@ -15,7 +15,7 @@ import re
 class Utils():
     def __init__(self):
         self.model = ""
-        self.vender = ""
+        self.vendor = ""
         self.hostname = ""
         self.os = ""
         result = subprocess.run(['hostnamectl', 'status'], capture_output=True, text=True, check=True)
@@ -23,7 +23,7 @@ class Utils():
             if "Hardware Model" in line:
                 self.model = line.strip().split(':', 1)[1]
             elif "Hardware Vendor" in line:
-                self.vender = line.strip().split(':', 1)[1]
+                self.vendor = line.strip().split(':', 1)[1]
             elif "Static hostname" in line:
                 self.hostname = line.strip().split(':', 1)[1].strip()
             elif "Operating System" in line:
@@ -75,9 +75,9 @@ class Utils():
             return result.returncode != 0
         return False
 
-    # Get vender
-    def get_vender(self):
-        return self.vender
+    # Get vendor
+    def get_vendor(self):
+        return self.vendor
 
     # Get model
     def get_model(self):
@@ -273,14 +273,14 @@ class Utils():
     # get asset tags
     def get_asset_tags(self):
         asset_tag = None
-        if "hp" in self.vender.lower():
+        if "hp" in self.vendor.lower():
             print("Vendor is HP")
             try:
                 with open('/sys/firmware/efi/efivars/HP_TAGS-fb3b9ece-4aba-4933-b49d-b4d67d892351', 'r') as f:
                     asset_tag = f.readline().strip()
             except Exception as e:
                 print(f"Could not read HP asset tag: {e}")
-        elif "dell" in self.vender.lower():
+        elif "dell" in self.vendor.lower():
             print("Vendor is Dell")
             if self.file_exists_and_executable("/opt/dell/dcc/cctk") and os.environ["USER"] in ["osload", "finaltest", "ubuntu"]:
                 try:
@@ -288,7 +288,7 @@ class Utils():
                     asset_tag = result.stdout.split("=")[1]
                 except:
                     pass
-        elif "lenovo" in self.vender.lower():
+        elif "lenovo" in self.vendor.lower():
             print("Vendor is Lenovo")
         else:
             print("Unknown Vendor")
@@ -296,7 +296,7 @@ class Utils():
 
 if __name__ == "__main__":
     utils = Utils()
-    vender = utils.get_asset_tags()
+    vendor = utils.get_asset_tags()
     capacities = utils.get_battery_capacities()
     #for battery in capacities.keys():
     #    print(f"Battery {id + 1} Capacity: {capacity}%")
