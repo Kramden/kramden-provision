@@ -63,7 +63,7 @@ then
     fi
 fi
 
-# Exit wth error
+# Exit with error
 if (( ret != 0 ));
 then
     echo "Failed"
