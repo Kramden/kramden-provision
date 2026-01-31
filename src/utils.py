@@ -56,7 +56,7 @@ class Utils():
         clock_sh = "/usr/share/kramden-provision/scripts/clock.sh"
         if self.file_exists_and_executable(clock_sh):
             result = subprocess.run(['sudo', clock_sh])
-            return result.returncode != 0
+            return result.returncode == 0
         return False
 
     # Check if BIOS Password is set, returns True if set
