@@ -1,3 +1,49 @@
+kramden-provision (0.1.9.3) noble; urgency=medium
+
+  * kramden-spec: Improved handling of asset tag check
+  * kramden-spec: Set TZ and sync hardware clock
+  * kramden-spec: added kramden-secure-erase
+
+ -- Ken VanDine <ken.vandine@canonical.com>  Wed, 01 Oct 2025 20:27:36 -0400
+
+kramden-provision (0.1.9.2) noble; urgency=medium
+
+  * Improved handling of disks, including non-exiting
+
+ -- Ken VanDine <ken.vandine@canonical.com>  Tue, 30 Sep 2025 15:45:42 -0400
+
+kramden-provision (0.1.9.1) noble; urgency=medium
+
+  * Improvements for disk handling, specifically for the spec tool
+
+ -- Ken VanDine <ken.vandine@canonical.com>  Tue, 23 Sep 2025 21:07:43 -0400
+
+kramden-provision (0.1.9.0) noble; urgency=medium
+
+  * Major refactoring to handle icon matching for each application window
+  * Additional improvements for the spec process
+
+ -- Ken VanDine <ken.vandine@canonical.com>  Tue, 23 Sep 2025 17:15:24 -0400
+
+kramden-provision (0.1.3.3) noble; urgency=medium
+
+  * 99_kramden-spec.gschema.override
+    - Switched back to Google Chrome for default browser in spec image
+
+ -- Ken VanDine <ken.vandine@canonical.com>  Tue, 23 Sep 2025 14:27:57 -0400
+
+kramden-provision (0.1.3.2) noble; urgency=medium
+
+  * New kramden-spec tool
+
+ -- Ken VanDine <ken.vandine@canonical.com>  Mon, 22 Sep 2025 18:09:46 -0400
+
+kramden-provision (0.1.3.1) noble; urgency=medium
+
+  * New kramden-spec tool
+
+ -- Ken VanDine <ken.vandine@canonical.com>  Mon, 22 Sep 2025 12:19:32 -0400
+
 kramden-provision (0.1.3) noble; urgency=medium
 
   * New release 0.1.3

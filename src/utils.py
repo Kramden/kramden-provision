@@ -9,12 +9,13 @@ from gi.repository import Snapd, GLib
 import apt
 import dbus
 import pyudev
+import re
 
 # Utility class for functions used throughout the app
 class Utils():
     def __init__(self):
         self.model = ""
-        self.vender = ""
+        self.vendor = ""
         self.hostname = ""
         self.os = ""
         result = subprocess.run(['hostnamectl', 'status'], capture_output=True, text=True, check=True)
@@ -22,7 +23,7 @@ class Utils():
             if "Hardware Model" in line:
                 self.model = line.strip().split(':', 1)[1]
             elif "Hardware Vendor" in line:
-                self.vender = line.strip().split(':', 1)[1]
+                self.vendor = line.strip().split(':', 1)[1]
             elif "Static hostname" in line:
                 self.hostname = line.strip().split(':', 1)[1].strip()
             elif "Operating System" in line:
@@ -33,8 +34,9 @@ class Utils():
         context = pyudev.Context()
         disks = {}
         for device in context.list_devices(subsystem='block', DEVTYPE='disk'):
-            if not 'loop' in device['DEVNAME'] and not 'sr0' in device['DEVNAME']:
-                disks[str(device['DEVNAME'])] = int(round(device.attributes.asint('size') * 512 / 1024 ** 3, 0))
+            if not 'loop' in device['DEVNAME'] and not re.search(r'sr[0-9]', device['DEVNAME']):
+                if device.attributes.asint('removable') != 1:
+                    disks[str(device['DEVNAME'])] = int(round(device.attributes.asint('size') * 512 / 1024 ** 3, 0))
         return disks
 
     # Return host name
@@ -49,9 +51,33 @@ class Utils():
         result = subprocess.run(['hostnamectl', 'set-hostname', hostname])
         return result.returncode == 0
 
-    # Get vender
-    def get_vender(self):
-        return self.vender
+    # Set timezone and sync hardware clock
+    def sync_clock(self):
+        clock_sh = "/usr/share/kramden-provision/scripts/clock.sh"
+        if self.file_exists_and_executable(clock_sh):
+            result = subprocess.run(['sudo', clock_sh])
+            return result.returncode == 0
+        return False
+
+    # Check if BIOS Password is set, returns True if set
+    def has_bios_password(self):
+        bios_password_sh = "/usr/share/kramden-provision/scripts/bios_password.sh"
+        if self.file_exists_and_executable(bios_password_sh):
+            result = subprocess.run(['sudo', bios_password_sh])
+            return result.returncode != 0
+        return False
+
+    # Check if BIOS has Asset info, returns True if set
+    def has_asset_info(self):
+        asset_sh = "/usr/share/kramden-provision/scripts/asset.sh"
+        if self.file_exists_and_executable(asset_sh):
+            result = subprocess.run(['sudo', asset_sh])
+            return result.returncode != 0
+        return False
+
+    # Get vendor
+    def get_vendor(self):
+        return self.vendor
 
     # Get model
     def get_model(self):
@@ -230,7 +256,7 @@ class Utils():
     def file_exists_and_executable(self, filepath):
         return os.path.isfile(filepath) and os.access(filepath, os.X_OK)
 
-   # Perform reset
+    # Perform reset
     def complete_reset(self, stage):
         val = False
         print("Utils: complete_reset")
@@ -244,13 +270,38 @@ class Utils():
                 pass
         return val
 
+    # get asset tags
+    def get_asset_tags(self):
+        asset_tag = None
+        if "hp" in self.vendor.lower():
+            print("Vendor is HP")
+            try:
+                with open('/sys/firmware/efi/efivars/HP_TAGS-fb3b9ece-4aba-4933-b49d-b4d67d892351', 'r') as f:
+                    asset_tag = f.readline().strip()
+            except Exception as e:
+                print(f"Could not read HP asset tag: {e}")
+        elif "dell" in self.vendor.lower():
+            print("Vendor is Dell")
+            if self.file_exists_and_executable("/opt/dell/dcc/cctk") and os.environ["USER"] in ["osload", "finaltest", "ubuntu"]:
+                try:
+                    result = subprocess.run(["/opt/dell/dcc/cctk", "--Asset"], capture_output=True, text=True, check=True)
+                    asset_tag = result.stdout.split("=")[1]
+                except:
+                    pass
+        elif "lenovo" in self.vendor.lower():
+            print("Vendor is Lenovo")
+        else:
+            print("Unknown Vendor")
+        return asset_tag
+
 if __name__ == "__main__":
     utils = Utils()
-    capacities = get_battery_capacities()
-    for battery in capacities.keys():
-        print(f"Battery {idx + 1} Capacity: {capacity}%")
-    print("Disk Capacity: " + str(utils.get_disk()) + " GB")
+    vendor = utils.get_asset_tags()
+    capacities = utils.get_battery_capacities()
+    #for battery in capacities.keys():
+    #    print(f"Battery {id + 1} Capacity: {capacity}%")
+    print("Disk Capacity: " + str(utils.get_disks()) + " GB")
     print("CPU Model: " + utils.get_cpu_info())
     print("Snaps: " + str(utils.check_snaps(snap_packages)))
     print("Debs: " + str(utils.check_debs(deb_packages)))
-    print(f"Battery Capacity: {capacity}%")
+    #print(f"Battery Capacity: {capacity}%")
