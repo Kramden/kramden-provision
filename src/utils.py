@@ -26,6 +26,12 @@ class Utils():
         self.hostname = data.get('StaticHostname', '')
         self.model = data.get('HardwareModel', '')
         self.vendor = data.get('HardwareVendor', '')
+        # NOTE: Some Lenovo firmware is known to expose an incorrect or dummy
+        # HardwareSerial via systemd-hostnamed / `hostnamectl` (for example,
+        # all-zero values or "Not Available"). For Lenovo systems we therefore
+        # intentionally skip the HardwareSerial reported by hostnamectl here and
+        # rely instead on the DMI-based fallback below
+        # (/sys/devices/virtual/dmi/id/*) to obtain a more reliable serial.
         if self.vendor.lower() != 'lenovo':
             self.serial = data.get('HardwareSerial', '')
         self.os = data.get('OperatingSystemPrettyName', '')
