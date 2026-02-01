@@ -1,4 +1,5 @@
-import sys, os
+import sys
+import os
 import unittest
 import json
 from unittest.mock import patch, mock_open, MagicMock
