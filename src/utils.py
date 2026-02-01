@@ -40,7 +40,6 @@ class Utils():
             # If hostnamectl fails or returns invalid JSON, use empty defaults
             # The fallback logic below will still attempt to populate serial from DMI
             pass
-        print(self.serial)
         if not self.serial:
             serial_files = ['board_serial', 'product_serial', 'chassis_serial']
             for serial_file in serial_files:

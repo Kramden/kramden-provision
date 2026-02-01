@@ -84,24 +84,44 @@ class TestUtils(unittest.TestCase):
             "HardwareModel": "ThinkPad",
             "HardwareSerial": "INVALID_SERIAL"
         }
-        
-        # Mock hostnamectl call
-        mock_result = MagicMock()
-        mock_result.stdout = json.dumps(hostnamectl_json)
-        mock_result.returncode = 0
-        mock_run.return_value = mock_result
-        
+
+        def subprocess_side_effect(*args, **kwargs):
+            cmd = args[0]
+            mock_result = MagicMock()
+            if 'hostnamectl' in cmd:
+                mock_result.stdout = json.dumps(hostnamectl_json)
+                mock_result.returncode = 0
+                return mock_result
+            else:
+                # DMI fallback calls should fail
+                import subprocess
+                raise subprocess.CalledProcessError(1, cmd)
+
+        mock_run.side_effect = subprocess_side_effect
+
         # Create Utils instance - serial should be empty since vendor is Lenovo
+        # and DMI fallback will fail
         utils = Utils()
-        
+
         # For Lenovo, serial from hostnamectl should be skipped
-        # The actual DMI fallback won't work in tests, so serial should be empty
+        # The DMI fallback also fails, so serial should be empty
         self.assertEqual(utils.get_serial(), "")
 
-    def test_get_disk(self):
-        with patch('psutil.disk_usage') as mock_disk_usage:
-            mock_disk_usage.return_value.total = 1024 ** 3 * 100  # 100 GB
-            self.assertEqual(self.utils.get_disk(), "100")
+    @patch('utils.pyudev.Context')
+    def test_get_disks(self, mock_context):
+        # Create a mock device
+        mock_device = MagicMock()
+        mock_device.__getitem__ = MagicMock(side_effect=lambda key: '/dev/sda' if key == 'DEVNAME' else None)
+        mock_device.attributes.asint = MagicMock(side_effect=lambda key: 0 if key == 'removable' else 209715200 if key == 'size' else 0)
+
+        # Setup context to return our mock device
+        mock_context_instance = MagicMock()
+        mock_context_instance.list_devices.return_value = [mock_device]
+        mock_context.return_value = mock_context_instance
+
+        # 209715200 * 512 / 1024^3 = 100 GB
+        result = self.utils.get_disks()
+        self.assertEqual(result, {'/dev/sda': 100})
 
     def test_get_mem(self):
         meminfo_content = "MemTotal:       2048000 kB"
