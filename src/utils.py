@@ -10,24 +10,34 @@ import apt
 import dbus
 import pyudev
 import re
+import json
 
 # Utility class for functions used throughout the app
 class Utils():
     def __init__(self):
         self.model = ""
         self.vendor = ""
+        self.serial = ""
         self.hostname = ""
         self.os = ""
-        result = subprocess.run(['hostnamectl', 'status'], capture_output=True, text=True, check=True)
-        for line in result.stdout.splitlines():
-            if "Hardware Model" in line:
-                self.model = line.strip().split(':', 1)[1]
-            elif "Hardware Vendor" in line:
-                self.vendor = line.strip().split(':', 1)[1]
-            elif "Static hostname" in line:
-                self.hostname = line.strip().split(':', 1)[1].strip()
-            elif "Operating System" in line:
-                self.os = line.strip().split(':', 1)[1]
+        result = subprocess.run(['sudo', 'hostnamectl', 'status', '-j'], capture_output=True, text=True, check=True)
+        json_output = result.stdout
+        data = json.loads(json_output)
+        self.hostname = data.get('StaticHostname', '')
+        self.model = data.get('HardwareModel', '')
+        self.vendor = data.get('HardwareVendor', '')
+        if self.vendor.lower() != 'lenovo':
+            self.serial = data.get('HardwareSerial', '')
+        self.os = data.get('OperatingSystemPrettyName', '')
+        print(self.serial)
+        if not self.serial:
+            serial_files = ['board_serial', 'product_serial', 'chassis_serial']
+            for serial_file in serial_files:
+                result = subprocess.run(['sudo', 'cat', os.path.join('/sys/devices/virtual/dmi/id/', serial_file)], capture_output=True, text=True, check=True)
+                contents = result.stdout
+                if contents.strip():
+                    self.serial = contents.strip()
+                    break
 
     # Return the size of all detected necessary drives
     def get_disks(self):
@@ -82,6 +92,10 @@ class Utils():
     # Get model
     def get_model(self):
         return self.model
+
+    # Get serial
+    def get_serial(self):
+        return self.serial
 
     # Get OS
     def get_os(self):
@@ -304,4 +318,5 @@ if __name__ == "__main__":
     print("CPU Model: " + utils.get_cpu_info())
     print("Snaps: " + str(utils.check_snaps(snap_packages)))
     print("Debs: " + str(utils.check_debs(deb_packages)))
+    print("Serial: " + utils.get_serial())
     #print(f"Battery Capacity: {capacity}%")
