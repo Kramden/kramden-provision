@@ -1,5 +1,5 @@
 /* Global font and color settings for readability */
-window, label, button, entry, row {
+window, label, button, row {
     font-size: 14pt;
     color: white;
 }
