@@ -20,30 +20,39 @@ class Utils():
         self.serial = ""
         self.hostname = ""
         self.os = ""
-        result = subprocess.run(['sudo', 'hostnamectl', 'status', '-j'], capture_output=True, text=True, check=True)
-        json_output = result.stdout
-        data = json.loads(json_output)
-        self.hostname = data.get('StaticHostname', '')
-        self.model = data.get('HardwareModel', '')
-        self.vendor = data.get('HardwareVendor', '')
-        # NOTE: Some Lenovo firmware is known to expose an incorrect or dummy
-        # HardwareSerial via systemd-hostnamed / `hostnamectl` (for example,
-        # all-zero values or "Not Available"). For Lenovo systems we therefore
-        # intentionally skip the HardwareSerial reported by hostnamectl here and
-        # rely instead on the DMI-based fallback below
-        # (/sys/devices/virtual/dmi/id/*) to obtain a more reliable serial.
-        if self.vendor.lower() != 'lenovo':
-            self.serial = data.get('HardwareSerial', '')
-        self.os = data.get('OperatingSystemPrettyName', '')
+        try:
+            result = subprocess.run(['sudo', 'hostnamectl', 'status', '-j'], capture_output=True, text=True, check=True)
+            json_output = result.stdout
+            data = json.loads(json_output)
+            self.hostname = data.get('StaticHostname', '')
+            self.model = data.get('HardwareModel', '')
+            self.vendor = data.get('HardwareVendor', '')
+            # NOTE: Some Lenovo firmware is known to expose an incorrect or dummy
+            # HardwareSerial via systemd-hostnamed / `hostnamectl` (for example,
+            # all-zero values or "Not Available"). For Lenovo systems we therefore
+            # intentionally skip the HardwareSerial reported by hostnamectl here and
+            # rely instead on the DMI-based fallback below
+            # (/sys/devices/virtual/dmi/id/*) to obtain a more reliable serial.
+            if self.vendor.lower() != 'lenovo':
+                self.serial = data.get('HardwareSerial', '')
+            self.os = data.get('OperatingSystemPrettyName', '')
+        except (subprocess.CalledProcessError, json.JSONDecodeError, KeyError):
+            # If hostnamectl fails or returns invalid JSON, use empty defaults
+            # The fallback logic below will still attempt to populate serial from DMI
+            pass
         print(self.serial)
         if not self.serial:
             serial_files = ['board_serial', 'product_serial', 'chassis_serial']
             for serial_file in serial_files:
-                result = subprocess.run(['sudo', 'cat', os.path.join('/sys/devices/virtual/dmi/id/', serial_file)], capture_output=True, text=True, check=True)
-                contents = result.stdout
-                if contents.strip():
-                    self.serial = contents.strip()
-                    break
+                try:
+                    result = subprocess.run(['sudo', 'cat', os.path.join('/sys/devices/virtual/dmi/id/', serial_file)], capture_output=True, text=True, check=True)
+                    contents = result.stdout
+                    if contents.strip():
+                        self.serial = contents.strip()
+                        break
+                except subprocess.CalledProcessError:
+                    # If reading this serial file fails, try the next one
+                    continue
 
     # Return the size of all detected necessary drives
     def get_disks(self):
