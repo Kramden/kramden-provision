@@ -1,19 +1,28 @@
 import sys, os
 import unittest
+import json
 from unittest.mock import patch, mock_open, MagicMock
 sys.path.insert(1, os.path.dirname(os.path.realpath(__file__))+"/../src/")
 from utils import Utils
 
 class TestUtils(unittest.TestCase):
     def setUp(self):
-        # Mock the subprocess.run to return a specific output
-        self.hostnamectl_output = '''Static hostname: testhost
-Operating System: Test OS 1.0
-Hardware Vendor: Test Vendor
-Hardware Model: Test Model'''
+        # Mock the subprocess.run to return JSON formatted output
+        hostnamectl_json = {
+            "StaticHostname": "testhost",
+            "OperatingSystemPrettyName": "Test OS 1.0",
+            "HardwareVendor": "Test Vendor",
+            "HardwareModel": "Test Model",
+            "HardwareSerial": "TEST123"
+        }
+        self.hostnamectl_output = json.dumps(hostnamectl_json)
         self.mock_subproc_run = patch('subprocess.run').start()
-        self.mock_subproc_run.return_value.stdout = self.hostnamectl_output
-        self.mock_subproc_run.return_value.returncode = 0
+        
+        # Create a MagicMock for the result
+        mock_result = MagicMock()
+        mock_result.stdout = self.hostnamectl_output
+        mock_result.returncode = 0
+        self.mock_subproc_run.return_value = mock_result
 
         # Create a Utils instance
         self.utils = Utils()
@@ -53,13 +62,16 @@ Hardware Model: Test Model'''
         mock_run.assert_called_with(['hostnamectl', 'set-hostname', 'new-hostname'])
 
     def test_get_os(self):
-        self.assertEqual(self.utils.get_os(), " Test OS 1.0")
+        self.assertEqual(self.utils.get_os(), "Test OS 1.0")
 
-    def test_get_vender(self):
-        self.assertEqual(self.utils.get_vender(), " Test Vendor")
+    def test_get_vendor(self):
+        self.assertEqual(self.utils.get_vendor(), "Test Vendor")
 
     def test_get_model(self):
-        self.assertEqual(self.utils.get_model(), " Test Model")
+        self.assertEqual(self.utils.get_model(), "Test Model")
+
+    def test_get_serial(self):
+        self.assertEqual(self.utils.get_serial(), "TEST123")
 
     def test_get_disk(self):
         with patch('psutil.disk_usage') as mock_disk_usage:
