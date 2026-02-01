@@ -73,6 +73,30 @@ class TestUtils(unittest.TestCase):
     def test_get_serial(self):
         self.assertEqual(self.utils.get_serial(), "TEST123")
 
+    @patch('subprocess.run')
+    def test_get_serial_lenovo_skips_hostnamectl(self, mock_run):
+        # Test that Lenovo devices skip the serial from hostnamectl
+        hostnamectl_json = {
+            "StaticHostname": "lenovo-test",
+            "OperatingSystemPrettyName": "Test OS 1.0",
+            "HardwareVendor": "Lenovo",
+            "HardwareModel": "ThinkPad",
+            "HardwareSerial": "INVALID_SERIAL"
+        }
+        
+        # Mock hostnamectl call
+        mock_result = MagicMock()
+        mock_result.stdout = json.dumps(hostnamectl_json)
+        mock_result.returncode = 0
+        mock_run.return_value = mock_result
+        
+        # Create Utils instance - serial should be empty since vendor is Lenovo
+        utils = Utils()
+        
+        # For Lenovo, serial from hostnamectl should be skipped
+        # The actual DMI fallback won't work in tests, so serial should be empty
+        self.assertEqual(utils.get_serial(), "")
+
     def test_get_disk(self):
         with patch('psutil.disk_usage') as mock_disk_usage:
             mock_disk_usage.return_value.total = 1024 ** 3 * 100  # 100 GB
