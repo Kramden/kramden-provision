@@ -1,8 +1,10 @@
 import gi
-gi.require_version('Adw', '1')
-gi.require_version('Gtk', '4.0')
+
+gi.require_version("Adw", "1")
+gi.require_version("Gtk", "4.0")
 from gi.repository import Adw, Gtk
 from utils import Utils
+
 
 class SysInfo(Adw.Bin):
     def __init__(self):
@@ -35,11 +37,11 @@ class SysInfo(Adw.Bin):
         self.landscape_row = Adw.ActionRow()
         self.landscape_row.set_title("Landscape Status")
 
-        vender_row = Adw.ActionRow()
-        vender_row.set_title("Manufacturer")
-        vender_row.set_subtitle(utils.get_vender())
-        # Set Vender row to emblem-ok-symbolic
-        vender_row.set_icon_name("emblem-ok-symbolic")
+        vendor_row = Adw.ActionRow()
+        vendor_row.set_title("Manufacturer")
+        vendor_row.set_subtitle(utils.get_vendor())
+        # Set vendor row to emblem-ok-symbolic
+        vendor_row.set_icon_name("emblem-ok-symbolic")
 
         model_row = Adw.ActionRow()
         model_row.set_title("Model")
@@ -67,9 +69,9 @@ class SysInfo(Adw.Bin):
         self.mem_row.set_subtitle(utils.get_mem() + " GB")
 
         self.disks_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        #self.disk_row = Adw.ExpanderRow(title="Disks")
-        #self.disk_row.set_visible(False)
-        #self.disk_row.set_expanded(False)
+        # self.disk_row = Adw.ExpanderRow(title="Disks")
+        # self.disk_row.set_visible(False)
+        # self.disk_row.set_expanded(False)
 
         self.battery_row = Adw.ExpanderRow(title="Batteries")
         self.battery_row.set_visible(False)
@@ -78,7 +80,7 @@ class SysInfo(Adw.Bin):
         # Add rows to the list box
         list_box.append(self.hostname_row)
         list_box.append(self.landscape_row)
-        list_box.append(vender_row)
+        list_box.append(vendor_row)
         list_box.append(model_row)
         list_box.append(cpu_row)
         list_box.append(os_row)
@@ -175,7 +177,7 @@ class SysInfo(Adw.Bin):
             for battery in batteries.keys():
                 row = Adw.ActionRow()
                 row.set_title(f"{str(battery)})")
-                row.set_subtitle(f'{str(batteries[battery])}%')
+                row.set_subtitle(f"{str(batteries[battery])}%")
                 self.battery_row.add_row(row)
                 self.battery_row.set_expanded(True)
                 # Set Battery row to emblem-ok-symbolic if battery capacity is greater than 70%, else set row to emblem-important-symbolic
@@ -188,5 +190,5 @@ class SysInfo(Adw.Bin):
             self.batteries_populated = True
 
         state = self.state.get_value()
-        state['SysInfo'] = passed
+        state["SysInfo"] = passed
         print("sysinfo:on_shown " + str(self.state.get_value()))
