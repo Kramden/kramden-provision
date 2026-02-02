@@ -17,7 +17,6 @@ class ManualTest(Adw.Bin):
         self.required_tests = {"USB": False, "Browser": False}
         self.optional_tests = {
             "WebCam": False,
-            "Keyboard": False,
             "WiFi": False,
             "Touchpad": False,
             "ScreenTest": False,
@@ -88,9 +87,6 @@ class ManualTest(Adw.Bin):
         webcam_clickhere.connect("clicked", self.on_webcam_clicked)
 
         keyboard_row = Adw.ExpanderRow()
-        self.keyboard_button = Gtk.CheckButton()
-        self.keyboard_button.connect("toggled", self.on_keyboard_toggled)
-        keyboard_row.add_prefix(self.keyboard_button)
         keyboard_row.set_title(
             "Keyboard (Do all the keys work and report correctly? Test in the text box below.)"
         )
@@ -256,10 +252,7 @@ class ManualTest(Adw.Bin):
         current_state = self.webcam_button.get_active()
         self.webcam_button.set_active(not current_state)
 
-    # Make keyboard row clickable
-    def on_keyboard_row_activated(self, row):
-        current_state = self.keyboard_button.get_active()
-        self.keyboard_button.set_active(not current_state)
+
 
     def on_touchpad_row_activated(self, row):
         current_state = self.touchpad_button.get_active()
@@ -277,12 +270,7 @@ class ManualTest(Adw.Bin):
         print(self.optional_tests)
         self.check_status()
 
-    # Handle toggled event for the keyboard button
-    def on_keyboard_toggled(self, button):
-        print("ManualTest:on_keyboard_toggled")
-        self.optional_tests["Keyboard"] = button.get_active()
-        print(self.optional_tests)
-        self.check_status()
+
 
     # Handle toggled event for the webcam button
     def on_webcam_toggled(self, button):
