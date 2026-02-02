@@ -112,8 +112,9 @@ class ManualTest(Adw.Bin):
         self.keyboard_template = Gtk.TextView(buffer=self.keyboard_template_buffer)
         self.keyboard_template.set_editable(False)
         self.keyboard_template.set_cursor_visible(False)
-        self.keyboard_template.set_wrap_mode(Gtk.WrapMode.WORD)
+        self.keyboard_template.set_wrap_mode(Gtk.WrapMode.NONE)
         self.keyboard_template.set_vexpand(False)
+        self.keyboard_template.set_valign(Gtk.Align.START)
         self.keyboard_template.set_size_request(-1, 30)
 
         # Create text tags for coloring
@@ -131,8 +132,10 @@ class ManualTest(Adw.Bin):
         keyboard_text_buffer.set_text("")
         self.keyboard_text_view = Gtk.TextView(buffer=keyboard_text_buffer)
         self.keyboard_text_view.set_sensitive(True)
-        self.keyboard_text_view.set_wrap_mode(Gtk.WrapMode.WORD)
-        self.keyboard_text_view.set_size_request(-1, 50)
+        self.keyboard_text_view.set_wrap_mode(Gtk.WrapMode.NONE)
+        self.keyboard_text_view.set_vexpand(False)
+        self.keyboard_text_view.set_valign(Gtk.Align.START)
+        self.keyboard_text_view.set_size_request(-1, 30)
 
         # Store the buffer as instance variable
         self.keyboard_text_buffer = keyboard_text_buffer
