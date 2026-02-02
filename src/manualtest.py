@@ -88,9 +88,6 @@ class ManualTest(Adw.Bin):
         webcam_clickhere.connect("clicked", self.on_webcam_clicked)
 
         keyboard_row = Adw.ExpanderRow()
-        self.keyboard_button = Gtk.CheckButton()
-        self.keyboard_button.connect("toggled", self.on_keyboard_toggled)
-        keyboard_row.add_prefix(self.keyboard_button)
         keyboard_row.set_title(
             "Keyboard (Do all the keys work and report correctly? Test in the text box below.)"
         )
@@ -218,6 +215,9 @@ class ManualTest(Adw.Bin):
         end = self.keyboard_template_buffer.get_end_iter()
         self.keyboard_template_buffer.remove_all_tags(start, end)
 
+        # Track if all characters have been typed
+        all_chars_typed = True
+
         # Apply tags character by character
         for index, char in enumerate(self.original_text):
             # Get the iterators for this character position in the template
@@ -235,6 +235,14 @@ class ManualTest(Adw.Bin):
                 self.keyboard_template_buffer.apply_tag(
                     self.gray_tag, start_iter, end_iter
                 )
+                all_chars_typed = False
+
+        # Update keyboard test status based on whether all characters have been typed
+        if all_chars_typed and not self.optional_tests["Keyboard"]:
+            print("ManualTest:keyboard_test_completed")
+            self.optional_tests["Keyboard"] = True
+            print(self.optional_tests)
+            self.check_status()
 
     # Make usb row clickable
     def on_usb_row_activated(self, row):
@@ -256,11 +264,6 @@ class ManualTest(Adw.Bin):
         current_state = self.webcam_button.get_active()
         self.webcam_button.set_active(not current_state)
 
-    # Make keyboard row clickable
-    def on_keyboard_row_activated(self, row):
-        current_state = self.keyboard_button.get_active()
-        self.keyboard_button.set_active(not current_state)
-
     def on_touchpad_row_activated(self, row):
         current_state = self.touchpad_button.get_active()
         self.touchpad_button.set_active(not current_state)
@@ -274,13 +277,6 @@ class ManualTest(Adw.Bin):
     def on_screentest_toggled(self, button):
         print("ManualTest:on_screentest_toggled")
         self.optional_tests["ScreenTest"] = button.get_active()
-        print(self.optional_tests)
-        self.check_status()
-
-    # Handle toggled event for the keyboard button
-    def on_keyboard_toggled(self, button):
-        print("ManualTest:on_keyboard_toggled")
-        self.optional_tests["Keyboard"] = button.get_active()
         print(self.optional_tests)
         self.check_status()
 
