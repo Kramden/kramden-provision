@@ -252,8 +252,6 @@ class ManualTest(Adw.Bin):
         current_state = self.webcam_button.get_active()
         self.webcam_button.set_active(not current_state)
 
-
-
     def on_touchpad_row_activated(self, row):
         current_state = self.touchpad_button.get_active()
         self.touchpad_button.set_active(not current_state)
@@ -269,8 +267,6 @@ class ManualTest(Adw.Bin):
         self.optional_tests["ScreenTest"] = button.get_active()
         print(self.optional_tests)
         self.check_status()
-
-
 
     # Handle toggled event for the webcam button
     def on_webcam_toggled(self, button):
