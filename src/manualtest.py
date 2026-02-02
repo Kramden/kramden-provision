@@ -95,7 +95,7 @@ class ManualTest(Adw.Bin):
         keyboard_row.set_activatable(True)
         keyboard_row.connect("activated", self.on_keyboard_row_activated)
 
-        self.original_text = "The quick brown fox jumps over the lazy dog."
+        self.original_text = "The quick brown fox jumps over the lazy dog 1234567890"
 
         # Create a box to hold the label and text view
         keyboard_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
@@ -103,36 +103,45 @@ class ManualTest(Adw.Bin):
         keyboard_box.set_margin_bottom(10)
         keyboard_box.set_margin_start(10)
         keyboard_box.set_margin_end(10)
+        keyboard_box.set_vexpand(False)
+        keyboard_box.set_valign(Gtk.Align.START)
 
-        # Set label for text
-        original_label = Gtk.Label(label=f"Type: {self.original_text}")
-        original_label.set_opacity(0.5)
-        original_label.set_halign(Gtk.Align.START)
-        keyboard_box.append(original_label)
+        # Template text view (shows what to type)
+        self.keyboard_template_buffer = Gtk.TextBuffer()
+        self.keyboard_template_buffer.set_text(self.original_text)
+        self.keyboard_template = Gtk.TextView(buffer=self.keyboard_template_buffer)
+        self.keyboard_template.set_editable(False)
+        self.keyboard_template.set_cursor_visible(False)
+        self.keyboard_template.set_wrap_mode(Gtk.WrapMode.WORD)
+        self.keyboard_template.set_vexpand(False)
+        self.keyboard_template.set_size_request(-1, 30)
 
-        # Create text buffer and view
+        # Create text tags for coloring
+        self.green_tag = self.keyboard_template_buffer.create_tag(
+            "green", foreground="green", weight=700
+        )
+        self.gray_tag = self.keyboard_template_buffer.create_tag(
+            "gray", foreground="gray"
+        )
+
+        keyboard_box.append(self.keyboard_template)
+
+        # Input text view (where user types)
         keyboard_text_buffer = Gtk.TextBuffer()
-        keyboard_text_buffer.set_text("")  # Starts empty
+        keyboard_text_buffer.set_text("")
         self.keyboard_text_view = Gtk.TextView(buffer=keyboard_text_buffer)
         self.keyboard_text_view.set_sensitive(True)
         self.keyboard_text_view.set_wrap_mode(Gtk.WrapMode.WORD)
-        self.keyboard_text_view.set_size_request(-1, 50)  # Set minimum height
+        self.keyboard_text_view.set_size_request(-1, 50)
 
         # Store the buffer as instance variable
         self.keyboard_text_buffer = keyboard_text_buffer
-
-        # Create text tags for coloring
-        self.green_tag = self.keyboard_text_buffer.create_tag(
-            "green", foreground="green"
-        )
-        self.red_tag = self.keyboard_text_buffer.create_tag("red", foreground="red")
 
         # Create an event controller for key events
         key_controller = Gtk.EventControllerKey()
         key_controller.connect("key-released", self.on_key_release)
         self.keyboard_text_view.add_controller(key_controller)
 
-        # Add text view to the box
         keyboard_box.append(self.keyboard_text_view)
 
         # Click here button to open libre office writer
@@ -189,27 +198,29 @@ class ManualTest(Adw.Bin):
         )
         self.update_text_highlighting(typed_text)
 
-    # Turn letters green when typed
     def update_text_highlighting(self, typed_text):
-        start = self.keyboard_text_buffer.get_start_iter()
-        end = self.keyboard_text_buffer.get_end_iter()
-        self.keyboard_text_buffer.remove_all_tags(start, end)
+        # Remove all tags first
+        start = self.keyboard_template_buffer.get_start_iter()
+        end = self.keyboard_template_buffer.get_end_iter()
+        self.keyboard_template_buffer.remove_all_tags(start, end)
 
         # Apply tags character by character
-        for index, char in enumerate(typed_text):
-            if index < len(self.original_text):
-                # Get the iterators for this character position
-                start_iter = self.keyboard_text_buffer.get_iter_at_offset(index)
-                end_iter = self.keyboard_text_buffer.get_iter_at_offset(index + 1)
+        for index, char in enumerate(self.original_text):
+            # Get the iterators for this character position in the template
+            start_iter = self.keyboard_template_buffer.get_iter_at_offset(index)
+            end_iter = self.keyboard_template_buffer.get_iter_at_offset(index + 1)
 
-                if char == self.original_text[index]:
-                    self.keyboard_text_buffer.apply_tag(
-                        self.green_tag, start_iter, end_iter
-                    )
-                else:
-                    self.keyboard_text_buffer.apply_tag(
-                        self.red_tag, start_iter, end_iter
-                    )
+            # Check if this character exists anywhere in what the user has typed
+            if char in typed_text:
+                # This character has been typed somewhere - turn it green
+                self.keyboard_template_buffer.apply_tag(
+                    self.green_tag, start_iter, end_iter
+                )
+            else:
+                # This character hasn't been typed yet - keep it gray
+                self.keyboard_template_buffer.apply_tag(
+                    self.gray_tag, start_iter, end_iter
+                )
 
     # Make usb row clickable
     def on_usb_row_activated(self, row):
