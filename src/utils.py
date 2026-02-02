@@ -11,6 +11,7 @@ import dbus
 import pyudev
 import re
 import json
+import math
 
 # Utility class for functions used throughout the app
 class Utils():
@@ -145,7 +146,6 @@ class Utils():
                 return size
         # For very large RAM beyond our largest standard size, round up to nearest 64 GiB
         if mem_gib > standard_sizes[-1]:
-            import math
             return math.ceil(mem_gib / 64) * 64
         # Otherwise, return truncated GB value (no rounding to a standard size)
         return int(mem_gib)
