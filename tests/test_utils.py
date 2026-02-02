@@ -123,14 +123,16 @@ class TestUtils(unittest.TestCase):
         result = self.utils.get_disks()
         self.assertEqual(result, {'/dev/sda': 100})
 
-    def test_get_mem_8gb_system(self):
-        # Simulate 8GB system with ~7.7GB reported (reserved for video, etc.)
+    def test_get_mem_8gib_system(self):
+        # Simulate 8 GiB system with ~7.3 GiB reported (reserved for video, etc.)
+        # 7700000 KiB / 1024^2 = 7.34 GiB -> rounds to 8
         meminfo_content = "MemTotal:       7700000 kB"
         with patch('builtins.open', mock_open(read_data=meminfo_content)):
             self.assertEqual(self.utils.get_mem(), "8")
 
-    def test_get_mem_16gb_system(self):
-        # Simulate 16GB system with ~15.5GB reported
+    def test_get_mem_16gib_system(self):
+        # Simulate 16 GiB system with ~14.8 GiB reported
+        # 15500000 KiB / 1024^2 = 14.78 GiB -> rounds to 16
         meminfo_content = "MemTotal:       15500000 kB"
         with patch('builtins.open', mock_open(read_data=meminfo_content)):
             self.assertEqual(self.utils.get_mem(), "16")

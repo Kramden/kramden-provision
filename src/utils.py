@@ -127,25 +127,25 @@ class Utils():
                 if line.strip():
                     key, value = line.split(':', 1)
                     mem_info[key.strip()] = value.strip()
-        # MemTotal is in kB (actually KiB), convert to GB
-        mem_kb = int(mem_info['MemTotal'].split(" ")[0])
-        mem_gb = mem_kb / 1000 ** 2
+        # MemTotal is in KiB (labeled as kB), convert to GiB
+        mem_kib = int(mem_info['MemTotal'].split(" ")[0])
+        mem_gib = mem_kib / 1024 ** 2
         # Round to nearest standard RAM size to account for reserved memory (video, etc.)
-        return str(self._round_to_standard_ram(mem_gb))
+        return str(self._round_to_standard_ram(mem_gib))
 
-    def _round_to_standard_ram(self, mem_gb):
+    def _round_to_standard_ram(self, mem_gib):
         """Round memory to nearest standard RAM size (accounts for reserved memory)."""
-        # Common RAM sizes in GB
+        # Common RAM sizes in GiB
         standard_sizes = [4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256]
         for size in standard_sizes:
             # If within 10% below the standard size, round up to it
-            if mem_gb <= size and mem_gb >= size * 0.9:
+            if mem_gib <= size and mem_gib >= size * 0.9:
                 return size
             # If exactly at or slightly above, return that size
-            if mem_gb <= size:
+            if mem_gib <= size:
                 return size
-        # For very large RAM, round up to nearest 64GB
-        return ((int(mem_gb) + 63) // 64) * 64
+        # For very large RAM, round up to nearest 64 GiB
+        return ((int(mem_gib) + 63) // 64) * 64
 
     # Return CPU model info
     def get_cpu_info(self):
