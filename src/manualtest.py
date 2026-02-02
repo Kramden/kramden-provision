@@ -127,6 +127,8 @@ class ManualTest(Adw.Bin):
             "gray", foreground="gray"
         )
 
+        # Initialize template highlighting so it appears in the correct gray/green state
+        self.update_text_highlighting("")
         keyboard_box.append(self.keyboard_template)
 
         # Input text view (where user types)
