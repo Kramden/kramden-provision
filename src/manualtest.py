@@ -146,15 +146,10 @@ class ManualTest(Adw.Bin):
         key_controller.connect("key-released", self.on_key_release)
         self.keyboard_text_view.add_controller(key_controller)
 
-        # Disable paste functionality
+        # Disable paste, the point is to test the keyboard
         self.keyboard_text_view.connect("paste-clipboard", self.on_paste_clipboard)
 
         keyboard_box.append(self.keyboard_text_view)
-
-        # Click here button to open libre office writer
-        # keyboard_clickhere = Gtk.Button(label = "Click Here")
-        # keyboard_row.add_suffix(keyboard_clickhere)
-        # keyboard_clickhere.connect("clicked", self.on_keyboard_clicked)
 
         touchpad_row = Adw.ActionRow()
         self.touchpad_button = Gtk.CheckButton()
