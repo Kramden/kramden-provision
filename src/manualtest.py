@@ -208,7 +208,7 @@ class ManualTest(Adw.Bin):
         self.update_text_highlighting(typed_text)
 
     # Prevent paste operations in the keyboard test text view
-    def on_paste_clipboard(self, text_view):
+    def on_paste_clipboard(self, _text_view):
         # Stop the signal propagation to prevent paste
         return True
 
