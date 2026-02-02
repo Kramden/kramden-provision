@@ -11,6 +11,7 @@ import dbus
 import pyudev
 import re
 import json
+import math
 
 # Utility class for functions used throughout the app
 class Utils():
@@ -134,18 +135,20 @@ class Utils():
         return str(self._round_to_standard_ram(mem_gib))
 
     def _round_to_standard_ram(self, mem_gib):
-        """Round memory to nearest standard RAM size (accounts for reserved memory)."""
+        """Round memory to nearest standard RAM size when within tolerance."""
         # Common RAM sizes in GiB
         standard_sizes = [4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256]
+        # Only round to a standard size when within 10% of that size
         for size in standard_sizes:
-            # If within 10% below the standard size, round up to it
-            if mem_gib <= size and mem_gib >= size * 0.9:
+            lower_bound = size * 0.9
+            upper_bound = size * 1.1
+            if lower_bound <= mem_gib <= upper_bound:
                 return size
-            # If exactly at or slightly above, return that size
-            if mem_gib <= size:
-                return size
-        # For very large RAM, round up to nearest 64 GiB
-        return ((int(mem_gib) + 63) // 64) * 64
+        # For very large RAM beyond our largest standard size, round up to nearest 64 GiB
+        if mem_gib > standard_sizes[-1]:
+            return math.ceil(mem_gib / 64) * 64
+        # Otherwise, return truncated GB value (no rounding to a standard size)
+        return int(mem_gib)
 
     # Return CPU model info
     def get_cpu_info(self):
