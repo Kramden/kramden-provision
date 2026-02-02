@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 
 import gi
-gi.require_version('Gdk', '4.0')
-gi.require_version('Gtk', '4.0')
-gi.require_version('Adw', '1')
+
+gi.require_version("Gdk", "4.0")
+gi.require_version("Gtk", "4.0")
+gi.require_version("Adw", "1")
 from gi.repository import Gdk, Gtk, Adw
 
 import os
@@ -13,6 +14,7 @@ from landscape import Landscape
 from osloadcomplete import OSLoadComplete
 from observable import ObservableProperty, StateObserver
 
+
 class WizardWindow(Gtk.ApplicationWindow):
     def __init__(self, app):
         super().__init__(application=app, title="Kramden - OS Load")
@@ -21,7 +23,9 @@ class WizardWindow(Gtk.ApplicationWindow):
         self.set_default_size(800, 800)
 
         # Initialize the observable property for tracking state
-        self.observable_property = ObservableProperty({"KramdenNumber": False, "Landscape": False, "SysInfo": False})
+        self.observable_property = ObservableProperty(
+            {"KramdenNumber": False, "Landscape": False, "SysInfo": False}
+        )
         # Create and add an observer
         observer = StateObserver()
         self.observable_property.add_observer(observer)
@@ -31,7 +35,7 @@ class WizardWindow(Gtk.ApplicationWindow):
         header_bar_title = Gtk.Label(label="Kramden - OS Load")
         header_bar.set_title_widget(header_bar_title)
         header_bar.set_show_title_buttons(True)
-        
+
         # Navigation Buttons
         self.prev_button = Gtk.Button(label="Previous")
         self.prev_button.connect("clicked", self.on_prev_clicked)
@@ -48,7 +52,7 @@ class WizardWindow(Gtk.ApplicationWindow):
 
         # Create a header
         header = Adw.HeaderBar()
-        header.set_decoration_layout("") # Remove window controls
+        header.set_decoration_layout("")  # Remove window controls
         header.set_title_widget(self.title_widget)
 
         # View Stack
@@ -63,7 +67,7 @@ class WizardWindow(Gtk.ApplicationWindow):
         self.page2.state = self.observable_property
         self.page3.state = self.observable_property
         self.page4.state = self.observable_property
-        
+
         # Expose next button function
         self.page1.next = self.on_next_clicked
         self.page2.next = self.on_next_clicked
@@ -88,11 +92,13 @@ class WizardWindow(Gtk.ApplicationWindow):
 
         # Apply CSS
         css_provider = Gtk.CssProvider()
-        css_provider.load_from_path(os.path.dirname(os.path.realpath(__file__)) + '/css/style.css')
+        css_provider.load_from_path(
+            os.path.dirname(os.path.realpath(__file__)) + "/css/style.css"
+        )
         Gtk.StyleContext.add_provider_for_display(
             Gdk.Display.get_default(),
             css_provider,
-            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
         )
 
         # Set title_widget after page was set
@@ -139,16 +145,19 @@ class WizardWindow(Gtk.ApplicationWindow):
             self.next_button.remove_css_class("button-next-last-page")
             self.next_button.set_label("Next")
 
-        if self.current_page == 2: 
+        if self.current_page == 2:
             self.next_button.grab_focus()
 
     def complete(self):
         print("Complete Clicked")
-        self.page4.complete()
+        current = self.stack.get_visible_child()
+        if hasattr(current, "complete"):
+            current.complete()
+
 
 class Application(Adw.Application):
     def __init__(self):
-        super().__init__(application_id='org.kramden.provision-osload')
+        super().__init__(application_id="org.kramden.provision-osload")
         Adw.init()
 
         # Set Adwaita dark theme preference using Adw.StyleManager
@@ -159,6 +168,7 @@ class Application(Adw.Application):
         window = WizardWindow(self)
         self.add_window(window)
         window.present()
+
 
 app = Application()
 app.run([])

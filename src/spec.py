@@ -142,7 +142,9 @@ class WizardWindow(Gtk.ApplicationWindow):
 
     def complete(self):
         print("Complete Clicked")
-        self.page4.complete()
+        current = self.stack.get_visible_child()
+        if hasattr(current, "complete"):
+            current.complete()
 
 
 class Application(Adw.Application):

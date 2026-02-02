@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 
 import gi
-gi.require_version('Gdk', '4.0')
-gi.require_version('Gtk', '4.0')
-gi.require_version('Adw', '1')
+
+gi.require_version("Gdk", "4.0")
+gi.require_version("Gtk", "4.0")
+gi.require_version("Adw", "1")
 from gi.repository import Gdk, Gtk, Adw
 
 import os
@@ -13,6 +14,7 @@ from manualtest import ManualTest
 from finaltestcomplete import FinalTestComplete
 from observable import ObservableProperty, StateObserver
 
+
 class WizardWindow(Gtk.ApplicationWindow):
     def __init__(self, app):
         super().__init__(application=app, title="Kramden - Final Test")
@@ -21,7 +23,9 @@ class WizardWindow(Gtk.ApplicationWindow):
         self.set_default_size(800, 800)
 
         # Initialize the observable property for tracking state
-        self.observable_property = ObservableProperty({"SysInfo": False, "CheckPackages": False, "ManualTest": False})
+        self.observable_property = ObservableProperty(
+            {"SysInfo": False, "CheckPackages": False, "ManualTest": False}
+        )
         # Create and add an observer
         observer = StateObserver()
         self.observable_property.add_observer(observer)
@@ -48,7 +52,7 @@ class WizardWindow(Gtk.ApplicationWindow):
 
         # Create a header
         header = Adw.HeaderBar()
-        header.set_decoration_layout("") # Remove window controls
+        header.set_decoration_layout("")  # Remove window controls
         header.set_title_widget(self.title_widget)
 
         # View Stack
@@ -63,7 +67,6 @@ class WizardWindow(Gtk.ApplicationWindow):
         self.page3.state = self.observable_property
         self.page4.state = self.observable_property
 
-        
         self.stack.add_named(self.page1, "page1")
         self.stack.add_named(self.page2, "page2")
         self.stack.add_named(self.page3, "page3")
@@ -82,11 +85,13 @@ class WizardWindow(Gtk.ApplicationWindow):
 
         # Apply CSS
         css_provider = Gtk.CssProvider()
-        css_provider.load_from_path(os.path.dirname(os.path.realpath(__file__)) + '/css/style.css')
+        css_provider.load_from_path(
+            os.path.dirname(os.path.realpath(__file__)) + "/css/style.css"
+        )
         Gtk.StyleContext.add_provider_for_display(
             Gdk.Display.get_default(),
             css_provider,
-            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
         )
 
         # Set title_widget after page was set
@@ -109,7 +114,7 @@ class WizardWindow(Gtk.ApplicationWindow):
             self.update_buttons()
             page = eval(f"self.page{self.current_page + 1}")
             if page.skip:
-                print(f'on_prev_clicked: page{self.current_page - 1} skipped')
+                print(f"on_prev_clicked: page{self.current_page - 1} skipped")
                 self.on_prev_clicked()
 
     def on_next_clicked(self, button=None):
@@ -119,7 +124,7 @@ class WizardWindow(Gtk.ApplicationWindow):
             self.update_buttons()
             page = eval(f"self.page{self.current_page + 1}")
             if page.skip:
-                print(f'on_next_clicked: page{self.current_page + 1} skipped')
+                print(f"on_next_clicked: page{self.current_page + 1} skipped")
                 self.on_next_clicked()
         else:
             self.complete()
@@ -141,11 +146,14 @@ class WizardWindow(Gtk.ApplicationWindow):
 
     def complete(self):
         print("Complete Clicked")
-        self.page4.complete()
+        current = self.stack.get_visible_child()
+        if hasattr(current, "complete"):
+            current.complete()
+
 
 class Application(Adw.Application):
     def __init__(self):
-        super().__init__(application_id='org.kramden.provision-finaltest')
+        super().__init__(application_id="org.kramden.provision-finaltest")
         Adw.init()
 
         # Set Adwaita dark theme preference using Adw.StyleManager
@@ -156,6 +164,7 @@ class Application(Adw.Application):
         window = WizardWindow(self)
         self.add_window(window)
         window.present()
+
 
 app = Application()
 app.run([])
