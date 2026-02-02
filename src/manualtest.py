@@ -1,7 +1,9 @@
 import gi
-gi.require_version('Adw', '1')
+
+gi.require_version("Adw", "1")
 from gi.repository import Adw, Gtk
 from utils import Utils
+
 
 class ManualTest(Adw.Bin):
     def __init__(self):
@@ -13,7 +15,13 @@ class ManualTest(Adw.Bin):
         self.title = "Perform the following manual tests:"
         self.utils = Utils()
         self.required_tests = {"USB": False, "Browser": False}
-        self.optional_tests = {"WebCam": False, "Keyboard": False, "WiFi": False, "Touchpad": False, "ScreenTest": False}
+        self.optional_tests = {
+            "WebCam": False,
+            "Keyboard": False,
+            "WiFi": False,
+            "Touchpad": False,
+            "ScreenTest": False,
+        }
         self.skip = False
 
         # Create a box to hold the content
@@ -22,7 +30,7 @@ class ManualTest(Adw.Bin):
         # Create window titles for required and optional list boxes
         required_windowtitle = Adw.WindowTitle()
         required_windowtitle.set_title("Required Tests")
-        
+
         optional_windowtitle = Adw.WindowTitle()
         optional_windowtitle.set_title("Optional Tests")
 
@@ -37,7 +45,9 @@ class ManualTest(Adw.Bin):
         self.usb_button = Gtk.CheckButton()
         self.usb_button.connect("toggled", self.on_usb_toggled)
         usb_row.add_prefix(self.usb_button)
-        usb_row.set_title("USB Ports (Plug the mouse into each USB port and verify that it works)")
+        usb_row.set_title(
+            "USB Ports (Plug the mouse into each USB port and verify that it works)"
+        )
         usb_row.set_activatable(True)
         usb_row.connect("activated", self.on_usb_row_activated)
 
@@ -50,7 +60,7 @@ class ManualTest(Adw.Bin):
         browser_row.connect("activated", self.on_browser_row_activated)
 
         # Click here button to open a browser
-        browser_clickhere = Gtk.Button(label = "Click Here")
+        browser_clickhere = Gtk.Button(label="Click Here")
         browser_row.add_suffix(browser_clickhere)
         browser_clickhere.connect("clicked", self.on_browser_clicked)
 
@@ -58,7 +68,9 @@ class ManualTest(Adw.Bin):
         self.wifi_button = Gtk.CheckButton()
         self.wifi_button.connect("toggled", self.on_wifi_toggled)
         wifi_row.add_prefix(self.wifi_button)
-        wifi_row.set_title("WiFi connectivity (Can it connect to the internet wirelessly?)")
+        wifi_row.set_title(
+            "WiFi connectivity (Can it connect to the internet wirelessly?)"
+        )
         wifi_row.set_activatable(True)
         wifi_row.connect("activated", self.on_wifi_row_activated)
 
@@ -71,7 +83,7 @@ class ManualTest(Adw.Bin):
         webcam_row.connect("activated", self.on_webcam_row_activated)
 
         # Click here button to open camera app
-        webcam_clickhere = Gtk.Button(label = "Click Here")
+        webcam_clickhere = Gtk.Button(label="Click Here")
         webcam_row.add_suffix(webcam_clickhere)
         webcam_clickhere.connect("clicked", self.on_webcam_clicked)
 
@@ -83,10 +95,50 @@ class ManualTest(Adw.Bin):
         keyboard_row.set_activatable(True)
         keyboard_row.connect("activated", self.on_keyboard_row_activated)
 
+        self.original_text = "The quick brown fox jumps over the lazy dog."
+
+        # Create a box to hold the label and text view
+        keyboard_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
+        keyboard_box.set_margin_top(10)
+        keyboard_box.set_margin_bottom(10)
+        keyboard_box.set_margin_start(10)
+        keyboard_box.set_margin_end(10)
+
+        # Set label for text
+        original_label = Gtk.Label(label=f"Type: {self.original_text}")
+        original_label.set_opacity(0.5)
+        original_label.set_halign(Gtk.Align.START)
+        keyboard_box.append(original_label)
+
+        # Create text buffer and view
+        keyboard_text_buffer = Gtk.TextBuffer()
+        keyboard_text_buffer.set_text("")  # Starts empty
+        self.keyboard_text_view = Gtk.TextView(buffer=keyboard_text_buffer)
+        self.keyboard_text_view.set_sensitive(True)
+        self.keyboard_text_view.set_wrap_mode(Gtk.WrapMode.WORD)
+        self.keyboard_text_view.set_size_request(-1, 50)  # Set minimum height
+
+        # Store the buffer as instance variable
+        self.keyboard_text_buffer = keyboard_text_buffer
+
+        # Create text tags for coloring
+        self.green_tag = self.keyboard_text_buffer.create_tag(
+            "green", foreground="green"
+        )
+        self.red_tag = self.keyboard_text_buffer.create_tag("red", foreground="red")
+
+        # Create an event controller for key events
+        key_controller = Gtk.EventControllerKey()
+        key_controller.connect("key-released", self.on_key_release)
+        self.keyboard_text_view.add_controller(key_controller)
+
+        # Add text view to the box
+        keyboard_box.append(self.keyboard_text_view)
+
         # Click here button to open libre office writer
-        keyboard_clickhere = Gtk.Button(label = "Click Here")
-        keyboard_row.add_suffix(keyboard_clickhere)
-        keyboard_clickhere.connect("clicked", self.on_keyboard_clicked)
+        # keyboard_clickhere = Gtk.Button(label = "Click Here")
+        # keyboard_row.add_suffix(keyboard_clickhere)
+        # keyboard_clickhere.connect("clicked", self.on_keyboard_clicked)
 
         touchpad_row = Adw.ActionRow()
         self.touchpad_button = Gtk.CheckButton()
@@ -105,7 +157,7 @@ class ManualTest(Adw.Bin):
         screentest_row.connect("activated", self.on_screentest_row_activated)
 
         # Click here button to open screen-test
-        screentest_clickhere = Gtk.Button(label = "Click Here")
+        screentest_clickhere = Gtk.Button(label="Click Here")
         screentest_row.add_suffix(screentest_clickhere)
         screentest_clickhere.connect("clicked", self.on_screentest_clicked)
 
@@ -115,6 +167,7 @@ class ManualTest(Adw.Bin):
         optional_list_box.append(wifi_row)
         optional_list_box.append(webcam_row)
         optional_list_box.append(keyboard_row)
+        optional_list_box.append(keyboard_box)
         optional_list_box.append(touchpad_row)
         optional_list_box.append(screentest_row)
 
@@ -126,6 +179,37 @@ class ManualTest(Adw.Bin):
 
         # Add the vertical box to the page
         self.set_child(vbox)
+
+    # When key is released, do something
+    def on_key_release(self, controller, keyval, keycode, state):
+        typed_text = self.keyboard_text_buffer.get_text(
+            self.keyboard_text_buffer.get_start_iter(),
+            self.keyboard_text_buffer.get_end_iter(),
+            False,
+        )
+        self.update_text_highlighting(typed_text)
+
+    # Turn letters green when typed
+    def update_text_highlighting(self, typed_text):
+        start = self.keyboard_text_buffer.get_start_iter()
+        end = self.keyboard_text_buffer.get_end_iter()
+        self.keyboard_text_buffer.remove_all_tags(start, end)
+
+        # Apply tags character by character
+        for index, char in enumerate(typed_text):
+            if index < len(self.original_text):
+                # Get the iterators for this character position
+                start_iter = self.keyboard_text_buffer.get_iter_at_offset(index)
+                end_iter = self.keyboard_text_buffer.get_iter_at_offset(index + 1)
+
+                if char == self.original_text[index]:
+                    self.keyboard_text_buffer.apply_tag(
+                        self.green_tag, start_iter, end_iter
+                    )
+                else:
+                    self.keyboard_text_buffer.apply_tag(
+                        self.red_tag, start_iter, end_iter
+                    )
 
     # Make usb row clickable
     def on_usb_row_activated(self, row):
@@ -214,7 +298,7 @@ class ManualTest(Adw.Bin):
         self.utils.launch_app("gnome-text-editor")
 
     # Launch the cheese app when clicked
-    def on_webcam_clicked(self,button):
+    def on_webcam_clicked(self, button):
         print("ManualTest:on_webcam_clicked")
         if self.utils.file_exists_and_executable("/usr/bin/guvcview"):
             self.utils.launch_app("guvcview")
@@ -238,7 +322,7 @@ class ManualTest(Adw.Bin):
     def check_status(self):
         print("ManualTest:check_status")
         state = self.state.get_value()
-        state['ManualTest'] = all(self.required_tests.values())
+        state["ManualTest"] = all(self.required_tests.values())
         print("manualtest:check_status State:" + str(state))
 
     # on_shown is called when the page is shown in the stack
