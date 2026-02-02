@@ -149,6 +149,9 @@ class ManualTest(Adw.Bin):
         key_controller.connect("key-released", self.on_key_release)
         self.keyboard_text_view.add_controller(key_controller)
 
+        # Disable paste functionality
+        self.keyboard_text_view.connect("paste-clipboard", self.on_paste_clipboard)
+
         keyboard_box.append(self.keyboard_text_view)
 
         # Click here button to open libre office writer
@@ -203,6 +206,11 @@ class ManualTest(Adw.Bin):
             False,
         )
         self.update_text_highlighting(typed_text)
+
+    # Prevent paste operations in the keyboard test text view
+    def on_paste_clipboard(self, text_view):
+        # Stop the signal propagation to prevent paste
+        return True
 
     def update_text_highlighting(self, typed_text):
         # Remove all tags first
