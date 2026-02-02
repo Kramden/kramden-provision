@@ -1,3 +1,9 @@
+kramden-provision (0.1.9.4) noble; urgency=medium
+
+  * manualtest improvements, specifically integrated keyboard testing UI
+
+ -- Ken VanDine <ken.vandine@canonical.com>  Mon, 02 Feb 2026 17:27:13 -0500
+
 kramden-provision (0.1.9.3) noble; urgency=medium
 
   * kramden-spec: Improved handling of asset tag check
