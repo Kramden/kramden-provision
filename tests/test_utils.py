@@ -123,10 +123,27 @@ class TestUtils(unittest.TestCase):
         result = self.utils.get_disks()
         self.assertEqual(result, {'/dev/sda': 100})
 
-    def test_get_mem(self):
-        meminfo_content = "MemTotal:       2048000 kB"
+    def test_get_mem_8gb_system(self):
+        # Simulate 8GB system with ~7.7GB reported (reserved for video, etc.)
+        meminfo_content = "MemTotal:       7700000 kB"
         with patch('builtins.open', mock_open(read_data=meminfo_content)):
-            self.assertEqual(self.utils.get_mem(), "2")
+            self.assertEqual(self.utils.get_mem(), "8")
+
+    def test_get_mem_16gb_system(self):
+        # Simulate 16GB system with ~15.5GB reported
+        meminfo_content = "MemTotal:       15500000 kB"
+        with patch('builtins.open', mock_open(read_data=meminfo_content)):
+            self.assertEqual(self.utils.get_mem(), "16")
+
+    def test_round_to_standard_ram(self):
+        # Test the rounding helper directly
+        self.assertEqual(self.utils._round_to_standard_ram(7.7), 8)
+        self.assertEqual(self.utils._round_to_standard_ram(7.2), 8)
+        self.assertEqual(self.utils._round_to_standard_ram(8.0), 8)
+        self.assertEqual(self.utils._round_to_standard_ram(15.5), 16)
+        self.assertEqual(self.utils._round_to_standard_ram(31.2), 32)
+        self.assertEqual(self.utils._round_to_standard_ram(3.8), 4)
+        self.assertEqual(self.utils._round_to_standard_ram(5.5), 6)
 
     def test_get_cpu_info(self):
         cpuinfo_content = "model name: Test CPU"
