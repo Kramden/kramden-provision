@@ -87,13 +87,14 @@ class ManualTest(Adw.Bin):
         webcam_row.add_suffix(webcam_clickhere)
         webcam_clickhere.connect("clicked", self.on_webcam_clicked)
 
-        keyboard_row = Adw.ActionRow()
+        keyboard_row = Adw.ExpanderRow()
         self.keyboard_button = Gtk.CheckButton()
         self.keyboard_button.connect("toggled", self.on_keyboard_toggled)
         keyboard_row.add_prefix(self.keyboard_button)
-        keyboard_row.set_title("Keyboard (Do all the keys work and report correctly?)")
-        keyboard_row.set_activatable(True)
-        keyboard_row.connect("activated", self.on_keyboard_row_activated)
+        keyboard_row.set_title(
+            "Keyboard (Do all the keys work and report correctly? Test in the text box below.)"
+        )
+        keyboard_row.set_expanded(True)
 
         self.original_text = "The quick brown fox jumps over the lazy dog 1234567890"
 
@@ -105,6 +106,7 @@ class ManualTest(Adw.Bin):
         keyboard_box.set_margin_end(10)
         keyboard_box.set_vexpand(False)
         keyboard_box.set_valign(Gtk.Align.START)
+        keyboard_row.add_row(keyboard_box)
 
         # Template text view (shows what to type)
         self.keyboard_template_buffer = Gtk.TextBuffer()
@@ -179,7 +181,6 @@ class ManualTest(Adw.Bin):
         optional_list_box.append(wifi_row)
         optional_list_box.append(webcam_row)
         optional_list_box.append(keyboard_row)
-        optional_list_box.append(keyboard_box)
         optional_list_box.append(touchpad_row)
         optional_list_box.append(screentest_row)
 
