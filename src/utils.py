@@ -11,6 +11,7 @@ import dbus
 import pyudev
 import re
 import json
+import math
 
 # Utility class for functions used throughout the app
 class Utils():
@@ -119,7 +120,7 @@ class Utils():
     def get_installer(self):
         return ""
 
-    # Return MemTotal
+    # Return MemTotal, rounded to nearest standard RAM size
     def get_mem(self):
         mem_info = {}
         with open('/proc/meminfo') as f:
@@ -127,8 +128,27 @@ class Utils():
                 if line.strip():
                     key, value = line.split(':', 1)
                     mem_info[key.strip()] = value.strip()
-        mem_size = int(mem_info['MemTotal'].split(" ")[0]) / 1000 ** 2
-        return str(int(mem_size))
+        # MemTotal is in KiB (labeled as kB), convert to GiB
+        mem_kib = int(mem_info['MemTotal'].split(" ")[0])
+        mem_gib = mem_kib / 1024 ** 2
+        # Round to nearest standard RAM size to account for reserved memory (video, etc.)
+        return str(self._round_to_standard_ram(mem_gib))
+
+    def _round_to_standard_ram(self, mem_gib):
+        """Round memory to nearest standard RAM size when within tolerance."""
+        # Common RAM sizes in GiB
+        standard_sizes = [4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256]
+        # Only round to a standard size when within 10% of that size
+        for size in standard_sizes:
+            lower_bound = size * 0.9
+            upper_bound = size * 1.1
+            if lower_bound <= mem_gib <= upper_bound:
+                return size
+        # For very large RAM beyond our largest standard size, round up to nearest 64 GiB
+        if mem_gib > standard_sizes[-1]:
+            return math.ceil(mem_gib / 64) * 64
+        # Otherwise, return truncated GB value (no rounding to a standard size)
+        return int(mem_gib)
 
     # Return CPU model info
     def get_cpu_info(self):
