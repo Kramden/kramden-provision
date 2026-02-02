@@ -92,6 +92,10 @@ class ManualTest(Adw.Bin):
             "Keyboard (Do all the keys work and report correctly? Test in the text box below.)"
         )
         keyboard_row.set_expanded(True)
+        keyboard_row.connect(
+            "notify::expanded",
+            lambda row, _: row.set_expanded(True) if not row.get_expanded() else None,
+        )
 
         self.original_text = "The quick brown fox jumps over the lazy dog 1234567890"
 
