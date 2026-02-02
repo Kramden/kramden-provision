@@ -182,9 +182,9 @@ class ManualTest(Adw.Bin):
         required_list_box.append(browser_row)
         optional_list_box.append(wifi_row)
         optional_list_box.append(webcam_row)
-        optional_list_box.append(keyboard_row)
-        optional_list_box.append(touchpad_row)
         optional_list_box.append(screentest_row)
+        optional_list_box.append(touchpad_row)
+        optional_list_box.append(keyboard_row)
 
         # Add list boxes to the vertical box
         vbox.append(required_windowtitle)
