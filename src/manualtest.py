@@ -195,7 +195,7 @@ class ManualTest(Adw.Bin):
             self.battery_button.connect("toggled", self.on_battery_toggled)
             battery_row.add_prefix(self.battery_button)
             battery_row.set_title(
-                "Battery test - Unplug power and confirm system doesn't shutdown"
+                "Battery test (Unplug power and confirm system doesn't shutdown)"
             )
             battery_row.set_activatable(True)
             battery_row.connect("activated", self.on_battery_row_activated)
