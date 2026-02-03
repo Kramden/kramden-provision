@@ -4,7 +4,8 @@ import threading
 import os
 from constants import snap_packages, deb_packages
 import gi
-gi.require_version('Snapd','2')
+
+gi.require_version("Snapd", "2")
 from gi.repository import Snapd, GLib
 import apt
 import dbus
@@ -13,8 +14,9 @@ import re
 import json
 import math
 
+
 # Utility class for functions used throughout the app
-class Utils():
+class Utils:
     def __init__(self):
         self.model = ""
         self.vendor = ""
@@ -22,30 +24,44 @@ class Utils():
         self.hostname = ""
         self.os = ""
         try:
-            result = subprocess.run(['sudo', 'hostnamectl', 'status', '-j'], capture_output=True, text=True, check=True)
+            result = subprocess.run(
+                ["sudo", "hostnamectl", "status", "--json=pretty"],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
             json_output = result.stdout
             data = json.loads(json_output)
-            self.hostname = data.get('StaticHostname', '')
-            self.model = data.get('HardwareModel', '')
-            self.vendor = data.get('HardwareVendor', '')
+            self.hostname = data.get("StaticHostname", "")
+            self.model = data.get("HardwareModel", "")
+            self.vendor = data.get("HardwareVendor", "")
             # NOTE: Some Lenovo firmware is known to expose an incorrect or dummy
             # HardwareSerial via systemd-hostnamed / `hostnamectl` (for example,
             # all-zero values or "Not Available"). For Lenovo systems we therefore
             # intentionally skip the HardwareSerial reported by hostnamectl here and
             # rely instead on the DMI-based fallback below
             # (/sys/devices/virtual/dmi/id/*) to obtain a more reliable serial.
-            if self.vendor.lower() != 'lenovo':
-                self.serial = data.get('HardwareSerial', '')
-            self.os = data.get('OperatingSystemPrettyName', '')
+            if self.vendor.lower() != "lenovo":
+                self.serial = data.get("HardwareSerial", "")
+            self.os = data.get("OperatingSystemPrettyName", "")
         except (subprocess.CalledProcessError, json.JSONDecodeError, KeyError):
             # If hostnamectl fails or returns invalid JSON, use empty defaults
             # The fallback logic below will still attempt to populate serial from DMI
             pass
         if not self.serial:
-            serial_files = ['board_serial', 'product_serial', 'chassis_serial']
+            serial_files = ["board_serial", "product_serial", "chassis_serial"]
             for serial_file in serial_files:
                 try:
-                    result = subprocess.run(['sudo', 'cat', os.path.join('/sys/devices/virtual/dmi/id/', serial_file)], capture_output=True, text=True, check=True)
+                    result = subprocess.run(
+                        [
+                            "sudo",
+                            "cat",
+                            os.path.join("/sys/devices/virtual/dmi/id/", serial_file),
+                        ],
+                        capture_output=True,
+                        text=True,
+                        check=True,
+                    )
                     contents = result.stdout
                     if contents.strip():
                         self.serial = contents.strip()
@@ -58,10 +74,14 @@ class Utils():
     def get_disks(self):
         context = pyudev.Context()
         disks = {}
-        for device in context.list_devices(subsystem='block', DEVTYPE='disk'):
-            if not 'loop' in device['DEVNAME'] and not re.search(r'sr[0-9]', device['DEVNAME']):
-                if device.attributes.asint('removable') != 1:
-                    disks[str(device['DEVNAME'])] = int(round(device.attributes.asint('size') * 512 / 1024 ** 3, 0))
+        for device in context.list_devices(subsystem="block", DEVTYPE="disk"):
+            if not "loop" in device["DEVNAME"] and not re.search(
+                r"sr[0-9]", device["DEVNAME"]
+            ):
+                if device.attributes.asint("removable") != 1:
+                    disks[str(device["DEVNAME"])] = int(
+                        round(device.attributes.asint("size") * 512 / 1024**3, 0)
+                    )
         return disks
 
     # Return host name
@@ -73,14 +93,14 @@ class Utils():
         # Ensure hostname isn't empty
         if len(hostname) < 1:
             return False
-        result = subprocess.run(['hostnamectl', 'set-hostname', hostname])
+        result = subprocess.run(["hostnamectl", "set-hostname", hostname])
         return result.returncode == 0
 
     # Set timezone and sync hardware clock
     def sync_clock(self):
         clock_sh = "/usr/share/kramden-provision/scripts/clock.sh"
         if self.file_exists_and_executable(clock_sh):
-            result = subprocess.run(['sudo', clock_sh])
+            result = subprocess.run(["sudo", clock_sh])
             return result.returncode == 0
         return False
 
@@ -88,7 +108,7 @@ class Utils():
     def has_bios_password(self):
         bios_password_sh = "/usr/share/kramden-provision/scripts/bios_password.sh"
         if self.file_exists_and_executable(bios_password_sh):
-            result = subprocess.run(['sudo', bios_password_sh])
+            result = subprocess.run(["sudo", bios_password_sh])
             return result.returncode != 0
         return False
 
@@ -96,7 +116,7 @@ class Utils():
     def has_asset_info(self):
         asset_sh = "/usr/share/kramden-provision/scripts/asset.sh"
         if self.file_exists_and_executable(asset_sh):
-            result = subprocess.run(['sudo', asset_sh])
+            result = subprocess.run(["sudo", asset_sh])
             return result.returncode != 0
         return False
 
@@ -123,14 +143,14 @@ class Utils():
     # Return MemTotal, rounded to nearest standard RAM size
     def get_mem(self):
         mem_info = {}
-        with open('/proc/meminfo') as f:
+        with open("/proc/meminfo") as f:
             for line in f:
                 if line.strip():
-                    key, value = line.split(':', 1)
+                    key, value = line.split(":", 1)
                     mem_info[key.strip()] = value.strip()
         # MemTotal is in KiB (labeled as kB), convert to GiB
-        mem_kib = int(mem_info['MemTotal'].split(" ")[0])
-        mem_gib = mem_kib / 1024 ** 2
+        mem_kib = int(mem_info["MemTotal"].split(" ")[0])
+        mem_gib = mem_kib / 1024**2
         # Round to nearest standard RAM size to account for reserved memory (video, etc.)
         return str(self._round_to_standard_ram(mem_gib))
 
@@ -153,18 +173,21 @@ class Utils():
     # Return CPU model info
     def get_cpu_info(self):
         cpu_info = {}
-        with open('/proc/cpuinfo') as f:
+        with open("/proc/cpuinfo") as f:
             for line in f:
                 if line.strip():
-                    key, value = line.split(':', 1)
+                    key, value = line.split(":", 1)
                     cpu_info[key.strip()] = value.strip()
 
-        return cpu_info['model name']
+        return cpu_info["model name"]
 
     def check_snaps(self, packages):
         result = {}
         client = Snapd.Client()
-        snaps_installed = [snap.get_name() for snap in client.get_snaps_sync(Snapd.GetAppsFlags.NONE, packages, None)]
+        snaps_installed = [
+            snap.get_name()
+            for snap in client.get_snaps_sync(Snapd.GetAppsFlags.NONE, packages, None)
+        ]
         for p in packages:
             if p in snaps_installed:
                 result[p] = True
@@ -187,23 +210,34 @@ class Utils():
     # Return battery capacity
     def get_battery_capacities(self):
         bus = dbus.SystemBus()
-        upower = bus.get_object('org.freedesktop.UPower', '/org/freedesktop/UPower')
-        manager = dbus.Interface(upower, 'org.freedesktop.UPower')
+        upower = bus.get_object("org.freedesktop.UPower", "/org/freedesktop/UPower")
+        manager = dbus.Interface(upower, "org.freedesktop.UPower")
 
         # Get the list of all power devices
         devices = manager.EnumerateDevices()
 
         capacities = {}
         for device_path in devices:
-            device = bus.get_object('org.freedesktop.UPower', device_path)
-            device_properties = dbus.Interface(device, 'org.freedesktop.DBus.Properties')
-            device_type = device_properties.Get('org.freedesktop.UPower.Device', 'Type')
+            device = bus.get_object("org.freedesktop.UPower", device_path)
+            device_properties = dbus.Interface(
+                device, "org.freedesktop.DBus.Properties"
+            )
+            device_type = device_properties.Get("org.freedesktop.UPower.Device", "Type")
 
             # UPower.DeviceType for battery is 2
             if device_type == 2:
                 # display number should be an int, but float always has something after the decimal e.g. "80.0"
-                capacity = int(round(float(device_properties.Get('org.freedesktop.UPower.Device', 'Capacity')), 0))
-                model = device_properties.Get('org.freedesktop.UPower.Device', 'Model')
+                capacity = int(
+                    round(
+                        float(
+                            device_properties.Get(
+                                "org.freedesktop.UPower.Device", "Capacity"
+                            )
+                        ),
+                        0,
+                    )
+                )
+                model = device_properties.Get("org.freedesktop.UPower.Device", "Model")
                 capacities[model] = capacity
 
         return capacities
@@ -212,7 +246,9 @@ class Utils():
     def is_registered(self):
         val = False
         if not os.environ["USER"] in ["osload", "finaltest", "owner"]:
-            if os.path.isfile("/etc/landscape/client.conf") and os.access("/etc/landscape/client.conf", os.R_OK):
+            if os.path.isfile("/etc/landscape/client.conf") and os.access(
+                "/etc/landscape/client.conf", os.R_OK
+            ):
                 command = ["landscape-config", "--is-registered"]
             else:
                 command = ["pkexec", "landscape-config", "--is-registered"]
@@ -224,7 +260,7 @@ class Utils():
         except:
             pass
         return val
-      
+
     # Register with landscape, returns True if successful
     def register_landscape(self, label=None, button=None, spinner=None, next_func=None):
         print("Utils:register_landscape")
@@ -250,21 +286,30 @@ class Utils():
             "--computer-title",
             self.get_hostname(),
             "--script-users=ALL",
-            "--access-group=global"
-                ]
-        thread = threading.Thread(target=self._run_subprocess, args=(command, label, button, spinner, next_func))
+            "--access-group=global",
+        ]
+        thread = threading.Thread(
+            target=self._run_subprocess,
+            args=(command, label, button, spinner, next_func),
+        )
         thread.start()
 
-    def _run_subprocess(self, command, label=None, button=None, spinner=None, next_func=None):
+    def _run_subprocess(
+        self, command, label=None, button=None, spinner=None, next_func=None
+    ):
         print("Utils:_run_subprocess")
         try:
-            process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            process = subprocess.Popen(
+                command, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            )
             stdout, stderr = process.communicate()
             GLib.idle_add(self._update_label, label, stdout.decode(), stderr.decode())
         except Exception as e:
             GLib.idle_add(_update_label, label, f"Error: {e}", "")
         finally:
-            GLib.idle_add(self._finish_run_subprocess, label, button, spinner, next_func)
+            GLib.idle_add(
+                self._finish_run_subprocess, label, button, spinner, next_func
+            )
 
     def _update_label(self, label, stdout, stderr):
         print("Utils:_update_label: " + stdout)
@@ -277,7 +322,9 @@ class Utils():
             label.set_label(label_text)
         return False
 
-    def _finish_run_subprocess(self, label=None, button=None, spinner=None, next_func=None):
+    def _finish_run_subprocess(
+        self, label=None, button=None, spinner=None, next_func=None
+    ):
         print("Utils:_finish_run_subprocess")
         if button:
             if self.is_registered():
@@ -294,7 +341,9 @@ class Utils():
     def launch_app(self, command):
         print("Utils:launch_app")
         try:
-            subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+            subprocess.Popen(
+                command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True
+            )
         except:
             pass
 
@@ -310,9 +359,14 @@ class Utils():
         print("Utils: complete_reset")
         script = f"/usr/share/kramden-provision/scripts/kramden-reset-{stage}"
         print("Utils: " + script)
-        if self.file_exists_and_executable(script) and os.environ["USER"] in ["osload", "finaltest"]:
+        if self.file_exists_and_executable(script) and os.environ["USER"] in [
+            "osload",
+            "finaltest",
+        ]:
             try:
-                result = subprocess.run([script], capture_output=True, text=True, check=True)
+                result = subprocess.run(
+                    [script], capture_output=True, text=True, check=True
+                )
                 val = result.returncode == 0
             except:
                 pass
@@ -324,15 +378,25 @@ class Utils():
         if "hp" in self.vendor.lower():
             print("Vendor is HP")
             try:
-                with open('/sys/firmware/efi/efivars/HP_TAGS-fb3b9ece-4aba-4933-b49d-b4d67d892351', 'r') as f:
+                with open(
+                    "/sys/firmware/efi/efivars/HP_TAGS-fb3b9ece-4aba-4933-b49d-b4d67d892351",
+                    "r",
+                ) as f:
                     asset_tag = f.readline().strip()
             except Exception as e:
                 print(f"Could not read HP asset tag: {e}")
         elif "dell" in self.vendor.lower():
             print("Vendor is Dell")
-            if self.file_exists_and_executable("/opt/dell/dcc/cctk") and os.environ["USER"] in ["osload", "finaltest", "ubuntu"]:
+            if self.file_exists_and_executable("/opt/dell/dcc/cctk") and os.environ[
+                "USER"
+            ] in ["osload", "finaltest", "ubuntu"]:
                 try:
-                    result = subprocess.run(["/opt/dell/dcc/cctk", "--Asset"], capture_output=True, text=True, check=True)
+                    result = subprocess.run(
+                        ["/opt/dell/dcc/cctk", "--Asset"],
+                        capture_output=True,
+                        text=True,
+                        check=True,
+                    )
                     asset_tag = result.stdout.split("=")[1]
                 except:
                     pass
@@ -342,15 +406,19 @@ class Utils():
             print("Unknown Vendor")
         return asset_tag
 
+
 if __name__ == "__main__":
     utils = Utils()
-    vendor = utils.get_asset_tags()
+    vendor = utils.get_vendor()
+    model = utils.get_model()
+    asset_tags = utils.get_asset_tags()
     capacities = utils.get_battery_capacities()
-    #for battery in capacities.keys():
+    # for battery in capacities.keys():
     #    print(f"Battery {id + 1} Capacity: {capacity}%")
     print("Disk Capacity: " + str(utils.get_disks()) + " GB")
     print("CPU Model: " + utils.get_cpu_info())
     print("Snaps: " + str(utils.check_snaps(snap_packages)))
     print("Debs: " + str(utils.check_debs(deb_packages)))
+    print("Vendor: " + utils.get_vendor())
+    print("Model: " + utils.get_model())
     print("Serial: " + utils.get_serial())
-    #print(f"Battery Capacity: {capacity}%")
