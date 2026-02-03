@@ -1,3 +1,9 @@
+kramden-provision (0.1.9.5) noble; urgency=medium
+
+  * Fixed hostnamectl syntax
+
+ -- Ken VanDine <ken.vandine@canonical.com>  Mon, 02 Feb 2026 19:50:30 -0500
+
 kramden-provision (0.1.9.4) noble; urgency=medium
 
   * manualtest improvements, specifically integrated keyboard testing UI
