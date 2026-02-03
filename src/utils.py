@@ -122,8 +122,28 @@ class Utils:
 
     # Check if Computrace/Absolute is enabled in BIOS, returns True if enabled
     def has_computrace_enabled(self):
-        # Check firmware attributes exposed by Linux kernel (works for Lenovo, HP, Dell)
-        # Common attribute names for Computrace/Absolute
+        # Check firmware attributes exposed by Linux kernel
+        # Works for Lenovo, Dell, and HP (with hp-bioscfg driver on Linux 6.x+)
+        result = self._check_computrace_firmware_attrs()
+        if result is not None:
+            return result
+
+        # Fallback to Dell-specific check using cctk tool
+        if self.vendor.lower() == "dell":
+            result = self._check_computrace_dell_cctk()
+            if result is not None:
+                return result
+
+        # Fallback to check dmidecode for Computrace/Absolute entries
+        # This works across all vendors by reading SMBIOS tables
+        result = self._check_computrace_dmidecode()
+        if result is not None:
+            return result
+
+        return None  # Cannot determine
+
+    def _check_computrace_firmware_attrs(self):
+        """Check firmware-attributes sysfs interface (Lenovo, Dell, HP with proper drivers)."""
         attribute_names = [
             "AbsolutePersistenceModuleActivation",
             "Computrace",
@@ -133,7 +153,7 @@ class Utils:
         firmware_attrs_base = "/sys/class/firmware-attributes"
         try:
             if not os.path.isdir(firmware_attrs_base):
-                return None  # Cannot determine - no firmware attributes support
+                return None
             for provider in os.listdir(firmware_attrs_base):
                 attrs_dir = os.path.join(firmware_attrs_base, provider, "attributes")
                 if not os.path.isdir(attrs_dir):
@@ -150,10 +170,8 @@ class Utils:
                         )
                         if result.returncode == 0:
                             value = result.stdout.strip().lower()
-                            # "enable" or "enabled" means Computrace is active
                             if value in ["enable", "enabled", "activate", "activated"]:
                                 return True
-                            # "disable", "disabled", "permanentlydisable" means it's off
                             elif value in [
                                 "disable",
                                 "disabled",
@@ -163,7 +181,69 @@ class Utils:
                                 return False
         except (OSError, subprocess.SubprocessError):
             pass
-        return None  # Cannot determine
+        return None
+
+    def _check_computrace_dell_cctk(self):
+        """Check Dell systems using cctk tool."""
+        cctk_path = "/opt/dell/dcc/cctk"
+        if not os.path.exists(cctk_path):
+            return None
+        try:
+            # Try common Dell attribute names for Computrace/Absolute
+            for attr in ["Computrace", "AbsoluteEnable", "Absolute"]:
+                result = subprocess.run(
+                    ["sudo", cctk_path, f"--{attr}"],
+                    capture_output=True,
+                    text=True,
+                )
+                if result.returncode == 0:
+                    output = result.stdout.strip().lower()
+                    # cctk typically outputs "attribute=value"
+                    if "=enabled" in output or "=activate" in output:
+                        return True
+                    elif "=disabled" in output or "=deactivate" in output:
+                        return False
+        except (OSError, subprocess.SubprocessError):
+            pass
+        return None
+
+    def _check_computrace_dmidecode(self):
+        """Check SMBIOS tables via dmidecode for Computrace/Absolute settings."""
+        try:
+            # Check BIOS information (type 0) and System Configuration Options (type 12)
+            # for Computrace-related strings
+            result = subprocess.run(
+                ["sudo", "dmidecode"],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode != 0:
+                return None
+
+            output = result.stdout.lower()
+
+            # Look for Computrace/Absolute entries in dmidecode output
+            # Pattern: lines containing computrace or absolute followed by enabled/disabled
+            lines = output.split("\n")
+            for i, line in enumerate(lines):
+                if "computrace" in line or "absolute" in line:
+                    # Check this line and nearby lines for status
+                    context = " ".join(lines[max(0, i - 2) : min(len(lines), i + 3)])
+                    if any(
+                        status in context
+                        for status in ["enabled", "activated", "active"]
+                    ):
+                        # Make sure it's not "disabled" or "deactivated"
+                        if "disabled" not in context and "deactivated" not in context:
+                            return True
+                    if any(
+                        status in context
+                        for status in ["disabled", "deactivated", "inactive"]
+                    ):
+                        return False
+        except (OSError, subprocess.SubprocessError):
+            pass
+        return None
 
     # Get vendor
     def get_vendor(self):
