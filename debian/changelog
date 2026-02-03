@@ -1,3 +1,27 @@
+kramden-provision (0.1.9.7) noble; urgency=medium
+
+  * fail on bios password or asset info in specinfo
+
+ -- Ken VanDine <ken.vandine@canonical.com>  Mon, 02 Feb 2026 22:07:09 -0500
+
+kramden-provision (0.1.9.6) noble; urgency=medium
+
+  * Fixed pinned browser
+
+ -- Ken VanDine <ken.vandine@canonical.com>  Mon, 02 Feb 2026 19:55:58 -0500
+
+kramden-provision (0.1.9.5) noble; urgency=medium
+
+  * Fixed hostnamectl syntax
+
+ -- Ken VanDine <ken.vandine@canonical.com>  Mon, 02 Feb 2026 19:50:30 -0500
+
+kramden-provision (0.1.9.4) noble; urgency=medium
+
+  * manualtest improvements, specifically integrated keyboard testing UI
+
+ -- Ken VanDine <ken.vandine@canonical.com>  Mon, 02 Feb 2026 17:27:13 -0500
+
 kramden-provision (0.1.9.3) noble; urgency=medium
 
   * kramden-spec: Improved handling of asset tag check

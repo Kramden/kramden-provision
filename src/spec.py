@@ -57,7 +57,7 @@ class WizardWindow(Gtk.ApplicationWindow):
         # View Stack
         self.stack = Adw.ViewStack()
         self.page1 = SpecInfo()
-        self.page2 = ManualTest()
+        self.page2 = ManualTest(show_battery_test=True)
         self.page3 = SpecComplete()
 
         self.page1.state = self.observable_property

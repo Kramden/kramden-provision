@@ -6,7 +6,7 @@ from utils import Utils
 
 
 class ManualTest(Adw.Bin):
-    def __init__(self):
+    def __init__(self, show_battery_test=False):
         super().__init__()
         self.set_margin_top(20)
         self.set_margin_bottom(20)
@@ -14,6 +14,7 @@ class ManualTest(Adw.Bin):
         self.set_margin_end(20)
         self.title = "Perform the following manual tests:"
         self.utils = Utils()
+        self.show_battery_test = show_battery_test
         self.required_tests = {"USB": False, "Browser": False}
         self.optional_tests = {
             "WebCam": False,
@@ -22,6 +23,8 @@ class ManualTest(Adw.Bin):
             "Touchpad": False,
             "ScreenTest": False,
         }
+        if show_battery_test:
+            self.optional_tests["Battery"] = False
         self.skip = False
 
         # Create a box to hold the content
@@ -185,6 +188,19 @@ class ManualTest(Adw.Bin):
         optional_list_box.append(touchpad_row)
         optional_list_box.append(keyboard_row)
 
+        # Battery test row - only shown when running from spec.py
+        if self.show_battery_test:
+            battery_row = Adw.ActionRow()
+            self.battery_button = Gtk.CheckButton()
+            self.battery_button.connect("toggled", self.on_battery_toggled)
+            battery_row.add_prefix(self.battery_button)
+            battery_row.set_title(
+                "Battery test - Unplug power and confirm system doesn't shutdown"
+            )
+            battery_row.set_activatable(True)
+            battery_row.connect("activated", self.on_battery_row_activated)
+            optional_list_box.append(battery_row)
+
         # Add list boxes to the vertical box
         vbox.append(required_windowtitle)
         vbox.append(required_list_box)
@@ -297,6 +313,18 @@ class ManualTest(Adw.Bin):
     def on_touchpad_toggled(self, button):
         print("ManualTest:on_touchpad_toggled")
         self.optional_tests["Touchpad"] = button.get_active()
+        print(self.optional_tests)
+        self.check_status()
+
+    # Make battery row clickable
+    def on_battery_row_activated(self, row):
+        current_state = self.battery_button.get_active()
+        self.battery_button.set_active(not current_state)
+
+    # Handle toggled event for the battery button
+    def on_battery_toggled(self, button):
+        print("ManualTest:on_battery_toggled")
+        self.optional_tests["Battery"] = button.get_active()
         print(self.optional_tests)
         self.check_status()
 
