@@ -1,8 +1,10 @@
 import gi
-gi.require_version('Adw', '1')
-gi.require_version('Gtk', '4.0')
+
+gi.require_version("Adw", "1")
+gi.require_version("Gtk", "4.0")
 from gi.repository import Adw, Gtk
 from utils import Utils
+
 
 class SpecInfo(Adw.Bin):
     def __init__(self):
@@ -181,7 +183,7 @@ class SpecInfo(Adw.Bin):
             for battery in batteries.keys():
                 row = Adw.ActionRow()
                 row.set_title(f"{str(battery)})")
-                row.set_subtitle(f'{str(batteries[battery])}%')
+                row.set_subtitle(f"{str(batteries[battery])}%")
                 self.battery_row.add_row(row)
                 self.battery_row.set_expanded(True)
                 # Set Battery row to emblem-ok-symbolic if battery capacity is greater than 70%, else set row to emblem-important-symbolic
@@ -194,5 +196,5 @@ class SpecInfo(Adw.Bin):
             self.batteries_populated = True
 
         state = self.state.get_value()
-        state['SpecInfo'] = passed
+        state["SpecInfo"] = passed
         print("specinfo:on_shown " + str(self.state.get_value()))
