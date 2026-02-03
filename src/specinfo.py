@@ -99,6 +99,7 @@ class SpecInfo(Adw.Bin):
             self.bios_password_row.set_subtitle("Has Password")
             self.bios_password_row.set_icon_name("emblem-important-symbolic")
             self.bios_password_row.add_css_class("text-error")
+            passed = False
         else:
             self.bios_password_row.set_subtitle("No Password")
             self.bios_password_row.set_icon_name("emblem-ok-symbolic")
@@ -108,6 +109,7 @@ class SpecInfo(Adw.Bin):
             self.asset_info_row.set_subtitle("Has Asset Info")
             self.asset_info_row.set_icon_name("emblem-important-symbolic")
             self.asset_info_row.add_css_class("text-error")
+            passed = False
         else:
             self.asset_info_row.set_subtitle("No Asset Info")
             self.asset_info_row.set_icon_name("emblem-ok-symbolic")
