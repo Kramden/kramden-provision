@@ -62,11 +62,15 @@ class SpecInfo(Adw.Bin):
         self.asset_info_row = Adw.ActionRow()
         self.asset_info_row.set_title("Asset Info")
 
+        self.computrace_row = Adw.ActionRow()
+        self.computrace_row.set_title("Computrace/Absolute")
+
         # Add rows to the list box
         list_box.append(vendor_row)
         list_box.append(model_row)
         list_box.append(self.bios_password_row)
         list_box.append(self.asset_info_row)
+        list_box.append(self.computrace_row)
         list_box.append(cpu_row)
         list_box.append(self.mem_row)
         list_box.append(self.disks_box)
@@ -113,6 +117,19 @@ class SpecInfo(Adw.Bin):
         else:
             self.asset_info_row.set_subtitle("No Asset Info")
             self.asset_info_row.set_icon_name("emblem-ok-symbolic")
+
+        computrace_enabled = utils.has_computrace_enabled()
+        if computrace_enabled is True:
+            self.computrace_row.set_subtitle("Enabled")
+            self.computrace_row.set_icon_name("emblem-important-symbolic")
+            self.computrace_row.add_css_class("text-error")
+            passed = False
+        elif computrace_enabled is False:
+            self.computrace_row.set_subtitle("Disabled")
+            self.computrace_row.set_icon_name("emblem-ok-symbolic")
+        else:
+            self.computrace_row.set_subtitle("Unknown")
+            self.computrace_row.set_icon_name("emblem-ok-symbolic")
 
         # Populate disk information
         if not self.disks_populated:

@@ -120,6 +120,51 @@ class Utils:
             return result.returncode != 0
         return False
 
+    # Check if Computrace/Absolute is enabled in BIOS, returns True if enabled
+    def has_computrace_enabled(self):
+        # Check firmware attributes exposed by Linux kernel (works for Lenovo, HP, Dell)
+        # Common attribute names for Computrace/Absolute
+        attribute_names = [
+            "AbsolutePersistenceModuleActivation",
+            "Computrace",
+            "ComputraceModuleActivation",
+            "Absolute",
+        ]
+        firmware_attrs_base = "/sys/class/firmware-attributes"
+        try:
+            if not os.path.isdir(firmware_attrs_base):
+                return None  # Cannot determine - no firmware attributes support
+            for provider in os.listdir(firmware_attrs_base):
+                attrs_dir = os.path.join(firmware_attrs_base, provider, "attributes")
+                if not os.path.isdir(attrs_dir):
+                    continue
+                for attr_name in attribute_names:
+                    current_value_path = os.path.join(
+                        attrs_dir, attr_name, "current_value"
+                    )
+                    if os.path.exists(current_value_path):
+                        result = subprocess.run(
+                            ["sudo", "cat", current_value_path],
+                            capture_output=True,
+                            text=True,
+                        )
+                        if result.returncode == 0:
+                            value = result.stdout.strip().lower()
+                            # "enable" or "enabled" means Computrace is active
+                            if value in ["enable", "enabled", "activate", "activated"]:
+                                return True
+                            # "disable", "disabled", "permanentlydisable" means it's off
+                            elif value in [
+                                "disable",
+                                "disabled",
+                                "permanentlydisable",
+                                "permanently disable",
+                            ]:
+                                return False
+        except (OSError, subprocess.SubprocessError):
+            pass
+        return None  # Cannot determine
+
     # Get vendor
     def get_vendor(self):
         return self.vendor
