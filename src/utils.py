@@ -267,17 +267,61 @@ class Utils:
 
     # Return MemTotal, rounded to nearest standard RAM size
     def get_mem(self):
-        mem_info = {}
-        with open("/proc/meminfo") as f:
-            for line in f:
-                if line.strip():
-                    key, value = line.split(":", 1)
-                    mem_info[key.strip()] = value.strip()
-        # MemTotal is in KiB (labeled as kB), convert to GiB
-        mem_kib = int(mem_info["MemTotal"].split(" ")[0])
-        mem_gib = mem_kib / 1024**2
-        # Round to nearest standard RAM size to account for reserved memory (video, etc.)
+        # Get actual memory installed, not memory available to kernel
+        mem_gib = self._get_installed_ram_from_dmi()
+
+        # If DMI fails, fall back on /proc/meminfo
+        if mem_gib is None:
+            mem_info = {}
+            with open("/proc/meminfo") as f:
+                for line in f:
+                    if line.strip():
+                        key, value = line.split(":", 1)
+                        mem_info[key.strip()] = value.strip()
+            # MemTotal is in KiB (labeled as kB), convert to GiB
+            mem_kib = int(mem_info["MemTotal"].split(" ")[0])
+            mem_gib = mem_kib / 1024**2
+            # Round to nearest standard RAM size to account for reserved memory (video, etc.)
         return str(self._round_to_standard_ram(mem_gib))
+
+    def _get_installed_ram_from_dmi(self):
+        try:
+            result = subprocess.run(
+                ["sudo", "dmidecode", "-t", "17"],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+
+            total_mb = 0
+            lines = result.stdout.split("\n")
+
+            for line in lines:
+                # Look for "Size:" lines under Memory Device sections
+                if "\tSize:" in line:
+                    # Skip lines that say "No Module Installed" or similar
+                    if "No Module Installed" in line or "Not Installed" in line:
+                        continue
+
+                    # Extract size - format is typically "Size: 8192 MB" or "Size: 8 GB"
+                    size_match = re.search(r"Size:\s+(\d+)\s+(MB|GB)", line)
+                    if size_match:
+                        size = int(size_match.group(1))
+                        unit = size_match.group(2)
+
+                        if unit == "GB":
+                            total_mb += size * 1024
+                        else:  # MB
+                            total_mb += size
+
+            if total_mb > 0:
+                # Convert MB to GiB
+                return total_mb / 1024
+
+        except (subprocess.CalledProcessError, OSError, ValueError):
+            pass
+
+        return None
 
     def _round_to_standard_ram(self, mem_gib):
         """Round memory to nearest standard RAM size when within tolerance."""
@@ -322,7 +366,10 @@ class Utils:
             controllers = []
             for line in result.stdout.splitlines():
                 line_lower = line.lower()
-                if "vga compatible controller" in line_lower or "3d controller" in line_lower:
+                if (
+                    "vga compatible controller" in line_lower
+                    or "3d controller" in line_lower
+                ):
                     controllers.append(line_lower)
                     # Check if this is an NVIDIA GPU (for PRIME offload settings)
                     if "nvidia" in line_lower:
