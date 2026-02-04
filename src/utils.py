@@ -310,6 +310,7 @@ class Utils:
     def get_discrete_gpu(self):
         # First check if a discrete GPU exists using lspci
         has_discrete = False
+        has_nvidia = False
         try:
             result = subprocess.run(
                 ["lspci", "-nn"],
@@ -323,6 +324,9 @@ class Utils:
                 line_lower = line.lower()
                 if "vga compatible controller" in line_lower or "3d controller" in line_lower:
                     controllers.append(line_lower)
+                    # Check if this is an NVIDIA GPU (for PRIME offload settings)
+                    if "nvidia" in line_lower:
+                        has_nvidia = True
             has_discrete = len(controllers) > 1
         except (subprocess.CalledProcessError, OSError):
             pass
@@ -330,9 +334,14 @@ class Utils:
         if not has_discrete:
             return None
 
-        # Get friendly name using glxinfo with DRI_PRIME=1 (works with nouveau and proprietary)
+        # Get friendly name using glxinfo with appropriate PRIME settings
         try:
             env = os.environ.copy()
+            # For NVIDIA proprietary driver, use NVIDIA-specific PRIME offload variables
+            if has_nvidia:
+                env["__NV_PRIME_RENDER_OFFLOAD"] = "1"
+                env["__GLX_VENDOR_LIBRARY_NAME"] = "nvidia"
+            # Generic DRI_PRIME works for nouveau and AMD
             env["DRI_PRIME"] = "1"
 
             result = subprocess.run(
