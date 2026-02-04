@@ -52,6 +52,15 @@ class SpecInfo(Adw.Bin):
         self.mem_row.set_title("Memory")
         self.mem_row.set_subtitle(utils.get_mem() + " GB")
 
+        gpu_row = Adw.ActionRow()
+        gpu_row.set_title("Discrete GPU")
+        discrete_gpu = utils.get_discrete_gpu()
+        if discrete_gpu:
+            gpu_row.set_subtitle(discrete_gpu)
+        else:
+            gpu_row.set_subtitle("None")
+        gpu_row.set_icon_name("emblem-ok-symbolic")
+
         self.disks_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
 
         self.battery_row = Adw.ExpanderRow(title="Batteries")
@@ -75,6 +84,7 @@ class SpecInfo(Adw.Bin):
         list_box.append(self.computrace_row)
         list_box.append(cpu_row)
         list_box.append(self.mem_row)
+        list_box.append(gpu_row)
         list_box.append(self.disks_box)
         list_box.append(self.battery_row)
 

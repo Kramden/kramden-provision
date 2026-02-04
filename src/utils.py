@@ -306,6 +306,66 @@ class Utils:
 
         return cpu_info["model name"]
 
+    # Return discrete GPU info if found, otherwise None
+    def get_discrete_gpu(self):
+        # First check if a discrete GPU exists using lspci
+        has_discrete = False
+        try:
+            result = subprocess.run(
+                ["lspci", "-nn"],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            integrated_keywords = ["integrated", "uhd graphics", "hd graphics", "iris"]
+            for line in result.stdout.splitlines():
+                line_lower = line.lower()
+                if "vga compatible controller" in line_lower or "3d controller" in line_lower:
+                    if "nvidia" in line_lower:
+                        has_discrete = True
+                        break
+                    elif "amd" in line_lower and "radeon" in line_lower:
+                        if not any(kw in line_lower for kw in integrated_keywords):
+                            has_discrete = True
+                            break
+        except (subprocess.CalledProcessError, OSError):
+            pass
+
+        if not has_discrete:
+            return None
+
+        # Get friendly name using glxinfo with DRI_PRIME=1 (works with nouveau and proprietary)
+        try:
+            env = os.environ.copy()
+            env["DRI_PRIME"] = "1"
+
+            result = subprocess.run(
+                ["glxinfo"],
+                capture_output=True,
+                text=True,
+                env=env,
+            )
+            for line in result.stdout.splitlines():
+                if "OpenGL renderer string:" in line:
+                    renderer = line.split(":", 1)[1].strip()
+                    return self._format_gpu_renderer(renderer)
+        except (subprocess.CalledProcessError, OSError):
+            pass
+
+        return "Discrete GPU detected"
+
+    def _format_gpu_renderer(self, renderer):
+        """Clean up OpenGL renderer string for display."""
+        # Handle zink Vulkan wrapper format: "zink Vulkan 1.4(NVIDIA RTX...)"
+        zink_match = re.search(r"zink Vulkan [0-9.]+\((.+)\)", renderer)
+        if zink_match:
+            renderer = zink_match.group(1)
+        # Remove driver suffix like "(NVIDIA_PROPRIETARY)" or " (NVIDIA_PROPRIETARY)"
+        renderer = re.sub(r"\s*\([A-Z_]+\)\s*$", "", renderer)
+        # Remove /PCIe/SSE2 suffix
+        renderer = re.sub(r"/PCIe.*$", "", renderer)
+        return renderer.strip()
+
     def check_snaps(self, packages):
         result = {}
         client = Snapd.Client()
