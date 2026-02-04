@@ -1,8 +1,10 @@
 import gi
-gi.require_version('Adw', '1')
-gi.require_version('Gtk', '4.0')
+
+gi.require_version("Adw", "1")
+gi.require_version("Gtk", "4.0")
 from gi.repository import Adw, Gtk
 from utils import Utils
+
 
 class SpecInfo(Adw.Bin):
     def __init__(self):
@@ -50,6 +52,15 @@ class SpecInfo(Adw.Bin):
         self.mem_row.set_title("Memory")
         self.mem_row.set_subtitle(utils.get_mem() + " GB")
 
+        gpu_row = Adw.ActionRow()
+        gpu_row.set_title("Discrete GPU")
+        discrete_gpu = utils.get_discrete_gpu()
+        if discrete_gpu:
+            gpu_row.set_subtitle(discrete_gpu)
+        else:
+            gpu_row.set_subtitle("None")
+        gpu_row.set_icon_name("emblem-ok-symbolic")
+
         self.disks_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
 
         self.battery_row = Adw.ExpanderRow(title="Batteries")
@@ -73,6 +84,7 @@ class SpecInfo(Adw.Bin):
         list_box.append(self.computrace_row)
         list_box.append(cpu_row)
         list_box.append(self.mem_row)
+        list_box.append(gpu_row)
         list_box.append(self.disks_box)
         list_box.append(self.battery_row)
 
@@ -181,7 +193,7 @@ class SpecInfo(Adw.Bin):
             for battery in batteries.keys():
                 row = Adw.ActionRow()
                 row.set_title(f"{str(battery)})")
-                row.set_subtitle(f'{str(batteries[battery])}%')
+                row.set_subtitle(f"{str(batteries[battery])}%")
                 self.battery_row.add_row(row)
                 self.battery_row.set_expanded(True)
                 # Set Battery row to emblem-ok-symbolic if battery capacity is greater than 70%, else set row to emblem-important-symbolic
@@ -194,5 +206,5 @@ class SpecInfo(Adw.Bin):
             self.batteries_populated = True
 
         state = self.state.get_value()
-        state['SpecInfo'] = passed
+        state["SpecInfo"] = passed
         print("specinfo:on_shown " + str(self.state.get_value()))
