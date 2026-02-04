@@ -114,7 +114,7 @@ class WizardWindow(Gtk.ApplicationWindow):
                 self.on_prev_clicked()
 
     def on_next_clicked(self, button=None):
-        if self.current_page < 3:
+        if self.current_page < 2:
             self.current_page += 1
             self.stack.set_visible_child_name(f"page{self.current_page + 1}")
             self.update_buttons()
@@ -127,8 +127,8 @@ class WizardWindow(Gtk.ApplicationWindow):
 
     def update_buttons(self):
         self.prev_button.set_sensitive(self.current_page > 0)
-        self.next_button.set_sensitive(self.current_page <= 3)
-        if self.current_page == 3:
+        self.next_button.set_sensitive(self.current_page <= 2)
+        if self.current_page == 2:
             self.next_button.set_label("Complete")
             self.next_button.add_css_class("button-next-last-page")
             state = self.observable_property.get_value()
