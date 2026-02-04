@@ -1,3 +1,10 @@
+kramden-provision (0.1.9.10) noble; urgency=medium
+
+  * kramden-spec:
+    - Added check for discrete graphics
+
+ -- Ken VanDine <ken.vandine@canonical.com>  Wed, 04 Feb 2026 15:18:39 -0500
+
 kramden-provision (0.1.9.9) noble; urgency=medium
 
   * Add fallback methods for Computrace detection on HP and Dell devices
