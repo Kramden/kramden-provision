@@ -334,11 +334,17 @@ class Utils:
         if not has_discrete:
             return None
 
+        # Check if NVIDIA proprietary driver is loaded (not nouveau)
+        has_nvidia_proprietary = False
+        if has_nvidia:
+            # Check for /proc/driver/nvidia/version which only exists with proprietary driver
+            has_nvidia_proprietary = os.path.exists("/proc/driver/nvidia/version")
+
         # Get friendly name using glxinfo with appropriate PRIME settings
         try:
             env = os.environ.copy()
             # For NVIDIA proprietary driver, use NVIDIA-specific PRIME offload variables
-            if has_nvidia:
+            if has_nvidia_proprietary:
                 env["__NV_PRIME_RENDER_OFFLOAD"] = "1"
                 env["__GLX_VENDOR_LIBRARY_NAME"] = "nvidia"
             # Generic DRI_PRIME works for nouveau and AMD
