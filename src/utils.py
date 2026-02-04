@@ -317,17 +317,13 @@ class Utils:
                 text=True,
                 check=True,
             )
-            integrated_keywords = ["integrated", "uhd graphics", "hd graphics", "iris"]
+            # Treat "discrete GPU present" as "more than one VGA/3D controller detected"
+            controllers = []
             for line in result.stdout.splitlines():
                 line_lower = line.lower()
                 if "vga compatible controller" in line_lower or "3d controller" in line_lower:
-                    if "nvidia" in line_lower:
-                        has_discrete = True
-                        break
-                    elif "amd" in line_lower and "radeon" in line_lower:
-                        if not any(kw in line_lower for kw in integrated_keywords):
-                            has_discrete = True
-                            break
+                    controllers.append(line_lower)
+            has_discrete = len(controllers) > 1
         except (subprocess.CalledProcessError, OSError):
             pass
 
