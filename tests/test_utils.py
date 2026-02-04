@@ -2,6 +2,7 @@ import sys
 import os
 import unittest
 import json
+import subprocess
 from unittest.mock import patch, mock_open, MagicMock
 sys.path.insert(1, os.path.dirname(os.path.realpath(__file__))+"/../src/")
 from utils import Utils
@@ -244,7 +245,6 @@ OpenGL core profile version string: 4.6.0"""
                 return mock_result
             elif 'glxinfo' in cmd:
                 # Simulate glxinfo failing
-                import subprocess
                 raise subprocess.CalledProcessError(1, cmd)
 
         mock_run.side_effect = subprocess_side_effect
@@ -256,7 +256,6 @@ OpenGL core profile version string: 4.6.0"""
     def test_get_discrete_gpu_lspci_fails(self, mock_run):
         """Test get_discrete_gpu returns None when lspci fails."""
         # Simulate lspci command failure
-        import subprocess
         mock_run.side_effect = subprocess.CalledProcessError(1, ['lspci'])
 
         result = self.utils.get_discrete_gpu()
