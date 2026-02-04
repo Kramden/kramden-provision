@@ -152,5 +152,160 @@ class TestUtils(unittest.TestCase):
         with patch('builtins.open', mock_open(read_data=cpuinfo_content)):
             self.assertEqual(self.utils.get_cpu_info(), "Test CPU")
 
+    @patch('subprocess.run')
+    def test_get_discrete_gpu_no_controllers(self, mock_run):
+        """Test get_discrete_gpu returns None when no VGA/3D controllers found."""
+        # Mock lspci to return no VGA/3D controllers
+        mock_result = MagicMock()
+        mock_result.stdout = "00:00.0 Host bridge: Intel Corporation\n00:02.0 Audio device: Intel Corporation"
+        mock_result.returncode = 0
+        mock_run.return_value = mock_result
+
+        result = self.utils.get_discrete_gpu()
+        self.assertIsNone(result)
+
+    @patch('subprocess.run')
+    def test_get_discrete_gpu_single_controller(self, mock_run):
+        """Test get_discrete_gpu returns None when only one VGA controller found."""
+        # Mock lspci to return only one VGA controller (integrated GPU)
+        mock_result = MagicMock()
+        mock_result.stdout = "00:02.0 VGA compatible controller: Intel Corporation\n00:03.0 Audio device: Intel Corporation"
+        mock_result.returncode = 0
+        mock_run.return_value = mock_result
+
+        result = self.utils.get_discrete_gpu()
+        self.assertIsNone(result)
+
+    @patch('subprocess.run')
+    def test_get_discrete_gpu_hybrid_system_with_glxinfo(self, mock_run):
+        """Test get_discrete_gpu returns formatted renderer for hybrid system with working glxinfo."""
+        lspci_output = """00:02.0 VGA compatible controller: Intel Corporation UHD Graphics
+01:00.0 3D controller: NVIDIA Corporation GeForce GTX 1650"""
+        
+        glxinfo_output = """name of display: :0
+display: :0  screen: 0
+direct rendering: Yes
+server glx vendor string: SGI
+OpenGL vendor string: NVIDIA Corporation
+OpenGL renderer string: NVIDIA GeForce GTX 1650/PCIe/SSE2
+OpenGL core profile version string: 4.6.0"""
+
+        def subprocess_side_effect(*args, **kwargs):
+            cmd = args[0]
+            mock_result = MagicMock()
+            if 'lspci' in cmd:
+                mock_result.stdout = lspci_output
+                mock_result.returncode = 0
+            elif 'glxinfo' in cmd:
+                mock_result.stdout = glxinfo_output
+                mock_result.returncode = 0
+            return mock_result
+
+        mock_run.side_effect = subprocess_side_effect
+
+        result = self.utils.get_discrete_gpu()
+        # Should strip /PCIe/SSE2
+        self.assertEqual(result, "NVIDIA GeForce GTX 1650")
+
+    @patch('subprocess.run')
+    def test_get_discrete_gpu_hybrid_system_glxinfo_missing(self, mock_run):
+        """Test get_discrete_gpu returns fallback when glxinfo is missing."""
+        lspci_output = """00:02.0 VGA compatible controller: Intel Corporation
+01:00.0 3D controller: NVIDIA Corporation"""
+
+        def subprocess_side_effect(*args, **kwargs):
+            cmd = args[0]
+            if 'lspci' in cmd:
+                mock_result = MagicMock()
+                mock_result.stdout = lspci_output
+                mock_result.returncode = 0
+                return mock_result
+            elif 'glxinfo' in cmd:
+                # Simulate glxinfo not installed
+                raise OSError("glxinfo not found")
+
+        mock_run.side_effect = subprocess_side_effect
+
+        result = self.utils.get_discrete_gpu()
+        self.assertEqual(result, "Discrete GPU detected")
+
+    @patch('subprocess.run')
+    def test_get_discrete_gpu_hybrid_system_glxinfo_fails(self, mock_run):
+        """Test get_discrete_gpu returns fallback when glxinfo fails."""
+        lspci_output = """00:02.0 VGA compatible controller: Intel Corporation
+01:00.0 VGA compatible controller: AMD Radeon"""
+
+        def subprocess_side_effect(*args, **kwargs):
+            cmd = args[0]
+            if 'lspci' in cmd:
+                mock_result = MagicMock()
+                mock_result.stdout = lspci_output
+                mock_result.returncode = 0
+                return mock_result
+            elif 'glxinfo' in cmd:
+                # Simulate glxinfo failing
+                import subprocess
+                raise subprocess.CalledProcessError(1, cmd)
+
+        mock_run.side_effect = subprocess_side_effect
+
+        result = self.utils.get_discrete_gpu()
+        self.assertEqual(result, "Discrete GPU detected")
+
+    @patch('subprocess.run')
+    def test_get_discrete_gpu_lspci_fails(self, mock_run):
+        """Test get_discrete_gpu returns None when lspci fails."""
+        # Simulate lspci command failure
+        import subprocess
+        mock_run.side_effect = subprocess.CalledProcessError(1, ['lspci'])
+
+        result = self.utils.get_discrete_gpu()
+        self.assertIsNone(result)
+
+    @patch('subprocess.run')
+    def test_get_discrete_gpu_lspci_oserror(self, mock_run):
+        """Test get_discrete_gpu returns None when lspci is not found."""
+        # Simulate lspci not installed
+        mock_run.side_effect = OSError("lspci not found")
+
+        result = self.utils.get_discrete_gpu()
+        self.assertIsNone(result)
+
+    def test_format_gpu_renderer_basic(self):
+        """Test _format_gpu_renderer with basic renderer string."""
+        renderer = "NVIDIA GeForce RTX 3060"
+        result = self.utils._format_gpu_renderer(renderer)
+        self.assertEqual(result, "NVIDIA GeForce RTX 3060")
+
+    def test_format_gpu_renderer_with_pcie_suffix(self):
+        """Test _format_gpu_renderer removes /PCIe/SSE2 suffix."""
+        renderer = "NVIDIA GeForce GTX 1650/PCIe/SSE2"
+        result = self.utils._format_gpu_renderer(renderer)
+        self.assertEqual(result, "NVIDIA GeForce GTX 1650")
+
+    def test_format_gpu_renderer_with_driver_suffix(self):
+        """Test _format_gpu_renderer removes driver suffix."""
+        renderer = "AMD Radeon RX 6600 (NVIDIA_PROPRIETARY)"
+        result = self.utils._format_gpu_renderer(renderer)
+        self.assertEqual(result, "AMD Radeon RX 6600")
+
+    def test_format_gpu_renderer_with_zink_wrapper(self):
+        """Test _format_gpu_renderer handles zink Vulkan wrapper format."""
+        renderer = "zink Vulkan 1.4(NVIDIA GeForce RTX 3060)"
+        result = self.utils._format_gpu_renderer(renderer)
+        self.assertEqual(result, "NVIDIA GeForce RTX 3060")
+
+    def test_format_gpu_renderer_zink_with_pcie(self):
+        """Test _format_gpu_renderer handles zink wrapper with PCIe suffix."""
+        renderer = "zink Vulkan 1.3(AMD Radeon RX 6600/PCIe/SSE2)"
+        result = self.utils._format_gpu_renderer(renderer)
+        self.assertEqual(result, "AMD Radeon RX 6600")
+
+    def test_format_gpu_renderer_complex(self):
+        """Test _format_gpu_renderer with complex renderer string."""
+        renderer = "NVIDIA GeForce RTX 3070/PCIe/SSE2 (NVIDIA_PROPRIETARY)"
+        result = self.utils._format_gpu_renderer(renderer)
+        self.assertEqual(result, "NVIDIA GeForce RTX 3070")
+
 if __name__ == '__main__':
     unittest.main()
