@@ -131,7 +131,7 @@ class Utils:
             return result.returncode != 0
         return False
 
-    # Check if Computrace/Absolute is enabled in BIOS, returns True if enabled
+    # Check if Computrace/Absolute is activated in BIOS, returns True if activated
     def has_computrace_enabled(self):
         # Check firmware attributes exposed by Linux kernel
         # Works for Lenovo, Dell, and HP (with hp-bioscfg driver on Linux 6.x+)
@@ -155,10 +155,14 @@ class Utils:
 
     def _check_computrace_firmware_attrs(self):
         """Check firmware-attributes sysfs interface (Lenovo, Dell, HP with proper drivers)."""
-        attribute_names = [
+        # Attributes ending in "Activation" use Enable/Disable to indicate activation state
+        # Other attributes use Activate/Activated to indicate activation state
+        activation_attrs = [
             "AbsolutePersistenceModuleActivation",
-            "Computrace",
             "ComputraceModuleActivation",
+        ]
+        standard_attrs = [
+            "Computrace",
             "Absolute",
         ]
         firmware_attrs_base = "/sys/class/firmware-attributes"
@@ -169,7 +173,8 @@ class Utils:
                 attrs_dir = os.path.join(firmware_attrs_base, provider, "attributes")
                 if not os.path.isdir(attrs_dir):
                     continue
-                for attr_name in attribute_names:
+                # Check activation-style attributes first (Enable = activated)
+                for attr_name in activation_attrs:
                     current_value_path = os.path.join(
                         attrs_dir, attr_name, "current_value"
                     )
@@ -181,9 +186,34 @@ class Utils:
                         )
                         if result.returncode == 0:
                             value = result.stdout.strip().lower()
-                            if value in ["enable", "enabled", "activate", "activated"]:
+                            # For *Activation attributes, Enable means activated
+                            if value in ["enable", "enabled"]:
                                 return True
                             elif value in [
+                                "disable",
+                                "disabled",
+                                "permanentlydisable",
+                                "permanently disable",
+                            ]:
+                                return False
+                # Check standard attributes (Activate = activated)
+                for attr_name in standard_attrs:
+                    current_value_path = os.path.join(
+                        attrs_dir, attr_name, "current_value"
+                    )
+                    if os.path.exists(current_value_path):
+                        result = subprocess.run(
+                            ["sudo", "cat", current_value_path],
+                            capture_output=True,
+                            text=True,
+                        )
+                        if result.returncode == 0:
+                            value = result.stdout.strip().lower()
+                            if value in ["activate", "activated"]:
+                                return True
+                            elif value in [
+                                "enable",
+                                "enabled",
                                 "disable",
                                 "disabled",
                                 "permanentlydisable",
@@ -200,8 +230,22 @@ class Utils:
         if not os.path.exists(cctk_path):
             return None
         try:
-            # Try common Dell attribute names for Computrace/Absolute
-            for attr in ["Computrace", "AbsoluteEnable", "Absolute"]:
+            # Check activation-style attribute first (Enable = activated)
+            result = subprocess.run(
+                ["sudo", cctk_path, "--AbsoluteEnable"],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode == 0:
+                output = result.stdout.strip().lower()
+                # For AbsoluteEnable, Enable/Enabled means activated
+                if "=enable" in output or "=enabled" in output:
+                    return True
+                elif "=disable" in output or "=disabled" in output:
+                    return False
+
+            # Check standard attributes (Activate = activated)
+            for attr in ["Computrace", "Absolute"]:
                 result = subprocess.run(
                     ["sudo", cctk_path, f"--{attr}"],
                     capture_output=True,
@@ -209,10 +253,10 @@ class Utils:
                 )
                 if result.returncode == 0:
                     output = result.stdout.strip().lower()
-                    # cctk typically outputs "attribute=value"
-                    if "=enabled" in output or "=activate" in output:
+                    # For standard attributes, Activate/Activated means activated
+                    if "=activate" in output or "=activated" in output:
                         return True
-                    elif "=disabled" in output or "=deactivate" in output:
+                    elif "=deactivate" in output or "=deactivated" in output:
                         return False
         except (OSError, subprocess.SubprocessError):
             pass
@@ -234,7 +278,7 @@ class Utils:
             output = result.stdout.lower()
 
             # Look for Computrace/Absolute entries in dmidecode output
-            # Pattern: lines containing computrace or absolute followed by enabled/disabled
+            # Pattern: lines containing computrace or absolute followed by activated/disabled
             lines = output.split("\n")
             for i, line in enumerate(lines):
                 if "computrace" in line or "absolute" in line:
@@ -242,7 +286,7 @@ class Utils:
                     context = " ".join(lines[max(0, i - 2) : min(len(lines), i + 3)])
                     if any(
                         status in context
-                        for status in ["enabled", "activated", "active"]
+                        for status in ["activated", "active"]
                     ):
                         # Make sure it's not "disabled" or "deactivated"
                         if "disabled" not in context and "deactivated" not in context:
