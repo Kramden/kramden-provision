@@ -194,7 +194,6 @@ class TestUtils(unittest.TestCase):
         result = self.utils.get_disks()
         self.assertEqual(result, {'/dev/sda': 100})
 
-    def test_get_mem_8gib_system(self):
     @patch('utils.Utils._get_installed_ram_from_dmi')
     def test_get_mem_8gib_system(self, mock_dmi):
         # Mock dmidecode to return None, forcing fallback to /proc/meminfo
