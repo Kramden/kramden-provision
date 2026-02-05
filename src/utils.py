@@ -293,7 +293,7 @@ class Utils:
             # MemTotal is in KiB (labeled as kB), convert to GiB
             mem_kib = int(mem_info["MemTotal"].split(" ")[0])
             mem_gib = mem_kib / 1024**2
-            # Round to nearest standard RAM size to account for reserved memory (video, etc.)
+        # Round to nearest standard RAM size to account for reserved memory (video, etc.)
         return str(self._round_to_standard_ram(mem_gib))
 
     def _get_installed_ram_from_dmi(self):
@@ -316,21 +316,24 @@ class Utils:
                         continue
 
                     # Extract size - format is typically "Size: 8192 MB" or "Size: 8 GB"
-                    size_match = re.search(r"Size:\s+(\d+)\s+(MB|GB)", line)
+                    size_match = re.search(r"Size:\s+(\d+)\s+(MB|GB)", line, re.IGNORECASE)
                     if size_match:
                         size = int(size_match.group(1))
-                        unit = size_match.group(2)
+                        unit = size_match.group(2).upper()
 
                         if unit == "GB":
                             total_mb += size * 1024
                         else:  # MB
                             total_mb += size
 
-            if total_mb > 0:
+            # Require a reasonable minimum to avoid returning misleading near-zero values
+            if total_mb >= 256:
                 # Convert MB to GiB
                 return total_mb / 1024
 
         except (subprocess.CalledProcessError, OSError, ValueError):
+            # If dmidecode is unavailable, fails, or returns unexpected output,
+            # gracefully fall back to /proc/meminfo via get_mem().
             pass
 
         return None
