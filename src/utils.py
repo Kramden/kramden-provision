@@ -219,8 +219,22 @@ class Utils:
         if not os.path.exists(cctk_path):
             return None
         try:
-            # Try common Dell attribute names for Computrace/Absolute
-            for attr in ["Computrace", "AbsoluteEnable", "Absolute"]:
+            # Check activation-style attribute first (Enable = activated)
+            result = subprocess.run(
+                ["sudo", cctk_path, "--AbsoluteEnable"],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode == 0:
+                output = result.stdout.strip().lower()
+                # For AbsoluteEnable, Enable/Enabled means activated
+                if "=enable" in output or "=enabled" in output:
+                    return True
+                elif "=disable" in output or "=disabled" in output:
+                    return False
+            
+            # Check standard attributes (Activate = activated)
+            for attr in ["Computrace", "Absolute"]:
                 result = subprocess.run(
                     ["sudo", cctk_path, f"--{attr}"],
                     capture_output=True,
@@ -228,10 +242,10 @@ class Utils:
                 )
                 if result.returncode == 0:
                     output = result.stdout.strip().lower()
-                    # cctk typically outputs "attribute=value"
+                    # For standard attributes, Activate/Activated means activated
                     if "=activate" in output or "=activated" in output:
                         return True
-                    elif "=disabled" in output or "=deactivate" in output or "=enabled" in output:
+                    elif "=deactivate" in output or "=deactivated" in output or "=disable" in output or "=disabled" in output:
                         return False
         except (OSError, subprocess.SubprocessError):
             pass
