@@ -304,10 +304,10 @@ class Utils:
                         continue
 
                     # Extract size - format is typically "Size: 8192 MB" or "Size: 8 GB"
-                    size_match = re.search(r"Size:\s+(\d+)\s+(MB|GB)", line)
+                    size_match = re.search(r"Size:\s+(\d+)\s+(MB|GB)", line, re.IGNORECASE)
                     if size_match:
                         size = int(size_match.group(1))
-                        unit = size_match.group(2)
+                        unit = size_match.group(2).upper()
 
                         if unit == "GB":
                             total_mb += size * 1024
