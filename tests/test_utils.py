@@ -114,6 +114,7 @@ class TestUtils(unittest.TestCase):
         mock_device = MagicMock()
         mock_device.__getitem__ = MagicMock(side_effect=lambda key: '/dev/sda' if key == 'DEVNAME' else None)
         mock_device.attributes.asint = MagicMock(side_effect=lambda key: 0 if key == 'removable' else 209715200 if key == 'size' else 0)
+        mock_device.get = MagicMock(return_value=None)
 
         # Setup context to return our mock device
         mock_context_instance = MagicMock()
@@ -121,6 +122,75 @@ class TestUtils(unittest.TestCase):
         mock_context.return_value = mock_context_instance
 
         # 209715200 * 512 / 1024^3 = 100 GB
+        result = self.utils.get_disks()
+        self.assertEqual(result, {'/dev/sda': 100})
+
+    @patch('utils.pyudev.Context')
+    def test_get_disks_filters_dm_prefix(self, mock_context):
+        """Test that devices with /dev/dm- prefix are filtered out."""
+        # Create mock devices: one normal disk and one with dm- prefix
+        mock_device_sda = MagicMock()
+        mock_device_sda.__getitem__ = MagicMock(side_effect=lambda key: '/dev/sda' if key == 'DEVNAME' else None)
+        mock_device_sda.attributes.asint = MagicMock(side_effect=lambda key: 0 if key == 'removable' else 209715200 if key == 'size' else 0)
+        mock_device_sda.get = MagicMock(return_value=None)
+
+        mock_device_dm = MagicMock()
+        mock_device_dm.__getitem__ = MagicMock(side_effect=lambda key: '/dev/dm-0' if key == 'DEVNAME' else None)
+        mock_device_dm.attributes.asint = MagicMock(side_effect=lambda key: 0 if key == 'removable' else 209715200 if key == 'size' else 0)
+        mock_device_dm.get = MagicMock(return_value=None)
+
+        # Setup context to return both devices
+        mock_context_instance = MagicMock()
+        mock_context_instance.list_devices.return_value = [mock_device_sda, mock_device_dm]
+        mock_context.return_value = mock_context_instance
+
+        # Only /dev/sda should be included, /dev/dm-0 should be filtered out
+        result = self.utils.get_disks()
+        self.assertEqual(result, {'/dev/sda': 100})
+
+    @patch('utils.pyudev.Context')
+    def test_get_disks_filters_mapper_path(self, mock_context):
+        """Test that devices with /mapper/ in the path are filtered out."""
+        # Create mock devices: one normal disk and one with /mapper/ in path
+        mock_device_sda = MagicMock()
+        mock_device_sda.__getitem__ = MagicMock(side_effect=lambda key: '/dev/sda' if key == 'DEVNAME' else None)
+        mock_device_sda.attributes.asint = MagicMock(side_effect=lambda key: 0 if key == 'removable' else 209715200 if key == 'size' else 0)
+        mock_device_sda.get = MagicMock(return_value=None)
+
+        mock_device_mapper = MagicMock()
+        mock_device_mapper.__getitem__ = MagicMock(side_effect=lambda key: '/dev/mapper/vg-lv' if key == 'DEVNAME' else None)
+        mock_device_mapper.attributes.asint = MagicMock(side_effect=lambda key: 0 if key == 'removable' else 209715200 if key == 'size' else 0)
+        mock_device_mapper.get = MagicMock(return_value=None)
+
+        # Setup context to return both devices
+        mock_context_instance = MagicMock()
+        mock_context_instance.list_devices.return_value = [mock_device_sda, mock_device_mapper]
+        mock_context.return_value = mock_context_instance
+
+        # Only /dev/sda should be included, /dev/mapper/vg-lv should be filtered out
+        result = self.utils.get_disks()
+        self.assertEqual(result, {'/dev/sda': 100})
+
+    @patch('utils.pyudev.Context')
+    def test_get_disks_filters_dm_name_property(self, mock_context):
+        """Test that devices with DM_NAME property are filtered out."""
+        # Create mock devices: one normal disk and one with DM_NAME property
+        mock_device_sda = MagicMock()
+        mock_device_sda.__getitem__ = MagicMock(side_effect=lambda key: '/dev/sda' if key == 'DEVNAME' else None)
+        mock_device_sda.attributes.asint = MagicMock(side_effect=lambda key: 0 if key == 'removable' else 209715200 if key == 'size' else 0)
+        mock_device_sda.get = MagicMock(return_value=None)
+
+        mock_device_lvm = MagicMock()
+        mock_device_lvm.__getitem__ = MagicMock(side_effect=lambda key: '/dev/sdb' if key == 'DEVNAME' else None)
+        mock_device_lvm.attributes.asint = MagicMock(side_effect=lambda key: 0 if key == 'removable' else 209715200 if key == 'size' else 0)
+        mock_device_lvm.get = MagicMock(side_effect=lambda key: 'vg-lv' if key == 'DM_NAME' else None)
+
+        # Setup context to return both devices
+        mock_context_instance = MagicMock()
+        mock_context_instance.list_devices.return_value = [mock_device_sda, mock_device_lvm]
+        mock_context.return_value = mock_context_instance
+
+        # Only /dev/sda should be included, device with DM_NAME should be filtered out
         result = self.utils.get_disks()
         self.assertEqual(result, {'/dev/sda': 100})
 
