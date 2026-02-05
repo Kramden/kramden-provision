@@ -281,7 +281,7 @@ class Utils:
             # MemTotal is in KiB (labeled as kB), convert to GiB
             mem_kib = int(mem_info["MemTotal"].split(" ")[0])
             mem_gib = mem_kib / 1024**2
-            # Round to nearest standard RAM size to account for reserved memory (video, etc.)
+        # Round to nearest standard RAM size to account for reserved memory (video, etc.)
         return str(self._round_to_standard_ram(mem_gib))
 
     def _get_installed_ram_from_dmi(self):
