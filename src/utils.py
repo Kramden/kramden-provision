@@ -276,7 +276,8 @@ class Utils:
     def get_installer(self):
         return ""
 
-    # Return MemTotal, rounded to nearest standard RAM size
+    # Return total installed RAM, rounded to nearest standard RAM size.
+    # Uses DMI when available, falls back to MemTotal from /proc/meminfo.
     def get_mem(self):
         # Get actual memory installed, not memory available to kernel
         mem_gib = self._get_installed_ram_from_dmi()
