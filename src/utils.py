@@ -268,7 +268,7 @@ class Utils:
                             return True
                     if any(
                         status in context
-                        for status in ["disabled", "deactivated", "inactive", "enabled"]
+                        for status in ["disabled", "deactivated", "inactive"]
                     ):
                         return False
         except (OSError, subprocess.SubprocessError):
