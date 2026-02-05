@@ -314,7 +314,8 @@ class Utils:
                         else:  # MB
                             total_mb += size
 
-            if total_mb > 0:
+            # Require a reasonable minimum to avoid returning misleading near-zero values
+            if total_mb >= 256:
                 # Convert MB to GiB
                 return total_mb / 1024
 
