@@ -907,5 +907,49 @@ Memory Device
         # No valid memory sizes found, should return None
         self.assertIsNone(result)
 
+    def test_get_chassis_type_desktop(self):
+        """Test get_chassis_type returns 'Desktop' for desktop chassis types."""
+        for chassis_num in [3, 4, 5, 6, 7, 15, 16, 24, 35, 36]:
+            with patch('builtins.open', mock_open(read_data=f"{chassis_num}\n")):
+                result = Utils.get_chassis_type()
+                self.assertEqual(result, "Desktop", f"chassis_type {chassis_num} should map to Desktop")
+
+    def test_get_chassis_type_laptop(self):
+        """Test get_chassis_type returns 'Laptop' for laptop chassis types."""
+        for chassis_num in [8, 9, 10, 14, 30, 31, 32]:
+            with patch('builtins.open', mock_open(read_data=f"{chassis_num}\n")):
+                result = Utils.get_chassis_type()
+                self.assertEqual(result, "Laptop", f"chassis_type {chassis_num} should map to Laptop")
+
+    def test_get_chassis_type_all_in_one(self):
+        """Test get_chassis_type returns 'All-In-One' for chassis type 13."""
+        with patch('builtins.open', mock_open(read_data="13\n")):
+            result = Utils.get_chassis_type()
+            self.assertEqual(result, "All-In-One")
+
+    def test_get_chassis_type_unknown(self):
+        """Test get_chassis_type returns None for unknown chassis type."""
+        with patch('builtins.open', mock_open(read_data="99\n")):
+            result = Utils.get_chassis_type()
+            self.assertIsNone(result)
+
+    def test_get_chassis_type_file_not_found(self):
+        """Test get_chassis_type returns None when chassis_type file doesn't exist."""
+        with patch('builtins.open', side_effect=IOError("No such file")):
+            result = Utils.get_chassis_type()
+            self.assertIsNone(result)
+
+    def test_get_chassis_type_invalid_content(self):
+        """Test get_chassis_type returns None when file contains non-integer."""
+        with patch('builtins.open', mock_open(read_data="not_a_number\n")):
+            result = Utils.get_chassis_type()
+            self.assertIsNone(result)
+
+    def test_get_chassis_type_empty_file(self):
+        """Test get_chassis_type returns None when file is empty."""
+        with patch('builtins.open', mock_open(read_data="")):
+            result = Utils.get_chassis_type()
+            self.assertIsNone(result)
+
 if __name__ == '__main__':
     unittest.main()
