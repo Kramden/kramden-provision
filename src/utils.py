@@ -320,6 +320,8 @@ class Utils:
                 return total_mb / 1024
 
         except (subprocess.CalledProcessError, OSError, ValueError):
+            # If dmidecode is unavailable, fails, or returns unexpected output,
+            # gracefully fall back to /proc/meminfo via get_mem().
             pass
 
         return None
