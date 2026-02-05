@@ -176,8 +176,8 @@ class SysInfo(Adw.Bin):
                 self.battery_row.set_title("Battery")
             for battery in batteries.keys():
                 row = Adw.ActionRow()
-                row.set_title(f"{str(battery)})")
-                row.set_subtitle(f"{str(batteries[battery])}%")
+                row.set_title(str(battery))
+                row.set_subtitle(f"Capacity: {str(batteries[battery])}%")
                 self.battery_row.add_row(row)
                 self.battery_row.set_expanded(True)
                 # Set Battery row to emblem-ok-symbolic if battery capacity is greater than 70%, else set row to emblem-important-symbolic

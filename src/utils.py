@@ -75,13 +75,24 @@ class Utils:
         context = pyudev.Context()
         disks = {}
         for device in context.list_devices(subsystem="block", DEVTYPE="disk"):
-            if not "loop" in device["DEVNAME"] and not re.search(
-                r"sr[0-9]", device["DEVNAME"]
-            ):
-                if device.attributes.asint("removable") != 1:
-                    disks[str(device["DEVNAME"])] = int(
-                        round(device.attributes.asint("size") * 512 / 1024**3, 0)
-                    )
+            devname = device["DEVNAME"]
+
+            if "loop" in devname or re.search(r"sr[0-9]", devname):
+                continue
+
+            if device.attributes.asint("removable") == 1:
+                continue
+
+            if devname.startswith("/dev/dm-") or "/mapper/" in devname:
+                continue
+
+            if device.get("DM_NAME"):
+                continue
+
+            disks[str(devname)] = int(
+                round(device.attributes.asint("size") * 512 / 1024**3, 0)
+            )
+
         return disks
 
     # Return host name
@@ -120,7 +131,7 @@ class Utils:
             return result.returncode != 0
         return False
 
-    # Check if Computrace/Absolute is enabled in BIOS, returns True if enabled
+    # Check if Computrace/Absolute is activated in BIOS, returns True if activated
     def has_computrace_enabled(self):
         # Check firmware attributes exposed by Linux kernel
         # Works for Lenovo, Dell, and HP (with hp-bioscfg driver on Linux 6.x+)
@@ -144,10 +155,14 @@ class Utils:
 
     def _check_computrace_firmware_attrs(self):
         """Check firmware-attributes sysfs interface (Lenovo, Dell, HP with proper drivers)."""
-        attribute_names = [
+        # Attributes ending in "Activation" use Enable/Disable to indicate activation state
+        # Other attributes use Activate/Activated to indicate activation state
+        activation_attrs = [
             "AbsolutePersistenceModuleActivation",
-            "Computrace",
             "ComputraceModuleActivation",
+        ]
+        standard_attrs = [
+            "Computrace",
             "Absolute",
         ]
         firmware_attrs_base = "/sys/class/firmware-attributes"
@@ -158,7 +173,8 @@ class Utils:
                 attrs_dir = os.path.join(firmware_attrs_base, provider, "attributes")
                 if not os.path.isdir(attrs_dir):
                     continue
-                for attr_name in attribute_names:
+                # Check activation-style attributes first (Enable = activated)
+                for attr_name in activation_attrs:
                     current_value_path = os.path.join(
                         attrs_dir, attr_name, "current_value"
                     )
@@ -170,9 +186,34 @@ class Utils:
                         )
                         if result.returncode == 0:
                             value = result.stdout.strip().lower()
-                            if value in ["enable", "enabled", "activate", "activated"]:
+                            # For *Activation attributes, Enable means activated
+                            if value in ["enable", "enabled"]:
                                 return True
                             elif value in [
+                                "disable",
+                                "disabled",
+                                "permanentlydisable",
+                                "permanently disable",
+                            ]:
+                                return False
+                # Check standard attributes (Activate = activated)
+                for attr_name in standard_attrs:
+                    current_value_path = os.path.join(
+                        attrs_dir, attr_name, "current_value"
+                    )
+                    if os.path.exists(current_value_path):
+                        result = subprocess.run(
+                            ["sudo", "cat", current_value_path],
+                            capture_output=True,
+                            text=True,
+                        )
+                        if result.returncode == 0:
+                            value = result.stdout.strip().lower()
+                            if value in ["activate", "activated"]:
+                                return True
+                            elif value in [
+                                "enable",
+                                "enabled",
                                 "disable",
                                 "disabled",
                                 "permanentlydisable",
@@ -189,8 +230,22 @@ class Utils:
         if not os.path.exists(cctk_path):
             return None
         try:
-            # Try common Dell attribute names for Computrace/Absolute
-            for attr in ["Computrace", "AbsoluteEnable", "Absolute"]:
+            # Check activation-style attribute first (Enable = activated)
+            result = subprocess.run(
+                ["sudo", cctk_path, "--AbsoluteEnable"],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode == 0:
+                output = result.stdout.strip().lower()
+                # For AbsoluteEnable, Enable/Enabled means activated
+                if "=enable" in output or "=enabled" in output:
+                    return True
+                elif "=disable" in output or "=disabled" in output:
+                    return False
+
+            # Check standard attributes (Activate = activated)
+            for attr in ["Computrace", "Absolute"]:
                 result = subprocess.run(
                     ["sudo", cctk_path, f"--{attr}"],
                     capture_output=True,
@@ -198,10 +253,10 @@ class Utils:
                 )
                 if result.returncode == 0:
                     output = result.stdout.strip().lower()
-                    # cctk typically outputs "attribute=value"
-                    if "=enabled" in output or "=activate" in output:
+                    # For standard attributes, Activate/Activated means activated
+                    if "=activate" in output or "=activated" in output:
                         return True
-                    elif "=disabled" in output or "=deactivate" in output:
+                    elif "=deactivate" in output or "=deactivated" in output:
                         return False
         except (OSError, subprocess.SubprocessError):
             pass
@@ -223,7 +278,7 @@ class Utils:
             output = result.stdout.lower()
 
             # Look for Computrace/Absolute entries in dmidecode output
-            # Pattern: lines containing computrace or absolute followed by enabled/disabled
+            # Pattern: lines containing computrace or absolute followed by activated/disabled
             lines = output.split("\n")
             for i, line in enumerate(lines):
                 if "computrace" in line or "absolute" in line:
@@ -231,7 +286,7 @@ class Utils:
                     context = " ".join(lines[max(0, i - 2) : min(len(lines), i + 3)])
                     if any(
                         status in context
-                        for status in ["enabled", "activated", "active"]
+                        for status in ["activated", "active"]
                     ):
                         # Make sure it's not "disabled" or "deactivated"
                         if "disabled" not in context and "deactivated" not in context:
@@ -265,19 +320,67 @@ class Utils:
     def get_installer(self):
         return ""
 
-    # Return MemTotal, rounded to nearest standard RAM size
+    # Return total installed RAM, rounded to nearest standard RAM size.
+    # Uses DMI when available, falls back to MemTotal from /proc/meminfo.
     def get_mem(self):
-        mem_info = {}
-        with open("/proc/meminfo") as f:
-            for line in f:
-                if line.strip():
-                    key, value = line.split(":", 1)
-                    mem_info[key.strip()] = value.strip()
-        # MemTotal is in KiB (labeled as kB), convert to GiB
-        mem_kib = int(mem_info["MemTotal"].split(" ")[0])
-        mem_gib = mem_kib / 1024**2
+        # Get actual memory installed, not memory available to kernel
+        mem_gib = self._get_installed_ram_from_dmi()
+
+        # If DMI fails, fall back on /proc/meminfo
+        if mem_gib is None:
+            mem_info = {}
+            with open("/proc/meminfo") as f:
+                for line in f:
+                    if line.strip():
+                        key, value = line.split(":", 1)
+                        mem_info[key.strip()] = value.strip()
+            # MemTotal is in KiB (labeled as kB), convert to GiB
+            mem_kib = int(mem_info["MemTotal"].split(" ")[0])
+            mem_gib = mem_kib / 1024**2
         # Round to nearest standard RAM size to account for reserved memory (video, etc.)
         return str(self._round_to_standard_ram(mem_gib))
+
+    def _get_installed_ram_from_dmi(self):
+        try:
+            result = subprocess.run(
+                ["sudo", "dmidecode", "-t", "17"],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+
+            total_mb = 0
+            lines = result.stdout.split("\n")
+
+            for line in lines:
+                # Look for "Size:" lines under Memory Device sections
+                if "\tSize:" in line:
+                    # Skip lines that say "No Module Installed" or similar
+                    if "No Module Installed" in line or "Not Installed" in line:
+                        continue
+
+                    # Extract size - format is typically "Size: 8192 MB" or "Size: 8 GB"
+                    size_match = re.search(r"Size:\s+(\d+)\s+(MB|GB)", line, re.IGNORECASE)
+                    if size_match:
+                        size = int(size_match.group(1))
+                        unit = size_match.group(2).upper()
+
+                        if unit == "GB":
+                            total_mb += size * 1024
+                        else:  # MB
+                            total_mb += size
+
+            # Require a reasonable minimum to avoid returning misleading near-zero values
+            if total_mb >= 256:
+                # Convert MB to GiB
+                return total_mb / 1024
+
+        except (subprocess.CalledProcessError, OSError, ValueError):
+            # If dmidecode is unavailable, fails, or returns unexpected output,
+            # gracefully fall back to /proc/meminfo via get_mem().
+            pass
+
+        return None
 
     def _round_to_standard_ram(self, mem_gib):
         """Round memory to nearest standard RAM size when within tolerance."""
@@ -322,7 +425,10 @@ class Utils:
             controllers = []
             for line in result.stdout.splitlines():
                 line_lower = line.lower()
-                if "vga compatible controller" in line_lower or "3d controller" in line_lower:
+                if (
+                    "vga compatible controller" in line_lower
+                    or "3d controller" in line_lower
+                ):
                     controllers.append(line_lower)
                     # Check if this is an NVIDIA GPU (for PRIME offload settings)
                     if "nvidia" in line_lower:

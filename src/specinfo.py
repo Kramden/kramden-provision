@@ -130,14 +130,14 @@ class SpecInfo(Adw.Bin):
             self.asset_info_row.set_subtitle("No Asset Info")
             self.asset_info_row.set_icon_name("emblem-ok-symbolic")
 
-        computrace_enabled = utils.has_computrace_enabled()
-        if computrace_enabled is True:
-            self.computrace_row.set_subtitle("Enabled")
+        computrace_activated = utils.has_computrace_enabled()
+        if computrace_activated is True:
+            self.computrace_row.set_subtitle("Activated")
             self.computrace_row.set_icon_name("emblem-important-symbolic")
             self.computrace_row.add_css_class("text-error")
             passed = False
-        elif computrace_enabled is False:
-            self.computrace_row.set_subtitle("Disabled")
+        elif computrace_activated is False:
+            self.computrace_row.set_subtitle("Not Activated")
             self.computrace_row.set_icon_name("emblem-ok-symbolic")
         else:
             self.computrace_row.set_subtitle("Unknown")
@@ -192,8 +192,8 @@ class SpecInfo(Adw.Bin):
                 self.battery_row.set_title("Battery")
             for battery in batteries.keys():
                 row = Adw.ActionRow()
-                row.set_title(f"{str(battery)})")
-                row.set_subtitle(f"{str(batteries[battery])}%")
+                row.set_title(str(battery))
+                row.set_subtitle(f"Capacity: {str(batteries[battery])}%")
                 self.battery_row.add_row(row)
                 self.battery_row.set_expanded(True)
                 # Set Battery row to emblem-ok-symbolic if battery capacity is greater than 70%, else set row to emblem-important-symbolic

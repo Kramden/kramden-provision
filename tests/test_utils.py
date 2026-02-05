@@ -114,6 +114,7 @@ class TestUtils(unittest.TestCase):
         mock_device = MagicMock()
         mock_device.__getitem__ = MagicMock(side_effect=lambda key: '/dev/sda' if key == 'DEVNAME' else None)
         mock_device.attributes.asint = MagicMock(side_effect=lambda key: 0 if key == 'removable' else 209715200 if key == 'size' else 0)
+        mock_device.get = MagicMock(return_value=None)
 
         # Setup context to return our mock device
         mock_context_instance = MagicMock()
@@ -124,14 +125,91 @@ class TestUtils(unittest.TestCase):
         result = self.utils.get_disks()
         self.assertEqual(result, {'/dev/sda': 100})
 
-    def test_get_mem_8gib_system(self):
+    @patch('utils.pyudev.Context')
+    def test_get_disks_filters_dm_prefix(self, mock_context):
+        """Test that devices with /dev/dm- prefix are filtered out."""
+        # Create mock devices: one normal disk and one with dm- prefix
+        mock_device_sda = MagicMock()
+        mock_device_sda.__getitem__ = MagicMock(side_effect=lambda key: '/dev/sda' if key == 'DEVNAME' else None)
+        mock_device_sda.attributes.asint = MagicMock(side_effect=lambda key: 0 if key == 'removable' else 209715200 if key == 'size' else 0)
+        mock_device_sda.get = MagicMock(return_value=None)
+
+        mock_device_dm = MagicMock()
+        mock_device_dm.__getitem__ = MagicMock(side_effect=lambda key: '/dev/dm-0' if key == 'DEVNAME' else None)
+        mock_device_dm.attributes.asint = MagicMock(side_effect=lambda key: 0 if key == 'removable' else 209715200 if key == 'size' else 0)
+        mock_device_dm.get = MagicMock(return_value=None)
+
+        # Setup context to return both devices
+        mock_context_instance = MagicMock()
+        mock_context_instance.list_devices.return_value = [mock_device_sda, mock_device_dm]
+        mock_context.return_value = mock_context_instance
+
+        # Only /dev/sda should be included, /dev/dm-0 should be filtered out
+        result = self.utils.get_disks()
+        self.assertEqual(result, {'/dev/sda': 100})
+
+    @patch('utils.pyudev.Context')
+    def test_get_disks_filters_mapper_path(self, mock_context):
+        """Test that devices with /mapper/ in the path are filtered out."""
+        # Create mock devices: one normal disk and one with /mapper/ in path
+        mock_device_sda = MagicMock()
+        mock_device_sda.__getitem__ = MagicMock(side_effect=lambda key: '/dev/sda' if key == 'DEVNAME' else None)
+        mock_device_sda.attributes.asint = MagicMock(side_effect=lambda key: 0 if key == 'removable' else 209715200 if key == 'size' else 0)
+        mock_device_sda.get = MagicMock(return_value=None)
+
+        mock_device_mapper = MagicMock()
+        mock_device_mapper.__getitem__ = MagicMock(side_effect=lambda key: '/dev/mapper/vg-lv' if key == 'DEVNAME' else None)
+        mock_device_mapper.attributes.asint = MagicMock(side_effect=lambda key: 0 if key == 'removable' else 209715200 if key == 'size' else 0)
+        mock_device_mapper.get = MagicMock(return_value=None)
+
+        # Setup context to return both devices
+        mock_context_instance = MagicMock()
+        mock_context_instance.list_devices.return_value = [mock_device_sda, mock_device_mapper]
+        mock_context.return_value = mock_context_instance
+
+        # Only /dev/sda should be included, /dev/mapper/vg-lv should be filtered out
+        result = self.utils.get_disks()
+        self.assertEqual(result, {'/dev/sda': 100})
+
+    @patch('utils.pyudev.Context')
+    def test_get_disks_filters_dm_name_property(self, mock_context):
+        """Test that devices with DM_NAME property are filtered out."""
+        # Create mock devices: one normal disk and one with DM_NAME property
+        mock_device_sda = MagicMock()
+        mock_device_sda.__getitem__ = MagicMock(side_effect=lambda key: '/dev/sda' if key == 'DEVNAME' else None)
+        mock_device_sda.attributes.asint = MagicMock(side_effect=lambda key: 0 if key == 'removable' else 209715200 if key == 'size' else 0)
+        mock_device_sda.get = MagicMock(return_value=None)
+
+        mock_device_lvm = MagicMock()
+        mock_device_lvm.__getitem__ = MagicMock(side_effect=lambda key: '/dev/sdb' if key == 'DEVNAME' else None)
+        mock_device_lvm.attributes.asint = MagicMock(side_effect=lambda key: 0 if key == 'removable' else 209715200 if key == 'size' else 0)
+        mock_device_lvm.get = MagicMock(side_effect=lambda key: 'vg-lv' if key == 'DM_NAME' else None)
+
+        # Setup context to return both devices
+        mock_context_instance = MagicMock()
+        mock_context_instance.list_devices.return_value = [mock_device_sda, mock_device_lvm]
+        mock_context.return_value = mock_context_instance
+
+        # Only /dev/sda should be included, device with DM_NAME should be filtered out
+        result = self.utils.get_disks()
+        self.assertEqual(result, {'/dev/sda': 100})
+
+    @patch('utils.Utils._get_installed_ram_from_dmi')
+    def test_get_mem_8gib_system(self, mock_dmi):
+        # Mock dmidecode to return None, forcing fallback to /proc/meminfo
+        mock_dmi.return_value = None
+        
         # Simulate 8 GiB system with ~7.3 GiB reported (reserved for video, etc.)
         # 7700000 KiB / 1024^2 = 7.34 GiB -> rounds to 8
         meminfo_content = "MemTotal:       7700000 kB"
         with patch('builtins.open', mock_open(read_data=meminfo_content)):
             self.assertEqual(self.utils.get_mem(), "8")
 
-    def test_get_mem_16gib_system(self):
+    @patch('utils.Utils._get_installed_ram_from_dmi')
+    def test_get_mem_16gib_system(self, mock_dmi):
+        # Mock dmidecode to return None, forcing fallback to /proc/meminfo
+        mock_dmi.return_value = None
+        
         # Simulate 16 GiB system with ~14.8 GiB reported
         # 15500000 KiB / 1024^2 = 14.78 GiB -> rounds to 16
         meminfo_content = "MemTotal:       15500000 kB"
@@ -147,6 +225,228 @@ class TestUtils(unittest.TestCase):
         self.assertEqual(self.utils._round_to_standard_ram(31.2), 32)
         self.assertEqual(self.utils._round_to_standard_ram(3.8), 4)
         self.assertEqual(self.utils._round_to_standard_ram(5.5), 6)
+
+    @patch('subprocess.run')
+    def test_get_installed_ram_from_dmi_single_module_mb(self, mock_run):
+        """Test _get_installed_ram_from_dmi with single 8192 MB module."""
+        dmidecode_output = """# dmidecode 3.3
+Getting SMBIOS data from sysfs.
+SMBIOS 3.2.0 present.
+
+Handle 0x0012, DMI type 17, 84 bytes
+Memory Device
+	Array Handle: 0x0010
+	Error Information Handle: Not Provided
+	Total Width: 64 bits
+	Data Width: 64 bits
+	Size: 8192 MB
+	Form Factor: SODIMM
+	Set: None
+	Locator: ChannelA-DIMM0
+	Bank Locator: BANK 0
+	Type: DDR4
+	Type Detail: Synchronous
+	Speed: 2667 MT/s
+"""
+        mock_result = MagicMock()
+        mock_result.stdout = dmidecode_output
+        mock_result.returncode = 0
+        mock_run.return_value = mock_result
+
+        # 8192 MB / 1024 = 8 GiB
+        result = self.utils._get_installed_ram_from_dmi()
+        self.assertEqual(result, 8.0)
+
+    @patch('subprocess.run')
+    def test_get_installed_ram_from_dmi_single_module_gb(self, mock_run):
+        """Test _get_installed_ram_from_dmi with single 8 GB module."""
+        dmidecode_output = """# dmidecode 3.3
+Getting SMBIOS data from sysfs.
+SMBIOS 3.2.0 present.
+
+Handle 0x0012, DMI type 17, 84 bytes
+Memory Device
+	Array Handle: 0x0010
+	Size: 8 GB
+	Form Factor: SODIMM
+	Locator: ChannelA-DIMM0
+"""
+        mock_result = MagicMock()
+        mock_result.stdout = dmidecode_output
+        mock_result.returncode = 0
+        mock_run.return_value = mock_result
+
+        # 8 GB * 1024 = 8192 MB / 1024 = 8 GiB
+        result = self.utils._get_installed_ram_from_dmi()
+        self.assertEqual(result, 8.0)
+
+    @patch('subprocess.run')
+    def test_get_installed_ram_from_dmi_two_modules(self, mock_run):
+        """Test _get_installed_ram_from_dmi with two 8192 MB modules."""
+        dmidecode_output = """# dmidecode 3.3
+Getting SMBIOS data from sysfs.
+SMBIOS 3.2.0 present.
+
+Handle 0x0012, DMI type 17, 84 bytes
+Memory Device
+	Array Handle: 0x0010
+	Size: 8192 MB
+	Form Factor: SODIMM
+	Locator: ChannelA-DIMM0
+
+Handle 0x0013, DMI type 17, 84 bytes
+Memory Device
+	Array Handle: 0x0010
+	Size: 8192 MB
+	Form Factor: SODIMM
+	Locator: ChannelB-DIMM0
+"""
+        mock_result = MagicMock()
+        mock_result.stdout = dmidecode_output
+        mock_result.returncode = 0
+        mock_run.return_value = mock_result
+
+        # 2 * 8192 MB / 1024 = 16 GiB
+        result = self.utils._get_installed_ram_from_dmi()
+        self.assertEqual(result, 16.0)
+
+    @patch('subprocess.run')
+    def test_get_installed_ram_from_dmi_mixed_units(self, mock_run):
+        """Test _get_installed_ram_from_dmi with mixed MB and GB units."""
+        dmidecode_output = """# dmidecode 3.3
+
+Handle 0x0012, DMI type 17, 84 bytes
+Memory Device
+	Size: 4096 MB
+	Locator: ChannelA-DIMM0
+
+Handle 0x0013, DMI type 17, 84 bytes
+Memory Device
+	Size: 8 GB
+	Locator: ChannelB-DIMM0
+"""
+        mock_result = MagicMock()
+        mock_result.stdout = dmidecode_output
+        mock_result.returncode = 0
+        mock_run.return_value = mock_result
+
+        # 4096 MB + (8 GB * 1024 MB) = 4096 + 8192 = 12288 MB / 1024 = 12 GiB
+        result = self.utils._get_installed_ram_from_dmi()
+        self.assertEqual(result, 12.0)
+
+    @patch('subprocess.run')
+    def test_get_installed_ram_from_dmi_with_empty_slots(self, mock_run):
+        """Test _get_installed_ram_from_dmi ignores empty memory slots."""
+        dmidecode_output = """# dmidecode 3.3
+
+Handle 0x0012, DMI type 17, 84 bytes
+Memory Device
+	Size: 8192 MB
+	Locator: ChannelA-DIMM0
+
+Handle 0x0013, DMI type 17, 84 bytes
+Memory Device
+	Size: No Module Installed
+	Locator: ChannelA-DIMM1
+
+Handle 0x0014, DMI type 17, 84 bytes
+Memory Device
+	Size: 8192 MB
+	Locator: ChannelB-DIMM0
+
+Handle 0x0015, DMI type 17, 84 bytes
+Memory Device
+	Size: Not Installed
+	Locator: ChannelB-DIMM1
+"""
+        mock_result = MagicMock()
+        mock_result.stdout = dmidecode_output
+        mock_result.returncode = 0
+        mock_run.return_value = mock_result
+
+        # Only count the two 8192 MB modules: 2 * 8192 / 1024 = 16 GiB
+        result = self.utils._get_installed_ram_from_dmi()
+        self.assertEqual(result, 16.0)
+
+    @patch('subprocess.run')
+    def test_get_installed_ram_from_dmi_command_fails(self, mock_run):
+        """Test _get_installed_ram_from_dmi returns None when dmidecode fails."""
+        mock_run.side_effect = subprocess.CalledProcessError(1, ['sudo', 'dmidecode', '-t', '17'])
+
+        result = self.utils._get_installed_ram_from_dmi()
+        self.assertIsNone(result)
+
+    @patch('subprocess.run')
+    def test_get_installed_ram_from_dmi_oserror(self, mock_run):
+        """Test _get_installed_ram_from_dmi returns None when dmidecode is not found."""
+        mock_run.side_effect = OSError("dmidecode not found")
+
+        result = self.utils._get_installed_ram_from_dmi()
+        self.assertIsNone(result)
+
+    @patch('subprocess.run')
+    def test_get_installed_ram_from_dmi_no_memory_found(self, mock_run):
+        """Test _get_installed_ram_from_dmi returns None when no memory is found."""
+        dmidecode_output = """# dmidecode 3.3
+Getting SMBIOS data from sysfs.
+SMBIOS 3.2.0 present.
+
+Handle 0x0010, DMI type 16, 23 bytes
+Physical Memory Array
+	Location: System Board Or Motherboard
+	Maximum Capacity: 64 GB
+"""
+        mock_result = MagicMock()
+        mock_result.stdout = dmidecode_output
+        mock_result.returncode = 0
+        mock_run.return_value = mock_result
+
+        result = self.utils._get_installed_ram_from_dmi()
+        self.assertIsNone(result)
+
+    @patch('subprocess.run')
+    def test_get_mem_uses_dmi_when_available(self, mock_run):
+        """Test get_mem uses DMI detection when available."""
+        # Mock dmidecode to return 16 GB (16384 MB)
+        dmidecode_output = """
+Handle 0x0012, DMI type 17, 84 bytes
+Memory Device
+	Size: 8192 MB
+	Locator: ChannelA-DIMM0
+
+Handle 0x0013, DMI type 17, 84 bytes
+Memory Device
+	Size: 8192 MB
+	Locator: ChannelB-DIMM0
+"""
+        mock_result = MagicMock()
+        mock_result.stdout = dmidecode_output
+        mock_result.returncode = 0
+        mock_run.return_value = mock_result
+
+        # Should return 16 GiB from DMI, not read /proc/meminfo
+        result = self.utils.get_mem()
+        self.assertEqual(result, "16")
+        # Verify dmidecode was called
+        mock_run.assert_called_once_with(
+            ["sudo", "dmidecode", "-t", "17"],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+
+    @patch('subprocess.run')
+    def test_get_mem_falls_back_to_meminfo_when_dmi_fails(self, mock_run):
+        """Test get_mem falls back to /proc/meminfo when DMI fails."""
+        # Mock dmidecode to fail
+        mock_run.side_effect = subprocess.CalledProcessError(1, ['sudo', 'dmidecode', '-t', '17'])
+
+        # Mock /proc/meminfo
+        meminfo_content = "MemTotal:       15500000 kB"
+        with patch('builtins.open', mock_open(read_data=meminfo_content)):
+            result = self.utils.get_mem()
+            # Should fall back to meminfo and return 16 (from 15500000 KiB)
+            self.assertEqual(result, "16")
 
     def test_get_cpu_info(self):
         cpuinfo_content = "model name: Test CPU"
@@ -305,6 +605,307 @@ OpenGL core profile version string: 4.6.0"""
         renderer = "NVIDIA GeForce RTX 3070/PCIe/SSE2 (NVIDIA_PROPRIETARY)"
         result = self.utils._format_gpu_renderer(renderer)
         self.assertEqual(result, "NVIDIA GeForce RTX 3070")
+
+    @patch('subprocess.run')
+    def test_get_installed_ram_from_dmi_8gb_two_modules(self, mock_run):
+        """Test _get_installed_ram_from_dmi with 8GB in 2x4GB modules."""
+        dmidecode_output = """# dmidecode 3.3
+Getting SMBIOS data from sysfs.
+SMBIOS 3.0 present.
+
+Handle 0x0010, DMI type 17, 40 bytes
+Memory Device
+	Array Handle: 0x000F
+	Error Information Handle: Not Provided
+	Total Width: 64 bits
+	Data Width: 64 bits
+	Size: 4096 MB
+	Form Factor: SODIMM
+	Set: None
+	Locator: ChannelA-DIMM0
+	Bank Locator: BANK 0
+	Type: DDR4
+	Type Detail: Synchronous
+
+Handle 0x0011, DMI type 17, 40 bytes
+Memory Device
+	Array Handle: 0x000F
+	Error Information Handle: Not Provided
+	Total Width: 64 bits
+	Data Width: 64 bits
+	Size: 4096 MB
+	Form Factor: SODIMM
+	Set: None
+	Locator: ChannelB-DIMM0
+	Bank Locator: BANK 2
+	Type: DDR4
+	Type Detail: Synchronous"""
+        
+        mock_result = MagicMock()
+        mock_result.stdout = dmidecode_output
+        mock_result.returncode = 0
+        mock_run.return_value = mock_result
+        
+        result = self.utils._get_installed_ram_from_dmi()
+        # 4096 MB + 4096 MB = 8192 MB = 8 GiB
+        self.assertEqual(result, 8.0)
+
+    @patch('subprocess.run')
+    def test_get_installed_ram_from_dmi_16gb_single_module(self, mock_run):
+        """Test _get_installed_ram_from_dmi with 16GB in 1x16GB module."""
+        dmidecode_output = """# dmidecode 3.3
+Getting SMBIOS data from sysfs.
+SMBIOS 3.0 present.
+
+Handle 0x0010, DMI type 17, 40 bytes
+Memory Device
+	Array Handle: 0x000F
+	Error Information Handle: Not Provided
+	Total Width: 64 bits
+	Data Width: 64 bits
+	Size: 16384 MB
+	Form Factor: SODIMM
+	Set: None
+	Locator: ChannelA-DIMM0
+	Bank Locator: BANK 0
+	Type: DDR4
+	Type Detail: Synchronous"""
+        
+        mock_result = MagicMock()
+        mock_result.stdout = dmidecode_output
+        mock_result.returncode = 0
+        mock_run.return_value = mock_result
+        
+        result = self.utils._get_installed_ram_from_dmi()
+        # 16384 MB = 16 GiB
+        self.assertEqual(result, 16.0)
+
+    @patch('subprocess.run')
+    def test_get_installed_ram_from_dmi_with_empty_slots(self, mock_run):
+        """Test _get_installed_ram_from_dmi with empty slots showing 'No Module Installed'."""
+        dmidecode_output = """# dmidecode 3.3
+Getting SMBIOS data from sysfs.
+SMBIOS 3.0 present.
+
+Handle 0x0010, DMI type 17, 40 bytes
+Memory Device
+	Array Handle: 0x000F
+	Error Information Handle: Not Provided
+	Total Width: 64 bits
+	Data Width: 64 bits
+	Size: 8192 MB
+	Form Factor: SODIMM
+	Set: None
+	Locator: ChannelA-DIMM0
+	Bank Locator: BANK 0
+	Type: DDR4
+	Type Detail: Synchronous
+
+Handle 0x0011, DMI type 17, 40 bytes
+Memory Device
+	Array Handle: 0x000F
+	Error Information Handle: Not Provided
+	Total Width: Unknown
+	Data Width: Unknown
+	Size: No Module Installed
+	Form Factor: Unknown
+	Set: None
+	Locator: ChannelB-DIMM0
+	Bank Locator: BANK 2
+	Type: Unknown
+	Type Detail: None"""
+        
+        mock_result = MagicMock()
+        mock_result.stdout = dmidecode_output
+        mock_result.returncode = 0
+        mock_run.return_value = mock_result
+        
+        result = self.utils._get_installed_ram_from_dmi()
+        # Should only count the 8192 MB module, ignore the empty slot
+        self.assertEqual(result, 8.0)
+
+    @patch('subprocess.run')
+    def test_get_installed_ram_from_dmi_gb_units(self, mock_run):
+        """Test _get_installed_ram_from_dmi with sizes reported in GB."""
+        dmidecode_output = """# dmidecode 3.3
+Getting SMBIOS data from sysfs.
+SMBIOS 3.0 present.
+
+Handle 0x0010, DMI type 17, 40 bytes
+Memory Device
+	Array Handle: 0x000F
+	Error Information Handle: Not Provided
+	Total Width: 64 bits
+	Data Width: 64 bits
+	Size: 8 GB
+	Form Factor: SODIMM
+	Set: None
+	Locator: ChannelA-DIMM0
+	Bank Locator: BANK 0
+	Type: DDR4
+	Type Detail: Synchronous
+
+Handle 0x0011, DMI type 17, 40 bytes
+Memory Device
+	Array Handle: 0x000F
+	Error Information Handle: Not Provided
+	Total Width: 64 bits
+	Data Width: 64 bits
+	Size: 8 GB
+	Form Factor: SODIMM
+	Set: None
+	Locator: ChannelB-DIMM0
+	Bank Locator: BANK 2
+	Type: DDR4
+	Type Detail: Synchronous"""
+        
+        mock_result = MagicMock()
+        mock_result.stdout = dmidecode_output
+        mock_result.returncode = 0
+        mock_run.return_value = mock_result
+        
+        result = self.utils._get_installed_ram_from_dmi()
+        # 8 GB + 8 GB = 16 GB = 16 GiB
+        self.assertEqual(result, 16.0)
+
+    @patch('subprocess.run')
+    def test_get_installed_ram_from_dmi_mixed_empty_and_populated(self, mock_run):
+        """Test _get_installed_ram_from_dmi with mixed empty and populated slots."""
+        dmidecode_output = """# dmidecode 3.3
+Getting SMBIOS data from sysfs.
+SMBIOS 3.0 present.
+
+Handle 0x0010, DMI type 17, 40 bytes
+Memory Device
+	Array Handle: 0x000F
+	Error Information Handle: Not Provided
+	Total Width: 64 bits
+	Data Width: 64 bits
+	Size: 4096 MB
+	Form Factor: SODIMM
+	Set: None
+	Locator: ChannelA-DIMM0
+	Bank Locator: BANK 0
+	Type: DDR4
+	Type Detail: Synchronous
+
+Handle 0x0011, DMI type 17, 40 bytes
+Memory Device
+	Array Handle: 0x000F
+	Error Information Handle: Not Provided
+	Total Width: Unknown
+	Data Width: Unknown
+	Size: No Module Installed
+	Form Factor: Unknown
+	Set: None
+	Locator: ChannelA-DIMM1
+	Bank Locator: BANK 1
+	Type: Unknown
+	Type Detail: None
+
+Handle 0x0012, DMI type 17, 40 bytes
+Memory Device
+	Array Handle: 0x000F
+	Error Information Handle: Not Provided
+	Total Width: 64 bits
+	Data Width: 64 bits
+	Size: 8192 MB
+	Form Factor: SODIMM
+	Set: None
+	Locator: ChannelB-DIMM0
+	Bank Locator: BANK 2
+	Type: DDR4
+	Type Detail: Synchronous
+
+Handle 0x0013, DMI type 17, 40 bytes
+Memory Device
+	Array Handle: 0x000F
+	Error Information Handle: Not Provided
+	Total Width: Unknown
+	Data Width: Unknown
+	Size: Not Installed
+	Form Factor: Unknown
+	Set: None
+	Locator: ChannelB-DIMM1
+	Bank Locator: BANK 3
+	Type: Unknown
+	Type Detail: None"""
+        
+        mock_result = MagicMock()
+        mock_result.stdout = dmidecode_output
+        mock_result.returncode = 0
+        mock_run.return_value = mock_result
+        
+        result = self.utils._get_installed_ram_from_dmi()
+        # 4096 MB + 8192 MB = 12288 MB = 12 GiB
+        self.assertEqual(result, 12.0)
+
+    @patch('subprocess.run')
+    def test_get_installed_ram_from_dmi_below_threshold(self, mock_run):
+        """Test _get_installed_ram_from_dmi returns None when below 256MB threshold."""
+        dmidecode_output = """# dmidecode 3.3
+Getting SMBIOS data from sysfs.
+SMBIOS 3.0 present.
+
+Handle 0x0010, DMI type 17, 40 bytes
+Memory Device
+	Array Handle: 0x000F
+	Error Information Handle: Not Provided
+	Total Width: 64 bits
+	Data Width: 64 bits
+	Size: 128 MB
+	Form Factor: DIMM
+	Set: None
+	Locator: DIMM0
+	Bank Locator: BANK 0
+	Type: DDR
+	Type Detail: Synchronous"""
+        
+        mock_result = MagicMock()
+        mock_result.stdout = dmidecode_output
+        mock_result.returncode = 0
+        mock_run.return_value = mock_result
+        
+        result = self.utils._get_installed_ram_from_dmi()
+        # 128 MB is below the 256 MB threshold, should return None
+        self.assertIsNone(result)
+
+    @patch('subprocess.run')
+    def test_get_installed_ram_from_dmi_command_fails(self, mock_run):
+        """Test _get_installed_ram_from_dmi returns None when dmidecode command fails."""
+        mock_run.side_effect = subprocess.CalledProcessError(1, ['sudo', 'dmidecode', '-t', '17'])
+        
+        result = self.utils._get_installed_ram_from_dmi()
+        self.assertIsNone(result)
+
+    @patch('subprocess.run')
+    def test_get_installed_ram_from_dmi_oserror(self, mock_run):
+        """Test _get_installed_ram_from_dmi returns None when dmidecode is not available."""
+        mock_run.side_effect = OSError("dmidecode not found")
+        
+        result = self.utils._get_installed_ram_from_dmi()
+        self.assertIsNone(result)
+
+    @patch('subprocess.run')
+    def test_get_installed_ram_from_dmi_invalid_output(self, mock_run):
+        """Test _get_installed_ram_from_dmi returns None when output has unexpected format."""
+        dmidecode_output = """# dmidecode 3.3
+Getting SMBIOS data from sysfs.
+SMBIOS 3.0 present.
+
+Handle 0x0010, DMI type 17, 40 bytes
+Memory Device
+	Array Handle: 0x000F
+	Size: Invalid Data"""
+        
+        mock_result = MagicMock()
+        mock_result.stdout = dmidecode_output
+        mock_result.returncode = 0
+        mock_run.return_value = mock_result
+        
+        result = self.utils._get_installed_ram_from_dmi()
+        # No valid memory sizes found, should return None
+        self.assertIsNone(result)
 
 if __name__ == '__main__':
     unittest.main()
