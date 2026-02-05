@@ -232,7 +232,7 @@ class Utils:
                     return True
                 elif "=disable" in output or "=disabled" in output:
                     return False
-            
+
             # Check standard attributes (Activate = activated)
             for attr in ["Computrace", "Absolute"]:
                 result = subprocess.run(
@@ -245,7 +245,7 @@ class Utils:
                     # For standard attributes, Activate/Activated means activated
                     if "=activate" in output or "=activated" in output:
                         return True
-                    elif "=deactivate" in output or "=deactivated" in output or "=disable" in output or "=disabled" in output:
+                    elif "=deactivate" in output or "=deactivated" in output:
                         return False
         except (OSError, subprocess.SubprocessError):
             pass
