@@ -75,13 +75,24 @@ class Utils:
         context = pyudev.Context()
         disks = {}
         for device in context.list_devices(subsystem="block", DEVTYPE="disk"):
-            if not "loop" in device["DEVNAME"] and not re.search(
-                r"sr[0-9]", device["DEVNAME"]
-            ):
-                if device.attributes.asint("removable") != 1:
-                    disks[str(device["DEVNAME"])] = int(
-                        round(device.attributes.asint("size") * 512 / 1024**3, 0)
-                    )
+            devname = device["DEVNAME"]
+
+            if "loop" in devname or re.search(r"sr[0-9]", devname):
+                continue
+
+            if device.attributes.asint("removable") == 1:
+                continue
+
+            if devname.startswith("/dev/dm-") or "/mapper/" in devname:
+                continue
+
+            if device.get("DM_NAME"):
+                continue
+
+            disks[str(devname)] = int(
+                round(device.attributes.asint("size") * 512 / 1024**3, 0)
+            )
+
         return disks
 
     # Return host name
@@ -265,7 +276,8 @@ class Utils:
     def get_installer(self):
         return ""
 
-    # Return MemTotal, rounded to nearest standard RAM size
+    # Return total installed RAM, rounded to nearest standard RAM size.
+    # Uses DMI when available, falls back to MemTotal from /proc/meminfo.
     def get_mem(self):
         # Get actual memory installed, not memory available to kernel
         mem_gib = self._get_installed_ram_from_dmi()
