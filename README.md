@@ -1,10 +1,11 @@
 # About
 
-Tool used by Kramden for OS Load, Spec, and Final Test stages of the refurbishing process. Each stage is a GTK4/Adwaita wizard that guides the technician through the workflow.
+Tools used by Kramden for the computer refurbishing process. Each tool is a GTK4/Adwaita application that guides the technician through the workflow.
 
 - **OS Load** — Identifies the device (K-number), registers with Landscape, and collects system information.
 - **Spec** — Registers/updates the device in Sortly inventory, runs hardware checks, and generates a tracking sheet PDF.
 - **Final Test** — Performs final hardware validation before the device ships.
+- **Device** — End-user application that displays the Kramden guide and device information (hardware specs). Creates a `~/.config/kramden-intro-done` marker on close to track first launch.
 
 ## Sortly Integration
 
@@ -52,6 +53,7 @@ cd src/
 ./osload.py
 ./spec.py
 ./finaltest.py
+./deviceinfo.py
 ```
 
 ## Run Unit Tests
@@ -87,4 +89,5 @@ meson install -C builddir
 $HOME/.local/bin/kramden-provision-osload
 $HOME/.local/bin/kramden-spec
 $HOME/.local/bin/kramden-provision-finaltest
+$HOME/.local/bin/kramden-device
 ```
