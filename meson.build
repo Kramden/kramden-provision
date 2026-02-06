@@ -6,7 +6,7 @@ gnome = import('gnome')
 subdir('data')
 subdir('src')
 subdir('scripts')
-#subdir('tests')
+subdir('pixmaps')
 
 #python3 = import('python').find_installation()
 

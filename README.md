@@ -2,8 +2,8 @@
 
 Tools used by Kramden for the computer refurbishing process. Each tool is a GTK4/Adwaita application that guides the technician through the workflow.
 
-- **OS Load** — Identifies the device (K-number), registers with Landscape, and collects system information.
 - **Spec** — Registers/updates the device in Sortly inventory, runs hardware checks, and generates a tracking sheet PDF.
+- **OS Load** — Identifies the device (K-number), registers with Landscape, and collects system information.
 - **Final Test** — Performs final hardware validation before the device ships.
 - **Device** — End-user application that displays the Kramden guide and device information (hardware specs). Creates a `~/.config/kramden-intro-done` marker on close to track first launch.
 
@@ -24,9 +24,9 @@ Default folder IDs when `SORTLY_FOLDER_ID` is not set:
 
 | Workflow | Default Folder ID |
 |---|---|
-| OS Load | `S8WM5R1510` |
 | Spec | `S8WM5R1509` |
-| CLI scripts | `102298337` |
+| OS Load | `S8WM5R1510` |
+| CLI scripts | $SORTLY_FOLDER_ID |
 
 ### CLI Scripts
 
@@ -34,10 +34,10 @@ Two standalone scripts are provided for working with Sortly outside the wizard w
 
 ```bash
 # Look up a device by serial number
-SORTLY_API_KEY=... python3 src/sortly_lookup_by_serial.py [serial] [folder_id]
+SORTLY_API_KEY=... SORTLY_FOLDER_ID=... python3 src/sortly_lookup_by_serial.py [serial] [folder_id]
 
 # Update a device record with system info
-SORTLY_API_KEY=... python3 src/sortly_update_system_info.py <item_name>
+SORTLY_API_KEY=... SORTLY_FOLDER_ID=... python3 src/sortly_update_system_info.py <item_name>
 ```
 
 ## Dependencies
