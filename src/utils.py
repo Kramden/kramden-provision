@@ -432,13 +432,13 @@ class Utils:
                 ):
                     controllers.append(line)
                     # Check if this is an NVIDIA GPU (for PRIME offload settings)
+                    # Extract PCI slot (e.g., "01:00.0" from start of line) for all GPUs
+                    pci_match = re.match(r"([0-9a-f:.]+)", line)
+                    if pci_match:
+                        discrete_pci_slot = pci_match.group(1)
+                    # Check if this is an NVIDIA GPU (for PRIME offload settings)
                     if "nvidia" in line_lower:
                         has_nvidia = True
-                        # Extract PCI slot (e.g., "01:00.0" from start of line)
-                        pci_match = re.match(r"([0-9a-f:.]+)", line)
-                        # Store the first detected NVIDIA PCI slot to avoid overwriting
-                        if pci_match and discrete_pci_slot is None:
-                            discrete_pci_slot = pci_match.group(1)
             has_discrete = len(controllers) > 1
         except (subprocess.CalledProcessError, OSError):
             pass
