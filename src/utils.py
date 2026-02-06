@@ -757,6 +757,40 @@ class Utils:
         except (IOError, ValueError):
             return None
 
+    @staticmethod
+    def format_knumber(self, value):
+        """Validate and format a K-number string.
+
+        Accepts inputs like "k129987", "K-120976", "kl12498", "k-L89765"
+        and returns a normalized form like "K-129987" or "K-L12498".
+
+        Returns the formatted string, or None if the input is invalid.
+        """
+        if not value or not value[0].upper() == "K":
+            return None
+
+        s = value.upper()
+
+        # Insert dash after K if missing
+        if len(s) < 2:
+            return None
+        if s[1] != "-":
+            s = "K-" + s[1:]
+
+        suffix = s[2:]
+        if not suffix:
+            return None
+
+        # Suffix must be all digits, or L followed by digits
+        if suffix[0] == "L":
+            if len(suffix) < 2 or not suffix[1:].isdigit():
+                return None
+        else:
+            if not suffix.isdigit():
+                return None
+
+        return s
+
 
 if __name__ == "__main__":
     utils = Utils()
