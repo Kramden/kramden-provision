@@ -83,9 +83,9 @@ def get_system_info():
     if gpu:
         info["Graphics"] = gpu
 
-    # Only include Battery Health if batteries are detected
+    # Only include Battery Capacity if batteries are detected
     if battery_health:
-        info["Battery Health"] = battery_health
+        info["Battery Capacity"] = battery_health
 
     return info
 
@@ -209,8 +209,13 @@ def generate_tracking_sheet(item_name, output_path=None):
 
     # --- Header ---
     logo_path = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "..", "data", "icons", "kramden.png"
+        os.path.dirname(os.path.abspath(__file__)),
+        "..",
+        "pixmaps",
+        "kramden_tracking_header.png",
     )
+    if not os.path.exists(logo_path):
+        logo_path = "/usr/share/pixmaps/kramden_tracking_header.png"
 
     title_para = Paragraph("Kramden Tracking Sheet", title_style)
     date_para = Paragraph(f"Generated: {date.today().isoformat()}", subtitle_style)
@@ -274,8 +279,8 @@ def generate_tracking_sheet(item_name, output_path=None):
     spec_rows.append(("Storage", f"{system_info.get('Storage', '')} GB"))
     if "Graphics" in system_info:
         spec_rows.append(("Graphics", system_info["Graphics"]))
-    if "Battery Health" in system_info:
-        spec_rows.append(("Battery Health", system_info["Battery Health"]))
+    if "Battery Capacity" in system_info:
+        spec_rows.append(("Battery Capacity", system_info["Battery Capacity"]))
     spec_rows.append(("Serial", system_info.get("Serial# Scanner", "")))
 
     spec_table_data = [
@@ -284,10 +289,12 @@ def generate_tracking_sheet(item_name, output_path=None):
     ]
 
     # Add OS row with larger checkboxes for usability
-    spec_table_data.append([
-        Paragraph("OS", label_style),
-        Paragraph("☐ Ubuntu      ☐ Windows", checkbox_style)
-    ])
+    spec_table_data.append(
+        [
+            Paragraph("OS", label_style),
+            Paragraph("☐ Ubuntu      ☐ Windows", checkbox_style),
+        ]
+    )
 
     spec_table = Table(
         spec_table_data,
