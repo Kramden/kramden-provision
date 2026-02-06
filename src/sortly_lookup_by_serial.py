@@ -125,11 +125,21 @@ def main():
             sys.exit(1)
         print(f"Local serial: {serial_number}")
 
-    # Folder ID for items
-    FOLDER_ID = 102298337
+    # Folder ID for items: prefer env var, then optional CLI arg, then default
+    folder_id_str = os.environ.get("SORTLY_FOLDER_ID")
+    if folder_id_str is None and len(sys.argv) > 2:
+        folder_id_str = sys.argv[2]
 
-    results = search_by_serial(api_key, FOLDER_ID, serial_number)
+    if folder_id_str is None or folder_id_str == "":
+        folder_id_str = "102298337"
 
+    try:
+        folder_id = int(folder_id_str)
+    except ValueError:
+        print(f"Error: Invalid folder ID '{folder_id_str}'. Must be an integer.")
+        sys.exit(1)
+
+    results = search_by_serial(api_key, folder_id, serial_number)
     if not results:
         print(f"\nNo items found with serial '{serial_number}'")
         sys.exit(1)
