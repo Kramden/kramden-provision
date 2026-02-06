@@ -224,9 +224,9 @@ def main():
     item_name = sys.argv[1]
 
     # Get API key from environment
-    api_key = os.environ.get("SECRET_KEY")
+    api_key = os.environ.get("SORTLY_API_KEY")
     if not api_key:
-        print("Error: SECRET_KEY environment variable must be set")
+        print("Error: SORTLY_API_KEY environment variable must be set")
         sys.exit(1)
 
     # Folder ID for items
