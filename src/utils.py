@@ -436,7 +436,8 @@ class Utils:
                         has_nvidia = True
                         # Extract PCI slot (e.g., "01:00.0" from start of line)
                         pci_match = re.match(r"([0-9a-f:.]+)", line)
-                        if pci_match:
+                        # Store the first detected NVIDIA PCI slot to avoid overwriting
+                        if pci_match and discrete_pci_slot is None:
                             discrete_pci_slot = pci_match.group(1)
             has_discrete = len(controllers) > 1
         except (subprocess.CalledProcessError, OSError):
