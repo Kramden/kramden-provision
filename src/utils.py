@@ -413,6 +413,7 @@ class Utils:
         # First check if a discrete GPU exists using lspci
         has_discrete = False
         has_nvidia = False
+        discrete_pci_slot = None
         try:
             result = subprocess.run(
                 ["lspci", "-nn"],
@@ -428,7 +429,12 @@ class Utils:
                     "vga compatible controller" in line_lower
                     or "3d controller" in line_lower
                 ):
-                    controllers.append(line_lower)
+                    controllers.append(line)
+                    # Check if this is an NVIDIA GPU (for PRIME offload settings)
+                    # Extract PCI slot (e.g., "01:00.0" from start of line) for all GPUs
+                    pci_match = re.match(r"([0-9a-f:.]+)", line)
+                    if pci_match:
+                        discrete_pci_slot = pci_match.group(1)
                     # Check if this is an NVIDIA GPU (for PRIME offload settings)
                     if "nvidia" in line_lower:
                         has_nvidia = True
@@ -464,13 +470,19 @@ class Utils:
             for line in result.stdout.splitlines():
                 if "OpenGL renderer string:" in line:
                     renderer = line.split(":", 1)[1].strip()
-                    return self._format_gpu_renderer(renderer)
+                    return self._format_gpu_renderer(renderer, discrete_pci_slot)
         except (subprocess.CalledProcessError, OSError):
             pass
 
+        # Fall back to udev if glxinfo failed
+        if discrete_pci_slot:
+            udev_name = self._get_gpu_name_from_udev(discrete_pci_slot)
+            if udev_name:
+                return udev_name
+
         return "Discrete GPU detected"
 
-    def _format_gpu_renderer(self, renderer):
+    def _format_gpu_renderer(self, renderer, pci_slot=None):
         """Clean up OpenGL renderer string for display."""
         # Handle zink Vulkan wrapper format: "zink Vulkan 1.4(NVIDIA RTX...)"
         zink_match = re.search(r"zink Vulkan [0-9.]+\((.+)\)", renderer)
@@ -480,7 +492,36 @@ class Utils:
         renderer = re.sub(r"\s*\([A-Z_]+\)\s*$", "", renderer)
         # Remove /PCIe/SSE2 suffix
         renderer = re.sub(r"/PCIe.*$", "", renderer)
-        return renderer.strip()
+        renderer = renderer.strip()
+
+        # If renderer is just a generic vendor name, try to get better name from udev
+        generic_names = {"nvidia", "amd", "intel", "ati"}
+        if renderer.lower() in generic_names and pci_slot:
+            udev_name = self._get_gpu_name_from_udev(pci_slot)
+            if udev_name:
+                return udev_name
+
+        return renderer
+
+    def _get_gpu_name_from_udev(self, pci_slot):
+        """Get GPU name from udev ID_MODEL_FROM_DATABASE property."""
+        try:
+            pci_path = f"/sys/bus/pci/devices/0000:{pci_slot}"
+            result = subprocess.run(
+                ["udevadm", "info", "-q", "property", "-p", pci_path],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode == 0:
+                for line in result.stdout.splitlines():
+                    if line.startswith("ID_MODEL_FROM_DATABASE="):
+                        return line.split("=", 1)[1]
+            else:
+                return None
+        except (subprocess.CalledProcessError, OSError):
+            # Best-effort GPU name lookup: on failure, return None and let callers fall back.
+            pass
+        return None
 
     def check_snaps(self, packages):
         result = {}

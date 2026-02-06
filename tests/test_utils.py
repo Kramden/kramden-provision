@@ -509,8 +509,8 @@ OpenGL core profile version string: 4.6.0"""
         self.assertEqual(result, "NVIDIA GeForce GTX 1650")
 
     @patch('subprocess.run')
-    def test_get_discrete_gpu_hybrid_system_glxinfo_missing(self, mock_run):
-        """Test get_discrete_gpu returns fallback when glxinfo is missing."""
+    def test_get_discrete_gpu_hybrid_system_glxinfo_and_udev_missing(self, mock_run):
+        """Test get_discrete_gpu returns fallback when glxinfo and udev both fail."""
         lspci_output = """00:02.0 VGA compatible controller: Intel Corporation
 01:00.0 3D controller: NVIDIA Corporation"""
 
@@ -524,6 +524,9 @@ OpenGL core profile version string: 4.6.0"""
             elif 'glxinfo' in cmd:
                 # Simulate glxinfo not installed
                 raise OSError("glxinfo not found")
+            elif 'udevadm' in cmd:
+                # Simulate udevadm not returning useful info
+                raise OSError("udevadm not found")
 
         mock_run.side_effect = subprocess_side_effect
 
@@ -551,6 +554,66 @@ OpenGL core profile version string: 4.6.0"""
 
         result = self.utils.get_discrete_gpu()
         self.assertEqual(result, "Discrete GPU detected")
+
+    @patch('subprocess.run')
+    def test_get_discrete_gpu_zink_generic_name_fallback_to_udev(self, mock_run):
+        """Test get_discrete_gpu falls back to udev when zink returns generic vendor name."""
+        lspci_output = """00:02.0 VGA compatible controller: Intel Corporation UHD Graphics
+01:00.0 3D controller: NVIDIA Corporation GeForce RTX 3060"""
+
+        glxinfo_output = """name of display: :0
+OpenGL renderer string: zink Vulkan 1.4(NVIDIA)"""
+
+        udev_output = """ID_VENDOR_FROM_DATABASE=NVIDIA Corporation
+ID_MODEL_FROM_DATABASE=GA106M [GeForce RTX 3060 Mobile / Max-Q]"""
+
+        def subprocess_side_effect(*args, **kwargs):
+            cmd = args[0]
+            mock_result = MagicMock()
+            if 'lspci' in cmd:
+                mock_result.stdout = lspci_output
+                mock_result.returncode = 0
+            elif 'glxinfo' in cmd:
+                mock_result.stdout = glxinfo_output
+                mock_result.returncode = 0
+            elif 'udevadm' in cmd:
+                mock_result.stdout = udev_output
+                mock_result.returncode = 0
+            return mock_result
+
+        mock_run.side_effect = subprocess_side_effect
+
+        result = self.utils.get_discrete_gpu()
+        self.assertEqual(result, "GA106M [GeForce RTX 3060 Mobile / Max-Q]")
+
+    @patch('subprocess.run')
+    def test_get_discrete_gpu_glxinfo_missing_fallback_to_udev(self, mock_run):
+        """Test get_discrete_gpu falls back to udev when glxinfo is missing."""
+        lspci_output = """00:02.0 VGA compatible controller: Intel Corporation UHD Graphics
+01:00.0 3D controller: NVIDIA Corporation GeForce RTX 3060"""
+
+        udev_output = """ID_VENDOR_FROM_DATABASE=NVIDIA Corporation
+ID_MODEL_FROM_DATABASE=GA106M [GeForce RTX 3060 Mobile / Max-Q]"""
+
+        def subprocess_side_effect(*args, **kwargs):
+            cmd = args[0]
+            if 'lspci' in cmd:
+                mock_result = MagicMock()
+                mock_result.stdout = lspci_output
+                mock_result.returncode = 0
+                return mock_result
+            elif 'glxinfo' in cmd:
+                raise OSError("glxinfo not found")
+            elif 'udevadm' in cmd:
+                mock_result = MagicMock()
+                mock_result.stdout = udev_output
+                mock_result.returncode = 0
+                return mock_result
+
+        mock_run.side_effect = subprocess_side_effect
+
+        result = self.utils.get_discrete_gpu()
+        self.assertEqual(result, "GA106M [GeForce RTX 3060 Mobile / Max-Q]")
 
     @patch('subprocess.run')
     def test_get_discrete_gpu_lspci_fails(self, mock_run):
@@ -605,6 +668,90 @@ OpenGL core profile version string: 4.6.0"""
         renderer = "NVIDIA GeForce RTX 3070/PCIe/SSE2 (NVIDIA_PROPRIETARY)"
         result = self.utils._format_gpu_renderer(renderer)
         self.assertEqual(result, "NVIDIA GeForce RTX 3070")
+
+    @patch.object(Utils, '_get_gpu_name_from_udev')
+    def test_format_gpu_renderer_zink_generic_nvidia_with_udev_fallback(self, mock_udev):
+        """Test _format_gpu_renderer falls back to udev when zink returns generic NVIDIA."""
+        mock_udev.return_value = "GA106M [GeForce RTX 3060 Mobile / Max-Q]"
+        renderer = "zink Vulkan 1.4(NVIDIA)"
+        result = self.utils._format_gpu_renderer(renderer, "01:00.0")
+        self.assertEqual(result, "GA106M [GeForce RTX 3060 Mobile / Max-Q]")
+        mock_udev.assert_called_once_with("01:00.0")
+
+    @patch.object(Utils, '_get_gpu_name_from_udev')
+    def test_format_gpu_renderer_zink_generic_nvidia_no_pci_slot(self, mock_udev):
+        """Test _format_gpu_renderer returns generic name when no PCI slot available."""
+        renderer = "zink Vulkan 1.4(NVIDIA)"
+        result = self.utils._format_gpu_renderer(renderer)
+        self.assertEqual(result, "NVIDIA")
+        mock_udev.assert_not_called()
+
+    @patch.object(Utils, '_get_gpu_name_from_udev')
+    def test_format_gpu_renderer_zink_generic_nvidia_udev_fails(self, mock_udev):
+        """Test _format_gpu_renderer returns generic name when udev lookup fails."""
+        mock_udev.return_value = None
+        renderer = "zink Vulkan 1.4(NVIDIA)"
+        result = self.utils._format_gpu_renderer(renderer, "01:00.0")
+        self.assertEqual(result, "NVIDIA")
+
+    @patch.object(Utils, '_get_gpu_name_from_udev')
+    def test_format_gpu_renderer_zink_generic_amd_with_udev_fallback(self, mock_udev):
+        """Test _format_gpu_renderer falls back to udev when zink returns generic AMD."""
+        mock_udev.return_value = "Radeon RX 6800 XT"
+        renderer = "zink Vulkan 1.4(AMD)"
+        result = self.utils._format_gpu_renderer(renderer, "01:00.0")
+        self.assertEqual(result, "Radeon RX 6800 XT")
+        mock_udev.assert_called_once_with("01:00.0")
+
+    @patch.object(Utils, '_get_gpu_name_from_udev')
+    def test_format_gpu_renderer_zink_generic_intel_with_udev_fallback(self, mock_udev):
+        """Test _format_gpu_renderer falls back to udev when zink returns generic Intel."""
+        mock_udev.return_value = "Intel UHD Graphics 630"
+        renderer = "zink Vulkan 1.4(INTEL)"
+        result = self.utils._format_gpu_renderer(renderer, "01:00.0")
+        self.assertEqual(result, "Intel UHD Graphics 630")
+        mock_udev.assert_called_once_with("01:00.0")
+
+    @patch.object(Utils, '_get_gpu_name_from_udev')
+    def test_format_gpu_renderer_zink_generic_ati_with_udev_fallback(self, mock_udev):
+        """Test _format_gpu_renderer falls back to udev when zink returns generic ATI."""
+        mock_udev.return_value = "Radeon HD 5450"
+        renderer = "zink Vulkan 1.4(ATI)"
+        result = self.utils._format_gpu_renderer(renderer, "01:00.0")
+        self.assertEqual(result, "Radeon HD 5450")
+        mock_udev.assert_called_once_with("01:00.0")
+
+    @patch('subprocess.run')
+    def test_get_gpu_name_from_udev_success(self, mock_run):
+        """Test _get_gpu_name_from_udev returns GPU name from udev."""
+        mock_run.return_value = MagicMock(
+            stdout="ID_VENDOR_FROM_DATABASE=NVIDIA Corporation\nID_MODEL_FROM_DATABASE=GA106M [GeForce RTX 3060 Mobile / Max-Q]\n",
+            returncode=0
+        )
+        result = self.utils._get_gpu_name_from_udev("01:00.0")
+        self.assertEqual(result, "GA106M [GeForce RTX 3060 Mobile / Max-Q]")
+        mock_run.assert_called_once_with(
+            ["udevadm", "info", "-q", "property", "-p", "/sys/bus/pci/devices/0000:01:00.0"],
+            capture_output=True,
+            text=True,
+        )
+
+    @patch('subprocess.run')
+    def test_get_gpu_name_from_udev_not_found(self, mock_run):
+        """Test _get_gpu_name_from_udev returns None when property not found."""
+        mock_run.return_value = MagicMock(
+            stdout="ID_VENDOR_FROM_DATABASE=NVIDIA Corporation\n",
+            returncode=0
+        )
+        result = self.utils._get_gpu_name_from_udev("01:00.0")
+        self.assertIsNone(result)
+
+    @patch('subprocess.run')
+    def test_get_gpu_name_from_udev_command_fails(self, mock_run):
+        """Test _get_gpu_name_from_udev returns None when udevadm fails."""
+        mock_run.side_effect = OSError("udevadm not found")
+        result = self.utils._get_gpu_name_from_udev("01:00.0")
+        self.assertIsNone(result)
 
     @patch('subprocess.run')
     def test_get_installed_ram_from_dmi_8gb_two_modules(self, mock_run):
