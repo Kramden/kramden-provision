@@ -694,6 +694,33 @@ ID_MODEL_FROM_DATABASE=GA106M [GeForce RTX 3060 Mobile / Max-Q]"""
         result = self.utils._format_gpu_renderer(renderer, "01:00.0")
         self.assertEqual(result, "NVIDIA")
 
+    @patch.object(Utils, '_get_gpu_name_from_udev')
+    def test_format_gpu_renderer_zink_generic_amd_with_udev_fallback(self, mock_udev):
+        """Test _format_gpu_renderer falls back to udev when zink returns generic AMD."""
+        mock_udev.return_value = "Radeon RX 6800 XT"
+        renderer = "zink Vulkan 1.4(AMD)"
+        result = self.utils._format_gpu_renderer(renderer, "01:00.0")
+        self.assertEqual(result, "Radeon RX 6800 XT")
+        mock_udev.assert_called_once_with("01:00.0")
+
+    @patch.object(Utils, '_get_gpu_name_from_udev')
+    def test_format_gpu_renderer_zink_generic_intel_with_udev_fallback(self, mock_udev):
+        """Test _format_gpu_renderer falls back to udev when zink returns generic Intel."""
+        mock_udev.return_value = "Intel UHD Graphics 630"
+        renderer = "zink Vulkan 1.4(INTEL)"
+        result = self.utils._format_gpu_renderer(renderer, "01:00.0")
+        self.assertEqual(result, "Intel UHD Graphics 630")
+        mock_udev.assert_called_once_with("01:00.0")
+
+    @patch.object(Utils, '_get_gpu_name_from_udev')
+    def test_format_gpu_renderer_zink_generic_ati_with_udev_fallback(self, mock_udev):
+        """Test _format_gpu_renderer falls back to udev when zink returns generic ATI."""
+        mock_udev.return_value = "Radeon HD 5450"
+        renderer = "zink Vulkan 1.4(ATI)"
+        result = self.utils._format_gpu_renderer(renderer, "01:00.0")
+        self.assertEqual(result, "Radeon HD 5450")
+        mock_udev.assert_called_once_with("01:00.0")
+
     @patch('subprocess.run')
     def test_get_gpu_name_from_udev_success(self, mock_run):
         """Test _get_gpu_name_from_udev returns GPU name from udev."""
