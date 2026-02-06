@@ -12,6 +12,9 @@ then
   # delete finaltest user and homedir
   sudo userdel -rf finaltest
 
+  # ensure we delete extra env set for sortly access
+  sudo rm -f /etc/environment.d/99-kramden
+
   # eject CD/DVD drive to ensure empty
   eject
 
