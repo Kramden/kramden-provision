@@ -6,7 +6,6 @@ Usage: python3 sortly_update_system_info.py <item_name>
 """
 
 import requests
-import json
 import time
 import sys
 import os
