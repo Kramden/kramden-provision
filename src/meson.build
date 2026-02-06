@@ -56,6 +56,8 @@ sources = [
   'observable.py',
   'osloadcomplete.py',
   'osload.py',
+  'sortly.py',
+  'sortly_register.py',
   'spec.py',
   'speccomplete.py',
   'specinfo.py',

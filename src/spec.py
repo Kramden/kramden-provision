@@ -8,6 +8,7 @@ gi.require_version("Adw", "1")
 from gi.repository import Gdk, Gtk, Adw
 
 import os
+from sortly_register import SortlyRegister
 from specinfo import SpecInfo
 from manualtest import ManualTest
 from speccomplete import SpecComplete
@@ -56,17 +57,21 @@ class WizardWindow(Gtk.ApplicationWindow):
 
         # View Stack
         self.stack = Adw.ViewStack()
-        self.page1 = SpecInfo()
-        self.page2 = ManualTest(show_battery_test=True)
-        self.page3 = SpecComplete()
+        self.page1 = SortlyRegister()
+        self.page2 = SpecInfo()
+        self.page3 = ManualTest(show_battery_test=True)
+        self.page4 = SpecComplete()
 
         self.page1.state = self.observable_property
+        self.page2.sortly_register = self.page1
         self.page2.state = self.observable_property
         self.page3.state = self.observable_property
+        self.page4.state = self.observable_property
 
         self.stack.add_named(self.page1, "page1")
         self.stack.add_named(self.page2, "page2")
         self.stack.add_named(self.page3, "page3")
+        self.stack.add_named(self.page4, "page4")
 
         self.stack.set_vexpand(True)  # Ensure the stack expands vertically
 
@@ -114,7 +119,7 @@ class WizardWindow(Gtk.ApplicationWindow):
                 self.on_prev_clicked()
 
     def on_next_clicked(self, button=None):
-        if self.current_page < 2:
+        if self.current_page < 3:
             self.current_page += 1
             self.stack.set_visible_child_name(f"page{self.current_page + 1}")
             self.update_buttons()
@@ -127,8 +132,8 @@ class WizardWindow(Gtk.ApplicationWindow):
 
     def update_buttons(self):
         self.prev_button.set_sensitive(self.current_page > 0)
-        self.next_button.set_sensitive(self.current_page <= 2)
-        if self.current_page == 2:
+        self.next_button.set_sensitive(self.current_page <= 3)
+        if self.current_page == 3:
             self.next_button.set_label("Complete")
             self.next_button.add_css_class("button-next-last-page")
             state = self.observable_property.get_value()
