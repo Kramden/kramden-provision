@@ -748,7 +748,8 @@ class Utils:
             print("Unknown Vendor")
         return asset_tag
 
-    def get_chassis_type(self):
+    @staticmethod
+    def get_chassis_type():
         """Read chassis type from DMI and map to device type."""
         try:
             with open("/sys/devices/virtual/dmi/id/chassis_type", "r") as f:
@@ -758,15 +759,27 @@ class Utils:
             return None
 
     @staticmethod
-    def format_knumber(self, value):
-        """Validate and format a K-number string.
+    def format_knumber(value):
+        """Validate and format a K-number or TEST- string.
 
         Accepts inputs like "k129987", "K-120976", "kl12498", "k-L89765"
         and returns a normalized form like "K-129987" or "K-L12498".
 
+        Also accepts "TEST-<digits>" for API integration testing.
+
         Returns the formatted string, or None if the input is invalid.
         """
-        if not value or not value[0].upper() == "K":
+        if not value:
+            return None
+
+        # Accept TEST- prefix for API integration testing
+        if value.upper().startswith("TEST-"):
+            suffix = value[5:]
+            if suffix and suffix.isdigit():
+                return "TEST-" + suffix
+            return None
+
+        if value[0].upper() != "K":
             return None
 
         s = value.upper()

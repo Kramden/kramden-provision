@@ -7,81 +7,12 @@ Usage:
     python3 sortly_lookup_by_serial.py <serial>  # Use specified serial number
 """
 
-import requests
 import json
-import time
 import sys
 import os
 
 from utils import Utils
-
-
-def search_by_serial(api_key, folder_id, serial_number):
-    """Search for items by serial number in the Serial# Scanner field."""
-    url = "https://api.sortly.co/api/v1/items/search"
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-    }
-
-    page = 1
-    all_items = []
-    more_pages = True
-
-    print(f"Searching for serial '{serial_number}'...")
-
-    while more_pages:
-        query_params = {
-            "page": page,
-            "per_page": 100,
-            "include": "custom_attributes,photos,options,variants",
-        }
-
-        # Search using the serial number as a query term
-        payload = {
-            "folder_ids": [int(folder_id)],
-            "type": "item",
-            "query": serial_number,
-        }
-
-        try:
-            response = requests.post(
-                url, params=query_params, json=payload, headers=headers
-            )
-
-            if response.status_code == 429:
-                print("Rate limit hit, sleeping 60 seconds...")
-                time.sleep(60)
-                continue
-
-            response.raise_for_status()
-            data = response.json()
-            items = data.get("data", [])
-
-            if not items:
-                more_pages = False
-            else:
-                all_items.extend(items)
-                page += 1
-                if len(items) < 100:
-                    more_pages = False
-
-        except Exception as e:
-            print(f"Error: {e}")
-            break
-
-    # Filter results to only include items where Serial# Scanner matches
-    matching_items = []
-    for item in all_items:
-        custom_attrs = item.get("custom_attribute_values", [])
-        for attr in custom_attrs:
-            attr_name = attr.get("custom_attribute_name") or attr.get("name")
-            if attr_name == "Serial# Scanner" and attr.get("value") == serial_number:
-                matching_items.append(item)
-                break
-
-    return matching_items
+from sortly import search_by_serial, get_api_key, DEFAULT_FOLDER_ID
 
 
 def display_item(item):
@@ -107,9 +38,10 @@ def display_item(item):
 
 def main():
     # Get API key from environment
-    api_key = os.environ.get("SECRET_KEY")
-    if not api_key:
-        print("Error: SECRET_KEY environment variable must be set")
+    try:
+        api_key = get_api_key()
+    except EnvironmentError as e:
+        print(f"Error: {e}")
         sys.exit(1)
 
     # Get serial number - from argument or local machine
@@ -131,14 +63,15 @@ def main():
         folder_id_str = sys.argv[2]
 
     if folder_id_str is None or folder_id_str == "":
-        folder_id_str = "102298337"
+        folder_id = DEFAULT_FOLDER_ID
+    else:
+        try:
+            folder_id = int(folder_id_str)
+        except ValueError:
+            print(f"Error: Invalid folder ID '{folder_id_str}'. Must be an integer.")
+            sys.exit(1)
 
-    try:
-        folder_id = int(folder_id_str)
-    except ValueError:
-        print(f"Error: Invalid folder ID '{folder_id_str}'. Must be an integer.")
-        sys.exit(1)
-
+    print(f"Searching for serial '{serial_number}'...")
     results = search_by_serial(api_key, folder_id, serial_number)
     if not results:
         print(f"\nNo items found with serial '{serial_number}'")

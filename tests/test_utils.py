@@ -1102,79 +1102,99 @@ Memory Device
 
     def test_format_knumber_lowercase_digits(self):
         """Test k followed by digits inserts dash and uppercases."""
-        self.assertEqual(Utils.format_knumber("k129987", None), "K-129987")
+        self.assertEqual(Utils.format_knumber("k129987"), "K-129987")
 
     def test_format_knumber_with_dash(self):
         """Test k-number with dash already present."""
-        self.assertEqual(Utils.format_knumber("k-120976", None), "K-120976")
+        self.assertEqual(Utils.format_knumber("k-120976"), "K-120976")
 
     def test_format_knumber_lowercase_l_prefix(self):
         """Test k followed by l and digits inserts dash and uppercases."""
-        self.assertEqual(Utils.format_knumber("kl12498", None), "K-L12498")
+        self.assertEqual(Utils.format_knumber("kl12498"), "K-L12498")
 
     def test_format_knumber_dash_and_uppercase_l(self):
         """Test k-L prefix with digits."""
-        self.assertEqual(Utils.format_knumber("k-L89765", None), "K-L89765")
+        self.assertEqual(Utils.format_knumber("k-L89765"), "K-L89765")
 
     def test_format_knumber_already_formatted(self):
         """Test already correctly formatted input."""
-        self.assertEqual(Utils.format_knumber("K-123456", None), "K-123456")
+        self.assertEqual(Utils.format_knumber("K-123456"), "K-123456")
 
     def test_format_knumber_uppercase_input(self):
         """Test fully uppercase input without dash."""
-        self.assertEqual(Utils.format_knumber("K654321", None), "K-654321")
+        self.assertEqual(Utils.format_knumber("K654321"), "K-654321")
 
     def test_format_knumber_uppercase_l_no_dash(self):
         """Test uppercase K and L without dash."""
-        self.assertEqual(Utils.format_knumber("KL99999", None), "K-L99999")
+        self.assertEqual(Utils.format_knumber("KL99999"), "K-L99999")
 
     def test_format_knumber_empty_string(self):
         """Test empty string returns None."""
-        self.assertIsNone(Utils.format_knumber("", None))
+        self.assertIsNone(Utils.format_knumber(""))
 
     def test_format_knumber_none(self):
         """Test None input returns None."""
-        self.assertIsNone(Utils.format_knumber(None, None))
+        self.assertIsNone(Utils.format_knumber(None))
 
     def test_format_knumber_wrong_prefix(self):
         """Test string not starting with K returns None."""
-        self.assertIsNone(Utils.format_knumber("x12345", None))
+        self.assertIsNone(Utils.format_knumber("x12345"))
 
     def test_format_knumber_just_k(self):
         """Test single character K returns None."""
-        self.assertIsNone(Utils.format_knumber("K", None))
+        self.assertIsNone(Utils.format_knumber("K"))
 
     def test_format_knumber_k_dash_only(self):
         """Test K- with no suffix returns None."""
-        self.assertIsNone(Utils.format_knumber("K-", None))
+        self.assertIsNone(Utils.format_knumber("K-"))
 
     def test_format_knumber_letters_in_suffix(self):
         """Test non-L letters in suffix returns None."""
-        self.assertIsNone(Utils.format_knumber("K-abc", None))
+        self.assertIsNone(Utils.format_knumber("K-abc"))
 
     def test_format_knumber_l_only_no_digits(self):
         """Test K-L with no digits returns None."""
-        self.assertIsNone(Utils.format_knumber("K-L", None))
+        self.assertIsNone(Utils.format_knumber("K-L"))
 
     def test_format_knumber_l_with_letters(self):
         """Test K-L followed by non-digits returns None."""
-        self.assertIsNone(Utils.format_knumber("K-Labc", None))
+        self.assertIsNone(Utils.format_knumber("K-Labc"))
 
     def test_format_knumber_mixed_letters_digits(self):
         """Test digits with letters mixed in returns None."""
-        self.assertIsNone(Utils.format_knumber("K-12a45", None))
+        self.assertIsNone(Utils.format_knumber("K-12a45"))
 
     def test_format_knumber_number_starts_with_zero(self):
         """Test number with leading zero is accepted."""
-        self.assertEqual(Utils.format_knumber("k-012345", None), "K-012345")
+        self.assertEqual(Utils.format_knumber("k-012345"), "K-012345")
 
     def test_format_knumber_single_digit(self):
         """Test single digit suffix is accepted."""
-        self.assertEqual(Utils.format_knumber("k1", None), "K-1")
+        self.assertEqual(Utils.format_knumber("k1"), "K-1")
 
     def test_format_knumber_l_single_digit(self):
         """Test L with single digit is accepted."""
-        self.assertEqual(Utils.format_knumber("kl5", None), "K-L5")
+        self.assertEqual(Utils.format_knumber("kl5"), "K-L5")
+
+    def test_format_knumber_test_prefix(self):
+        """Test TEST- prefix with digits is accepted."""
+        self.assertEqual(Utils.format_knumber("TEST-123"), "TEST-123")
+
+    def test_format_knumber_test_prefix_lowercase(self):
+        """Test test- prefix lowercase is accepted."""
+        self.assertEqual(Utils.format_knumber("test-456"), "TEST-456")
+
+    def test_format_knumber_test_prefix_no_digits(self):
+        """Test TEST- with no digits returns None."""
+        self.assertIsNone(Utils.format_knumber("TEST-"))
+
+    def test_format_knumber_test_prefix_letters(self):
+        """Test TEST- with letters returns None."""
+        self.assertIsNone(Utils.format_knumber("TEST-abc"))
+
+    def test_format_knumber_test_prefix_mixed(self):
+        """Test TEST- with mixed content returns None."""
+        self.assertIsNone(Utils.format_knumber("TEST-12a"))
 
 
 if __name__ == '__main__':
