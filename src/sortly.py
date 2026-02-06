@@ -12,7 +12,7 @@ import os
 from utils import Utils
 
 SORTLY_API_BASE_URL = "https://api.sortly.co/api/v1"
-DEFAULT_FOLDER_ID = 102298337
+DEFAULT_FOLDER_ID = "102298337"
 API_KEY_ENV_VAR = "SORTLY_API_KEY"
 
 
@@ -20,10 +20,16 @@ def get_api_key():
     """Read API key from SORTLY_API_KEY env var, raise EnvironmentError if missing."""
     api_key = os.environ.get(API_KEY_ENV_VAR)
     if not api_key:
-        raise EnvironmentError(
-            f"{API_KEY_ENV_VAR} environment variable must be set"
-        )
+        raise EnvironmentError(f"{API_KEY_ENV_VAR} environment variable must be set")
     return api_key
+
+
+def get_folder_id():
+    """Read folder ID from SORTLY_FOLDER_ID env var, or return DEFAULT_FOLDER_ID."""
+    folder_id_str = os.environ.get("SORTLY_FOLDER_ID")
+    if folder_id_str:
+        return str(folder_id_str)
+    return DEFAULT_FOLDER_ID
 
 
 def search_by_serial(api_key, folder_id, serial_number):
@@ -47,9 +53,9 @@ def search_by_serial(api_key, folder_id, serial_number):
         }
 
         payload = {
-            "folder_ids": [int(folder_id)],
             "type": "item",
             "query": serial_number,
+            "folder_ids": [folder_id],
         }
 
         try:
@@ -106,7 +112,7 @@ def search_item_by_name(api_key, folder_id, item_name):
         "include": "custom_attributes,photos,options,variants",
     }
 
-    payload = {"folder_ids": [int(folder_id)], "name": item_name, "type": "item"}
+    payload = {"name": item_name, "type": "item", "folder_ids": [folder_id]}
 
     try:
         max_retries = 3

@@ -9,10 +9,9 @@ Usage:
 
 import json
 import sys
-import os
 
 from utils import Utils
-from sortly import search_by_serial, get_api_key, DEFAULT_FOLDER_ID
+from sortly import search_by_serial, get_api_key, get_folder_id
 
 
 def display_item(item):
@@ -57,19 +56,15 @@ def main():
             sys.exit(1)
         print(f"Local serial: {serial_number}")
 
-    # Folder ID for items: prefer env var, then optional CLI arg, then default
-    folder_id_str = os.environ.get("SORTLY_FOLDER_ID")
-    if folder_id_str is None and len(sys.argv) > 2:
-        folder_id_str = sys.argv[2]
-
-    if folder_id_str is None or folder_id_str == "":
-        folder_id = DEFAULT_FOLDER_ID
-    else:
+    # Folder ID: CLI arg overrides env var / default
+    if len(sys.argv) > 2:
         try:
-            folder_id = int(folder_id_str)
+            folder_id = str(sys.argv[2])
         except ValueError:
-            print(f"Error: Invalid folder ID '{folder_id_str}'. Must be an integer.")
+            print(f"Error: Invalid folder ID '{sys.argv[2]}'. Must be an string.")
             sys.exit(1)
+    else:
+        folder_id = get_folder_id()
 
     print(f"Searching for serial '{serial_number}'...")
     results = search_by_serial(api_key, folder_id, serial_number)
