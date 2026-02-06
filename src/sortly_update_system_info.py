@@ -31,17 +31,32 @@ def search_item_by_name(api_key, folder_id, item_name):
     payload = {"folder_ids": [int(folder_id)], "name": item_name, "type": "item"}
 
     try:
-        response = requests.post(
-            url, params=query_params, json=payload, headers=headers
-        )
+        max_retries = 3
+        backoff_seconds = 60
+        response = None
 
-        if response.status_code == 429:
-            print("Rate limit hit, sleeping 60 seconds...")
-            time.sleep(60)
+        for attempt in range(max_retries):
             response = requests.post(
                 url, params=query_params, json=payload, headers=headers
             )
 
+            if response.status_code != 429:
+                break
+
+            # Rate limit hit
+            if attempt < max_retries - 1:
+                print(
+                    f"Rate limit hit (429). Sleeping {backoff_seconds} seconds before retry "
+                    f"{attempt + 2} of {max_retries}..."
+                )
+                time.sleep(backoff_seconds)
+                backoff_seconds *= 2
+            else:
+                print(
+                    "Rate limit hit (429) and maximum retries reached. "
+                    "Unable to complete search."
+                )
+                return []
         response.raise_for_status()
         data = response.json()
         items = data.get("data", [])
