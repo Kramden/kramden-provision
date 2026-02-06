@@ -707,7 +707,7 @@ class Utils:
             print("Unknown Vendor")
         return asset_tag
 
-    def get_chassis_type():
+    def get_chassis_type(self):
         """Read chassis type from DMI and map to device type."""
         try:
             with open("/sys/devices/virtual/dmi/id/chassis_type", "r") as f:
