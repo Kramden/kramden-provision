@@ -197,6 +197,14 @@ def generate_tracking_sheet(item_name, output_path=None):
         fontName="Ubuntu",
     )
 
+    checkbox_style = ParagraphStyle(
+        "Checkbox",
+        parent=styles["Normal"],
+        fontSize=14,
+        fontName="Ubuntu",
+        leading=18,
+    )
+
     elements = []
 
     # --- Header ---
@@ -274,6 +282,12 @@ def generate_tracking_sheet(item_name, output_path=None):
         [Paragraph(label, label_style), Paragraph(str(value), value_style)]
         for label, value in spec_rows
     ]
+
+    # Add OS row with larger checkboxes for usability
+    spec_table_data.append([
+        Paragraph("OS", label_style),
+        Paragraph("☐ Ubuntu      ☐ Windows", checkbox_style)
+    ])
 
     spec_table = Table(
         spec_table_data,
