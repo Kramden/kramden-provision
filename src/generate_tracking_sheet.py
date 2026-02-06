@@ -116,10 +116,18 @@ def generate_tracking_sheet(item_name, output_path=None):
 
     # Register Ubuntu fonts
     font_dir = "/usr/share/fonts/truetype/ubuntu"
-    pdfmetrics.registerFont(TTFont("Ubuntu", os.path.join(font_dir, "Ubuntu-R.ttf")))
-    pdfmetrics.registerFont(
-        TTFont("Ubuntu-Bold", os.path.join(font_dir, "Ubuntu-B.ttf"))
-    )
+    ubuntu_regular = os.path.join(font_dir, "Ubuntu-R.ttf")
+    ubuntu_bold = os.path.join(font_dir, "Ubuntu-B.ttf")
+
+    if not (os.path.exists(ubuntu_regular) and os.path.exists(ubuntu_bold)):
+        raise FileNotFoundError(
+            "Error: Ubuntu fonts not found at "
+            f"{font_dir}. Install with: sudo apt install fonts-ubuntu "
+            "or update the font paths in generate_tracking_sheet.py."
+        )
+
+    pdfmetrics.registerFont(TTFont("Ubuntu", ubuntu_regular))
+    pdfmetrics.registerFont(TTFont("Ubuntu-Bold", ubuntu_bold))
     pdfmetrics.registerFontFamily("Ubuntu", normal="Ubuntu", bold="Ubuntu-Bold")
 
     styles = getSampleStyleSheet()
