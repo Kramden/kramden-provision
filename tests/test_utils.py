@@ -549,6 +549,11 @@ OpenGL core profile version string: 4.6.0"""
             elif 'glxinfo' in cmd:
                 # Simulate glxinfo failing
                 raise subprocess.CalledProcessError(1, cmd)
+            elif 'udevadm' in cmd:
+                mock_result = MagicMock()
+                mock_result.stdout = ""
+                mock_result.returncode = 1
+                return mock_result
 
         mock_run.side_effect = subprocess_side_effect
 
