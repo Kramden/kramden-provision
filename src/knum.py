@@ -14,6 +14,7 @@ from sortly import (
     create_item,
     update_item,
     get_system_info,
+    OSLOAD_FOLDER_ID,
 )
 
 
@@ -132,7 +133,7 @@ class KramdenNumber(Adw.Bin):
 
     def _lookup_serial_thread(self, api_key, serial):
         try:
-            results = search_by_serial(api_key, get_folder_id(), serial)
+            results = search_by_serial(api_key, get_folder_id(OSLOAD_FOLDER_ID), serial)
         except Exception as e:
             GLib.idle_add(self._on_lookup_complete, None, str(e))
             return
@@ -232,11 +233,11 @@ class KramdenNumber(Adw.Bin):
                 item = self._existing_item
             else:
                 # Search for existing item by name
-                results = search_item_by_name(api_key, get_folder_id(), knumber)
+                results = search_item_by_name(api_key, get_folder_id(OSLOAD_FOLDER_ID), knumber)
                 if results:
                     item = results[0]
                 else:
-                    item = create_item(api_key, get_folder_id(), knumber)
+                    item = create_item(api_key, get_folder_id(OSLOAD_FOLDER_ID), knumber)
                     if not item:
                         GLib.idle_add(
                             self._on_register_complete, False, "Failed to create item."

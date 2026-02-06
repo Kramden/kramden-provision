@@ -13,6 +13,8 @@ from utils import Utils
 
 SORTLY_API_BASE_URL = "https://api.sortly.co/api/v1"
 DEFAULT_FOLDER_ID = "102298337"
+OSLOAD_FOLDER_ID = "S8WM5R1510"
+SPEC_FOLDER_ID = "S8WM5R1509"
 API_KEY_ENV_VAR = "SORTLY_API_KEY"
 
 
@@ -24,12 +26,12 @@ def get_api_key():
     return api_key
 
 
-def get_folder_id():
-    """Read folder ID from SORTLY_FOLDER_ID env var, or return DEFAULT_FOLDER_ID."""
+def get_folder_id(default=None):
+    """Read folder ID from SORTLY_FOLDER_ID env var, or return the given default."""
     folder_id_str = os.environ.get("SORTLY_FOLDER_ID")
     if folder_id_str:
         return str(folder_id_str)
-    return DEFAULT_FOLDER_ID
+    return default or DEFAULT_FOLDER_ID
 
 
 def search_by_serial(api_key, folder_id, serial_number):
