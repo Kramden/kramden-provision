@@ -516,6 +516,7 @@ class Utils:
                 if line.startswith("ID_MODEL_FROM_DATABASE="):
                     return line.split("=", 1)[1]
         except (subprocess.CalledProcessError, OSError):
+            # Best-effort GPU name lookup: on failure, return None and let callers fall back.
             pass
         return None
 
