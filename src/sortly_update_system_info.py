@@ -81,8 +81,11 @@ def create_item(api_key, folder_id, item_name):
         item = data.get("data", data)
         print(f"Created item with ID: {item['id']}")
         return item
-    except (requests.RequestException, json.JSONDecodeError, KeyError) as e:
+    except (requests.RequestException, json.JSONDecodeError) as e:
         print(f"Error creating item: {e}")
+        return None
+    except KeyError:
+        print("Error creating item: Response missing expected 'id' field")
         return None
 
 
