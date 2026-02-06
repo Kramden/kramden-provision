@@ -2,7 +2,7 @@ import psutil
 import subprocess
 import threading
 import os
-from constants import snap_packages, deb_packages
+from constants import snap_packages, deb_packages, CHASSIS_TYPE_MAP
 import gi
 
 gi.require_version("Snapd", "2")
@@ -284,10 +284,7 @@ class Utils:
                 if "computrace" in line or "absolute" in line:
                     # Check this line and nearby lines for status
                     context = " ".join(lines[max(0, i - 2) : min(len(lines), i + 3)])
-                    if any(
-                        status in context
-                        for status in ["activated", "active"]
-                    ):
+                    if any(status in context for status in ["activated", "active"]):
                         # Make sure it's not "disabled" or "deactivated"
                         if "disabled" not in context and "deactivated" not in context:
                             return True
@@ -360,7 +357,9 @@ class Utils:
                         continue
 
                     # Extract size - format is typically "Size: 8192 MB" or "Size: 8 GB"
-                    size_match = re.search(r"Size:\s+(\d+)\s+(MB|GB)", line, re.IGNORECASE)
+                    size_match = re.search(
+                        r"Size:\s+(\d+)\s+(MB|GB)", line, re.IGNORECASE
+                    )
                     if size_match:
                         size = int(size_match.group(1))
                         unit = size_match.group(2).upper()
@@ -707,6 +706,15 @@ class Utils:
         else:
             print("Unknown Vendor")
         return asset_tag
+
+    def get_chassis_type(self):
+        """Read chassis type from DMI and map to device type."""
+        try:
+            with open("/sys/devices/virtual/dmi/id/chassis_type", "r") as f:
+                chassis_num = int(f.read().strip())
+            return CHASSIS_TYPE_MAP.get(chassis_num)
+        except (IOError, ValueError):
+            return None
 
 
 if __name__ == "__main__":
