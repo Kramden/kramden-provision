@@ -66,6 +66,7 @@ class WizardWindow(Gtk.ApplicationWindow):
         self.page2.sortly_register = self.page1
         self.page2.state = self.observable_property
         self.page3.state = self.observable_property
+        self.page4.sortly_register = self.page1
         self.page4.state = self.observable_property
 
         self.stack.add_named(self.page1, "page1")

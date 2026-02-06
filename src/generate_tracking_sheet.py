@@ -90,10 +90,10 @@ def get_system_info():
     return info
 
 
-def generate_tracking_sheet(item_name, output_path=None):
+def generate_tracking_sheet(item_name, output_path=None, spec_passed=None):
     """Generate a PDF tracking sheet for a computer."""
     if output_path is None:
-        output_path = f"{item_name}_tracking_sheet.pdf"
+        output_path = f"/tmp/{item_name}_tracking_sheet.pdf"
 
     print("Gathering system information...")
     system_info = get_system_info()
@@ -218,7 +218,7 @@ def generate_tracking_sheet(item_name, output_path=None):
         logo_path = "/usr/share/pixmaps/kramden_tracking_header.png"
 
     title_para = Paragraph("Kramden Tracking Sheet", title_style)
-    date_para = Paragraph(f"Generated: {date.today().isoformat()}", subtitle_style)
+    date_para = Paragraph(f"Generated: {date.today().strftime('%m-%d-%Y')}", subtitle_style)
 
     if os.path.exists(logo_path):
         logo = Image(
@@ -329,7 +329,16 @@ def generate_tracking_sheet(item_name, output_path=None):
     qc_stages = ["Spec", "OS Load", "Final Test", "Cleaning"]
     qc_data = [qc_header]
     for stage in qc_stages:
-        qc_data.append([Paragraph(stage, value_style), "", "", "", ""])
+        pass_cell = ""
+        fail_cell = ""
+        date_cell = ""
+        if stage == "Spec" and spec_passed is not None:
+            if spec_passed:
+                pass_cell = Paragraph("✓", checkbox_style)
+            else:
+                fail_cell = Paragraph("✓", checkbox_style)
+            date_cell = Paragraph(date.today().strftime("%m-%d-%Y"), value_style)
+        qc_data.append([Paragraph(stage, value_style), pass_cell, fail_cell, "", date_cell])
 
     qc_col_widths = [1.5 * inch, 0.75 * inch, 0.75 * inch, 1.8 * inch, 1.8 * inch]
     # Scale columns to fit page width

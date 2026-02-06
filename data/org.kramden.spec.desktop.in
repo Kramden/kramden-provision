@@ -4,7 +4,7 @@ Version=1.0
 Name=Kramden Spec
 Comment=Kramden Spec
 Keywords=kramden;setup;
-Exec=kramden-spec
+Exec=env SORTLY_API_KEY=@@SORTLY_API_KEY@@ kramden-spec
 Icon=kramden
 Terminal=false
 Categories=Utility;
