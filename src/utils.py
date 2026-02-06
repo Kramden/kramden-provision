@@ -513,9 +513,12 @@ class Utils:
                 capture_output=True,
                 text=True,
             )
-            for line in result.stdout.splitlines():
-                if line.startswith("ID_MODEL_FROM_DATABASE="):
-                    return line.split("=", 1)[1]
+            if result.returncode == 0:
+                for line in result.stdout.splitlines():
+                    if line.startswith("ID_MODEL_FROM_DATABASE="):
+                        return line.split("=", 1)[1]
+            else:
+                return None
         except (subprocess.CalledProcessError, OSError):
             # Best-effort GPU name lookup: on failure, return None and let callers fall back.
             pass
