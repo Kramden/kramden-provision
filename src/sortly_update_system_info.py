@@ -13,41 +13,6 @@ import os
 
 from utils import Utils
 
-# SMBIOS chassis type mapping (from DMTF SMBIOS specification)
-CHASSIS_TYPE_MAP = {
-    # Desktop types
-    3: "Desktop",  # Desktop
-    4: "Desktop",  # Low Profile Desktop
-    5: "Desktop",  # Pizza Box
-    6: "Desktop",  # Mini Tower
-    7: "Desktop",  # Tower
-    15: "Desktop",  # Space-saving
-    16: "Desktop",  # Lunch Box
-    24: "Desktop",  # Sealed-case PC
-    35: "Desktop",  # Mini PC
-    36: "Desktop",  # Stick PC
-    # Laptop types
-    8: "Laptop",  # Portable
-    9: "Laptop",  # Laptop
-    10: "Laptop",  # Notebook
-    14: "Laptop",  # Sub Notebook
-    30: "Laptop",  # Tablet
-    31: "Laptop",  # Convertible
-    32: "Laptop",  # Detachable
-    # All-In-One
-    13: "All-In-One",
-}
-
-
-def get_chassis_type():
-    """Read chassis type from DMI and map to device type."""
-    try:
-        with open("/sys/devices/virtual/dmi/id/chassis_type", "r") as f:
-            chassis_num = int(f.read().strip())
-        return CHASSIS_TYPE_MAP.get(chassis_num)
-    except (IOError, ValueError):
-        return None
-
 
 def search_item_by_name(api_key, folder_id, item_name):
     """Search for an item by exact name in the specified folder."""
@@ -208,7 +173,7 @@ def get_system_info():
     gpu = utils.get_discrete_gpu()
     serial = utils.get_serial()
     batteries = utils.get_battery_capacities()
-    device_type = get_chassis_type()
+    device_type = utils.get_chassis_type()
 
     # Sum total storage in GB
     if disks:
