@@ -955,23 +955,23 @@ Memory Device
 
     def test_format_knumber_lowercase_digits(self):
         """Test k followed by digits inserts dash and uppercases."""
-        self.assertEqual(Utils.format_knumber("k129987"), "K-129987")
+        self.assertEqual(Utils.format_knumber("k129987", None), "K-129987")
 
     def test_format_knumber_with_dash(self):
         """Test k-number with dash already present."""
-        self.assertEqual(Utils.format_knumber("k-120976"), "K-120976")
+        self.assertEqual(Utils.format_knumber("k-120976", None), "K-120976")
 
     def test_format_knumber_lowercase_l_prefix(self):
         """Test k followed by l and digits inserts dash and uppercases."""
-        self.assertEqual(Utils.format_knumber("kl12498"), "K-L12498")
+        self.assertEqual(Utils.format_knumber("kl12498", None), "K-L12498")
 
     def test_format_knumber_dash_and_uppercase_l(self):
         """Test k-L prefix with digits."""
-        self.assertEqual(Utils.format_knumber("k-L89765"), "K-L89765")
+        self.assertEqual(Utils.format_knumber("k-L89765", None), "K-L89765")
 
     def test_format_knumber_already_formatted(self):
         """Test already correctly formatted input."""
-        self.assertEqual(Utils.format_knumber("K-123456"), "K-123456")
+        self.assertEqual(Utils.format_knumber("K-123456", None), "K-123456")
 
     def test_format_knumber_uppercase_input(self):
         """Test fully uppercase input without dash."""
