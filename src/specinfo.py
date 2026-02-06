@@ -18,6 +18,7 @@ class SpecInfo(Adw.Bin):
         self.skip = False
         self.batteries_populated = False
         self.disks_populated = False
+        self.sortly_register = None
 
         # Create a box to hold the content
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
@@ -29,6 +30,9 @@ class SpecInfo(Adw.Bin):
         # Create a list box to hold the rows
         list_box = Gtk.ListBox()
         list_box.set_selection_mode(Gtk.SelectionMode.NONE)
+
+        self.knumber_row = Adw.ActionRow()
+        self.knumber_row.set_title("K-Number")
 
         vendor_row = Adw.ActionRow()
         vendor_row.set_title("Manufacturer")
@@ -77,6 +81,7 @@ class SpecInfo(Adw.Bin):
         self.computrace_row.set_title("Computrace/Absolute")
 
         # Add rows to the list box
+        list_box.append(self.knumber_row)
         list_box.append(vendor_row)
         list_box.append(model_row)
         list_box.append(self.bios_password_row)
@@ -99,6 +104,23 @@ class SpecInfo(Adw.Bin):
 
         # Start with default of passed and set to False if we find any failures
         passed = True
+
+        # Read K-Number from the Sortly registration page
+        knumber = ""
+        if self.sortly_register:
+            raw = self.sortly_register.knumber_entry.get_text().strip()
+            formatted = Utils.format_knumber(raw)
+            knumber = formatted or raw
+        self.knumber_row.set_subtitle(knumber)
+        if knumber and (
+            knumber.lower().startswith("k") or knumber.lower().startswith("test")
+        ):
+            self.knumber_row.set_icon_name("emblem-ok-symbolic")
+            if self.knumber_row.has_css_class("text-error"):
+                self.knumber_row.remove_css_class("text-error")
+        else:
+            self.knumber_row.set_icon_name("emblem-important-symbolic")
+            self.knumber_row.add_css_class("text-error")
 
         # Set Memory row to emblem-ok-symbolic if memory is greater than or equal to 7 GB, else set row to emblem-important-symbolic
         mem = int(utils.get_mem())

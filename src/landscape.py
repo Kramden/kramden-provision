@@ -35,7 +35,7 @@ class Landscape(Adw.Bin):
 
         self.hostname_label = Gtk.Label.new("K-Number: ")
 
-        self.info_label = Gtk.Label(label="K-Number Invalid (Must start with a \'K\')")
+        self.info_label = Gtk.Label(label="K-Number Invalid")
 
         self.info_label.set_visible(False)
 
@@ -65,8 +65,8 @@ class Landscape(Adw.Bin):
             self.register_button.set_sensitive(False)
             self.skip = True
         else:
-            if not hostname.lower().startswith('k'):
-                self.info_label.set_label("K-Number Invalid (Must start with a \'K\')")
+            if not Utils.format_knumber(hostname):
+                self.info_label.set_label("K-Number Invalid")
             else:
                 self.info_label.set_label("Not registered")
             self.info_label.set_visible(True)
@@ -80,7 +80,7 @@ class Landscape(Adw.Bin):
         registered = utils.is_registered()
         self.update_registration_status(registered, hostname)
         
-        if hostname.lower().startswith('k') and not registered:
+        if Utils.format_knumber(hostname) and not registered:
             self.info_label.set_visible(False)
             self.register_button.set_sensitive(True)
         else:

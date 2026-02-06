@@ -1,3 +1,17 @@
+kramden-provision (0.1.9.11) UNRELEASED; urgency=medium
+
+  * debian/control
+    - kramden-spec: Add depends on python3-reportlab for pdf support
+  * New scripts:
+    - Added sortly_update_system_info.py
+    - Added sortly_lookup_by_serial.py
+    - Added generate_tracking_sheet.py
+  * kramden-spec:
+    - Added format_knumber helper
+    - Updated get_chassis_type signature to support new usage
+
+ -- Ken VanDine <ken.vandine@canonical.com>  Thu, 05 Feb 2026 23:12:58 -0500
+
 kramden-provision (0.1.9.10) noble; urgency=medium
 
   * kramden-spec:
