@@ -50,7 +50,7 @@ def search_item_by_name(api_key, folder_id, item_name):
         exact_matches = [item for item in items if item.get("name") == item_name]
         return exact_matches
 
-    except Exception as e:
+    except (requests.RequestException, json.JSONDecodeError) as e:
         print(f"Error searching for item: {e}")
         return []
 
@@ -81,7 +81,7 @@ def create_item(api_key, folder_id, item_name):
         item = data.get("data", data)
         print(f"Created item with ID: {item['id']}")
         return item
-    except Exception as e:
+    except (requests.RequestException, json.JSONDecodeError, KeyError) as e:
         print(f"Error creating item: {e}")
         return None
 
@@ -102,7 +102,7 @@ def update_item(api_key, item_id, updates_dict):
         )
         response.raise_for_status()
         raw_json = response.json()
-    except Exception as e:
+    except (requests.RequestException, json.JSONDecodeError) as e:
         print(f"Error fetching item: {e}")
         return False
 
@@ -155,7 +155,7 @@ def update_item(api_key, item_id, updates_dict):
             return False
         print("SUCCESS: Item updated.")
         return True
-    except Exception as e:
+    except (requests.RequestException, json.JSONDecodeError) as e:
         print(f"Update failed: {e}")
         return False
 
