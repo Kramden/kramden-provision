@@ -1,3 +1,10 @@
+kramden-provision (0.1.9.11) UNRELEASED; urgency=medium
+
+  * debian/control
+    - kramden-spec: Add depends on python3-reportlab for pdf support
+
+ -- Ken VanDine <ken.vandine@canonical.com>  Thu, 05 Feb 2026 23:12:58 -0500
+
 kramden-provision (0.1.9.10) noble; urgency=medium
 
   * kramden-spec:
