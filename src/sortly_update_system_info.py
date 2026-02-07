@@ -9,11 +9,12 @@ import sys
 
 from sortly import (
     get_api_key,
-    get_folder_id,
     search_item_by_name,
     create_item,
     update_item,
     get_system_info,
+    SEARCH_FOLDER_IDS,
+    TEST_FOLDER_IDS,
 )
 
 
@@ -32,7 +33,7 @@ def main():
         sys.exit(1)
 
     print(f"Searching for item '{item_name}'...")
-    results = search_item_by_name(api_key, get_folder_id(), item_name)
+    results = search_item_by_name(api_key, SEARCH_FOLDER_IDS, item_name)
 
     if not results:
         print(f"No item found with name '{item_name}'")
@@ -40,7 +41,7 @@ def main():
         if create_confirm != "y":
             print("Cancelled.")
             sys.exit(0)
-        item = create_item(api_key, get_folder_id(), item_name)
+        item = create_item(api_key, TEST_FOLDER_IDS[0], item_name)
         if not item:
             print("Failed to create item.")
             sys.exit(1)

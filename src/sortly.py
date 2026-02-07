@@ -12,10 +12,19 @@ import os
 from utils import Utils
 
 SORTLY_API_BASE_URL = "https://api.sortly.co/api/v1"
-DEFAULT_FOLDER_ID = "102298337"
-OSLOAD_FOLDER_ID = "S8WM5R1510"
-SPEC_FOLDER_ID = "S8WM5R1509"
+OSLOAD_FOLDER_IDS = ["102396658", "102396645", "102312875"]
+SPEC_FOLDER_IDS = ["102312621", "102396723", "102396716"]
+TEST_FOLDER_IDS = ["102298337"]
+SEARCH_FOLDER_IDS = ["102309375", "102312621", "102298337"]
 API_KEY_ENV_VAR = "SORTLY_API_KEY"
+
+
+def get_stage_folder_ids(stage):
+    """Return folder IDs for the given stage, or TEST_FOLDER_IDS if KRAMDEN_TEST is set."""
+    if os.environ.get("KRAMDEN_TEST"):
+        return TEST_FOLDER_IDS
+    stage_map = {"spec": SPEC_FOLDER_IDS, "osload": OSLOAD_FOLDER_IDS, "test": TEST_FOLDER_IDS}
+    return stage_map[stage]
 
 
 def get_api_key():
@@ -26,15 +35,8 @@ def get_api_key():
     return api_key
 
 
-def get_folder_id(default=None):
-    """Read folder ID from SORTLY_FOLDER_ID env var, or return the given default."""
-    folder_id_str = os.environ.get("SORTLY_FOLDER_ID")
-    if folder_id_str:
-        return str(folder_id_str)
-    return default or DEFAULT_FOLDER_ID
 
-
-def search_by_serial(api_key, folder_id, serial_number):
+def search_by_serial(api_key, folder_ids, serial_number):
     """Search for items by serial number in the Serial# Scanner field."""
     url = f"{SORTLY_API_BASE_URL}/items/search"
     headers = {
@@ -57,7 +59,7 @@ def search_by_serial(api_key, folder_id, serial_number):
         payload = {
             "type": "item",
             "query": serial_number,
-            "folder_ids": [folder_id],
+            "folder_ids": folder_ids,
         }
 
         try:
@@ -99,8 +101,8 @@ def search_by_serial(api_key, folder_id, serial_number):
     return matching_items
 
 
-def search_item_by_name(api_key, folder_id, item_name):
-    """Search for an item by exact name in the specified folder."""
+def search_item_by_name(api_key, folder_ids, item_name):
+    """Search for an item by exact name in the specified folders."""
     url = f"{SORTLY_API_BASE_URL}/items/search"
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -114,7 +116,7 @@ def search_item_by_name(api_key, folder_id, item_name):
         "include": "custom_attributes,photos,options,variants",
     }
 
-    payload = {"name": item_name, "type": "item", "folder_ids": [folder_id]}
+    payload = {"name": item_name, "type": "item", "folder_ids": folder_ids}
 
     try:
         max_retries = 3
@@ -261,6 +263,85 @@ def update_item(api_key, item_id, updates_dict):
     except (requests.RequestException, ValueError) as e:
         print(f"Update failed: {e}")
         return False
+
+
+def list_subfolders(api_key, parent_id, depth=0):
+    """Recursively find all subfolder IDs under a given parent folder."""
+    indent = "  " * depth
+    print(f"{indent}Checking folder {parent_id} for subfolders...")
+
+    url = f"{SORTLY_API_BASE_URL}/items"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
+
+    child_ids = []
+    child_names = {}
+    max_retries = 3
+    backoff_seconds = 60
+    page = 1
+    more_pages = True
+
+    while more_pages:
+        query_params = {"folder_id": parent_id, "page": page, "per_page": 100}
+
+        for attempt in range(max_retries):
+            try:
+                response = requests.get(url, params=query_params, headers=headers)
+
+                if response.status_code == 429:
+                    if attempt < max_retries - 1:
+                        print(
+                            f"{indent}Rate limit hit (429). Sleeping {backoff_seconds} seconds before retry "
+                            f"{attempt + 2} of {max_retries}..."
+                        )
+                        time.sleep(backoff_seconds)
+                        backoff_seconds *= 2
+                        continue
+                    else:
+                        print(f"{indent}Rate limit hit (429) and maximum retries reached.")
+                        more_pages = False
+                        break
+
+                response.raise_for_status()
+                data = response.json()
+                items = data.get("data", [])
+
+                if not items:
+                    more_pages = False
+                    break
+
+                for item in items:
+                    if item.get("type") == "folder":
+                        cid = str(item["id"])
+                        child_ids.append(cid)
+                        child_names[cid] = item.get("name", cid)
+
+                if len(items) < 100:
+                    more_pages = False
+                else:
+                    page += 1
+                break
+
+            except (requests.RequestException, ValueError) as e:
+                print(f"{indent}Error listing subfolders: {e}")
+                more_pages = False
+                break
+
+    if child_ids:
+        names = ", ".join(f"{child_names[c]} ({c})" for c in child_ids)
+        print(f"{indent}Found {len(child_ids)} subfolder(s): {names}")
+    else:
+        print(f"{indent}No subfolders")
+
+    # Recurse into each child folder
+    all_ids = [parent_id]
+    for child_id in child_ids:
+        all_ids.extend(list_subfolders(api_key, child_id, depth + 1))
+
+    return all_ids
 
 
 def get_system_info():
