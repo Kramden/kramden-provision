@@ -38,16 +38,6 @@ class KramdenNumber(Adw.Bin):
         # Main vertical layout
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
 
-        # Current hostname display
-        hostname_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-        hostname_label = Gtk.Label.new("K-Number: ")
-        utils = Utils()
-        current_hostname = utils.get_hostname()
-        display_hostname = current_hostname if Utils.format_knumber(current_hostname) else "Not Set"
-        self.hostname = Gtk.Label.new(display_hostname)
-        hostname_box.append(hostname_label)
-        hostname_box.append(self.hostname)
-
         # K-Number input row
         knumber_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
         knumber_label = Gtk.Label(label="K-Number:")
@@ -84,7 +74,6 @@ class KramdenNumber(Adw.Bin):
         self.register_button.set_sensitive(False)
         self.register_button.connect("clicked", self._on_register_clicked)
 
-        vbox.append(hostname_box)
         vbox.append(knumber_box)
         vbox.append(self.status_label)
         vbox.append(scrolled_window)
@@ -290,8 +279,7 @@ class KramdenNumber(Adw.Bin):
 
             # Set hostname and advance
             utils = Utils()
-            if utils.set_hostname(knumber):
-                self.hostname.set_text(knumber)
+            utils.set_hostname(knumber)
             state = self.state.get_value()
             state["KramdenNumber"] = Utils.format_knumber(knumber) is not None
             print("knum:on_register_complete " + str(self.state.get_value()))
