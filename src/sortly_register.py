@@ -26,6 +26,7 @@ class SortlyRegister(Adw.Bin):
         self.set_margin_start(20)
         self.set_margin_end(20)
         self.title = "Sortly Registration"
+        self.next = None
         self.skip = False
 
         self._lookup_done = False
@@ -252,6 +253,9 @@ class SortlyRegister(Adw.Bin):
                 self._set_status("Update successful!")
             else:
                 self._set_status("Registration successful!")
+            if self.next:
+                self.next()
+                self.skip = True
         else:
             self._set_status(f"Failed: {error}", error=True)
             self.register_button.set_sensitive(True)
