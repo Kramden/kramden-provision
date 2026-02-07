@@ -3,10 +3,11 @@ import os
 import subprocess
 import threading
 
-gi.require_version('Adw', '1')
+gi.require_version("Adw", "1")
 from gi.repository import Adw, Gtk, GLib
 from utils import Utils
 from generate_tracking_sheet import generate_tracking_sheet
+
 
 class SpecComplete(Adw.Bin):
     def __init__(self):
@@ -66,7 +67,9 @@ class SpecComplete(Adw.Bin):
             knumber = formatted or raw
 
         if not knumber:
-            self.tracking_status.set_label("No K-Number set. Go back to the registration page.")
+            self.tracking_status.set_label(
+                "No K-Number set. Go back to the registration page."
+            )
             self.tracking_status.add_css_class("text-error")
             return
 
@@ -87,9 +90,7 @@ class SpecComplete(Adw.Bin):
 
     def _generate_thread(self, knumber, spec_passed):
         try:
-            output_path = generate_tracking_sheet(
-                knumber, spec_passed=spec_passed
-            )
+            output_path = generate_tracking_sheet(knumber, spec_passed=spec_passed)
             GLib.idle_add(self._on_generate_complete, output_path, None)
         except Exception as e:
             GLib.idle_add(self._on_generate_complete, None, str(e))
@@ -105,11 +106,17 @@ class SpecComplete(Adw.Bin):
         if self.tracking_status.has_css_class("text-error"):
             self.tracking_status.remove_css_class("text-error")
 
-        viewer = "/usr/bin/evince" if os.path.exists("/usr/bin/evince") else "/usr/bin/papers"
+        viewer = (
+            "/usr/bin/evince"
+            if os.path.exists("/usr/bin/evince")
+            else "/usr/bin/papers"
+        )
         try:
             subprocess.Popen([viewer, output_path])
         except Exception as e:
-            self.tracking_status.set_label(f"Saved: {output_path} (could not open viewer: {e})")
+            self.tracking_status.set_label(
+                f"Saved: {output_path} (could not open viewer: {e})"
+            )
 
     # on_shown is called when the page is shown in the stack
     def on_shown(self):

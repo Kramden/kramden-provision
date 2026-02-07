@@ -702,6 +702,7 @@ class Utils:
         script = f"/usr/share/kramden-provision/scripts/kramden-reset-{stage}"
         print("Utils: " + script)
         if self.file_exists_and_executable(script) and os.environ["USER"] in [
+            "ubuntu",
             "osload",
             "finaltest",
         ]:
