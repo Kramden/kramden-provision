@@ -1,3 +1,12 @@
+kramden-provision (0.1.9.13) noble; urgency=medium
+
+  * kramden-spec:
+    - More sortly integration
+  * kramden-osload
+    - Query sortly for knumber
+
+ -- Ken VanDine <ken.vandine@canonical.com>  Fri, 06 Feb 2026 22:18:26 -0500
+
 kramden-provision (0.1.9.12) noble; urgency=medium
 
   * Ensure all python files are built and installed
