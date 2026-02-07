@@ -42,7 +42,9 @@ class KramdenNumber(Adw.Bin):
         hostname_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
         hostname_label = Gtk.Label.new("K-Number: ")
         utils = Utils()
-        self.hostname = Gtk.Label.new(utils.get_hostname())
+        current_hostname = utils.get_hostname()
+        display_hostname = current_hostname if Utils.format_knumber(current_hostname) else "Not Set"
+        self.hostname = Gtk.Label.new(display_hostname)
         hostname_box.append(hostname_label)
         hostname_box.append(self.hostname)
 
