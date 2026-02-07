@@ -18,26 +18,29 @@ On startup each workflow looks up the device by its serial number. If a matching
 | Environment Variable | Description |
 |---|---|
 | `SORTLY_API_KEY` | **Required.** API key for authenticating with the Sortly API. |
-| `SORTLY_FOLDER_ID` | Optional. Overrides the default Sortly folder ID for all workflows. |
+| `KRAMDEN_TEST` | Optional. When set, all workflows use `TEST_FOLDER_IDS` instead of their stage-specific folders. |
 
-Default folder IDs when `SORTLY_FOLDER_ID` is not set:
+Each workflow searches its own set of top-level Sortly folders and recursively discovers all subfolders underneath them:
 
-| Workflow | Default Folder ID |
+| Workflow | Folder IDs |
 |---|---|
-| Spec | `S8WM5R1509` |
-| OS Load | `S8WM5R1510` |
-| CLI scripts | $SORTLY_FOLDER_ID |
+| Spec | `SPEC_FOLDER_IDS` |
+| OS Load | `OSLOAD_FOLDER_IDS` |
+| Test | `TEST_FOLDER_IDS` |
 
 ### CLI Scripts
 
-Two standalone scripts are provided for working with Sortly outside the wizard workflows:
+Standalone scripts for working with Sortly outside the wizard workflows:
 
 ```bash
-# Look up a device by serial number
-SORTLY_API_KEY=... SORTLY_FOLDER_ID=... python3 src/sortly_lookup_by_serial.py [serial] [folder_id]
+# Look up a device by serial number (auto-detects if no serial given)
+SORTLY_API_KEY=... python3 src/sortly_lookup_by_serial.py [serial] [--stage=spec|osload|test]
+
+# Look up a device by name
+SORTLY_API_KEY=... python3 src/sortly_lookup_by_name.py <name> [--stage=spec|osload|test]
 
 # Update a device record with system info
-SORTLY_API_KEY=... SORTLY_FOLDER_ID=... python3 src/sortly_update_system_info.py <item_name>
+SORTLY_API_KEY=... python3 src/sortly_update_system_info.py <item_name>
 ```
 
 ## Dependencies

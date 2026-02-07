@@ -8,13 +8,13 @@ from gi.repository import Adw, Gtk, GLib
 from utils import Utils
 from sortly import (
     get_api_key,
-    get_folder_id,
+    get_stage_folder_ids,
+    list_subfolders,
     search_by_serial,
     search_item_by_name,
     create_item,
     update_item,
     get_system_info,
-    OSLOAD_FOLDER_ID,
 )
 
 
@@ -37,14 +37,6 @@ class KramdenNumber(Adw.Bin):
 
         # Main vertical layout
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
-
-        # Current hostname display
-        hostname_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-        hostname_label = Gtk.Label.new("K-Number: ")
-        utils = Utils()
-        self.hostname = Gtk.Label.new(utils.get_hostname())
-        hostname_box.append(hostname_label)
-        hostname_box.append(self.hostname)
 
         # K-Number input row
         knumber_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
@@ -82,7 +74,6 @@ class KramdenNumber(Adw.Bin):
         self.register_button.set_sensitive(False)
         self.register_button.connect("clicked", self._on_register_clicked)
 
-        vbox.append(hostname_box)
         vbox.append(knumber_box)
         vbox.append(self.status_label)
         vbox.append(scrolled_window)
@@ -133,7 +124,15 @@ class KramdenNumber(Adw.Bin):
 
     def _lookup_serial_thread(self, api_key, serial):
         try:
-            results = search_by_serial(api_key, get_folder_id(OSLOAD_FOLDER_ID), serial)
+            GLib.idle_add(self._set_status, "Discovering subfolders...")
+            folder_ids = []
+            for fid in get_stage_folder_ids("osload"):
+                folder_ids.extend(list_subfolders(api_key, fid))
+            GLib.idle_add(
+                self._set_status,
+                f"Searching {len(folder_ids)} folder(s) for serial '{serial}'...",
+            )
+            results = search_by_serial(api_key, folder_ids, serial)
         except Exception as e:
             GLib.idle_add(self._on_lookup_complete, None, str(e))
             return
@@ -233,11 +232,19 @@ class KramdenNumber(Adw.Bin):
                 item = self._existing_item
             else:
                 # Search for existing item by name
-                results = search_item_by_name(api_key, get_folder_id(OSLOAD_FOLDER_ID), knumber)
+                GLib.idle_add(self._set_status, "Discovering subfolders...")
+                folder_ids = []
+                for fid in get_stage_folder_ids("osload"):
+                    folder_ids.extend(list_subfolders(api_key, fid))
+                GLib.idle_add(
+                    self._set_status,
+                    f"Searching {len(folder_ids)} folder(s) for '{knumber}'...",
+                )
+                results = search_item_by_name(api_key, folder_ids, knumber)
                 if results:
                     item = results[0]
                 else:
-                    item = create_item(api_key, get_folder_id(OSLOAD_FOLDER_ID), knumber)
+                    item = create_item(api_key, get_stage_folder_ids("osload")[0], knumber)
                     if not item:
                         GLib.idle_add(
                             self._on_register_complete, False, "Failed to create item."
@@ -272,8 +279,7 @@ class KramdenNumber(Adw.Bin):
 
             # Set hostname and advance
             utils = Utils()
-            if utils.set_hostname(knumber):
-                self.hostname.set_text(knumber)
+            utils.set_hostname(knumber)
             state = self.state.get_value()
             state["KramdenNumber"] = Utils.format_knumber(knumber) is not None
             print("knum:on_register_complete " + str(self.state.get_value()))

@@ -62,6 +62,7 @@ class WizardWindow(Gtk.ApplicationWindow):
         self.page3 = ManualTest(show_battery_test=True)
         self.page4 = SpecComplete()
 
+        self.page1.next = self.on_next_clicked
         self.page1.state = self.observable_property
         self.page2.sortly_register = self.page1
         self.page2.state = self.observable_property

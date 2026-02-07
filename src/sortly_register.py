@@ -8,13 +8,13 @@ from gi.repository import Adw, Gtk, GLib
 from utils import Utils
 from sortly import (
     get_api_key,
-    get_folder_id,
+    get_stage_folder_ids,
+    list_subfolders,
     search_by_serial,
     search_item_by_name,
     create_item,
     update_item,
     get_system_info,
-    SPEC_FOLDER_ID,
 )
 
 
@@ -26,6 +26,7 @@ class SortlyRegister(Adw.Bin):
         self.set_margin_start(20)
         self.set_margin_end(20)
         self.title = "Sortly Registration"
+        self.next = None
         self.skip = False
 
         self._lookup_done = False
@@ -112,7 +113,15 @@ class SortlyRegister(Adw.Bin):
 
     def _lookup_serial_thread(self, api_key, serial):
         try:
-            results = search_by_serial(api_key, get_folder_id(SPEC_FOLDER_ID), serial)
+            GLib.idle_add(self._set_status, "Discovering subfolders...")
+            folder_ids = []
+            for fid in get_stage_folder_ids("spec"):
+                folder_ids.extend(list_subfolders(api_key, fid))
+            GLib.idle_add(
+                self._set_status,
+                f"Searching {len(folder_ids)} folder(s) for serial '{serial}'...",
+            )
+            results = search_by_serial(api_key, folder_ids, serial)
         except Exception as e:
             GLib.idle_add(self._on_lookup_complete, None, str(e))
             return
@@ -154,8 +163,7 @@ class SortlyRegister(Adw.Bin):
                 self.register_button.set_label("Update")
             else:
                 self.register_button.set_label("Register")
-            if self.status_label.has_css_class("text-error"):
-                self.status_label.remove_css_class("text-error")
+            self._set_status("")
         else:
             self.register_button.set_sensitive(False)
             if value:
@@ -206,11 +214,19 @@ class SortlyRegister(Adw.Bin):
                 item = self._existing_item
             else:
                 # Search for existing item by name
-                results = search_item_by_name(api_key, get_folder_id(SPEC_FOLDER_ID), knumber)
+                GLib.idle_add(self._set_status, "Discovering subfolders...")
+                folder_ids = []
+                for fid in get_stage_folder_ids("spec"):
+                    folder_ids.extend(list_subfolders(api_key, fid))
+                GLib.idle_add(
+                    self._set_status,
+                    f"Searching {len(folder_ids)} folder(s) for '{knumber}'...",
+                )
+                results = search_item_by_name(api_key, folder_ids, knumber)
                 if results:
                     item = results[0]
                 else:
-                    item = create_item(api_key, get_folder_id(SPEC_FOLDER_ID), knumber)
+                    item = create_item(api_key, get_stage_folder_ids("spec")[0], knumber)
                     if not item:
                         GLib.idle_add(self._on_register_complete, False, "Failed to create item.")
                         return
@@ -237,6 +253,9 @@ class SortlyRegister(Adw.Bin):
                 self._set_status("Update successful!")
             else:
                 self._set_status("Registration successful!")
+            if self.next:
+                self.next()
+                self.skip = True
         else:
             self._set_status(f"Failed: {error}", error=True)
             self.register_button.set_sensitive(True)

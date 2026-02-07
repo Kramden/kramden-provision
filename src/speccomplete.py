@@ -1,4 +1,5 @@
 import gi
+import os
 import subprocess
 import threading
 
@@ -104,10 +105,11 @@ class SpecComplete(Adw.Bin):
         if self.tracking_status.has_css_class("text-error"):
             self.tracking_status.remove_css_class("text-error")
 
+        viewer = "/usr/bin/evince" if os.path.exists("/usr/bin/evince") else "/usr/bin/papers"
         try:
-            subprocess.Popen(["evince", output_path])
+            subprocess.Popen([viewer, output_path])
         except Exception as e:
-            self.tracking_status.set_label(f"Saved: {output_path} (could not open evince: {e})")
+            self.tracking_status.set_label(f"Saved: {output_path} (could not open viewer: {e})")
 
     # on_shown is called when the page is shown in the stack
     def on_shown(self):
