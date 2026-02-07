@@ -1,3 +1,10 @@
+kramden-provision (0.1.9.15) noble; urgency=medium
+
+  * kramden-spec
+    - ensure kramden-reset-spec is included in the package
+
+ -- Ken VanDine <ken.vandine@canonical.com>  Sat, 07 Feb 2026 09:56:16 -0500
+
 kramden-provision (0.1.9.14) noble; urgency=medium
 
   * kramden-spec:
