@@ -3,6 +3,6 @@
 
 if [ "$USER" = "ubuntu" ];
 then
-  # poweroff
+  eject
   poweroff
 fi
