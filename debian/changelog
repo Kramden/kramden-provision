@@ -1,3 +1,10 @@
+kramden-provision (0.1.9.18) noble; urgency=medium
+
+  * kramden-spec:
+    - Make the register button insensitive while querying sortly
+
+ -- Ken VanDine <ken.vandine@canonical.com>  Sun, 08 Feb 2026 09:44:57 -0500
+
 kramden-provision (0.1.9.17) noble; urgency=medium
 
   * kramden-spec:
