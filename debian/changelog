@@ -1,3 +1,10 @@
+kramden-provision (0.1.9.17) noble; urgency=medium
+
+  * kramden-spec:
+    - Install scripts
+
+ -- Ken VanDine <ken.vandine@canonical.com>  Sat, 07 Feb 2026 22:56:14 -0500
+
 kramden-provision (0.1.9.16) noble; urgency=medium
 
   * kramden-spec:

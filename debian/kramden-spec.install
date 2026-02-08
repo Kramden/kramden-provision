@@ -5,6 +5,8 @@ usr/share/kramden-provision/scripts/bios_password.sh
 usr/share/kramden-provision/scripts/dell.sh
 usr/share/kramden-provision/scripts/asset.sh
 usr/share/kramden-provision/scripts/clock.sh
+usr/share/kramden-provision/scripts/efi_read.sh
+usr/share/kramden-provision/scripts/efi_write.sh
 usr/share/kramden-provision/scripts/kramden-secure-erase
 usr/share/kramden-provision/scripts/kramden-reset-spec
 usr/share/pixmaps/kramden_tracking_header.png
