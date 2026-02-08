@@ -1,3 +1,10 @@
+kramden-provision (0.1.9.16) noble; urgency=medium
+
+  * kramden-spec:
+    - Read and Write the KramdenNumber efivar
+
+ -- Ken VanDine <ken.vandine@canonical.com>  Sat, 07 Feb 2026 22:25:54 -0500
+
 kramden-provision (0.1.9.15) noble; urgency=medium
 
   * kramden-spec
