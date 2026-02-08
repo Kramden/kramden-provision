@@ -154,6 +154,10 @@ class SortlyRegister(Adw.Bin):
             self.register_button.set_sensitive(True)
         else:
             self._set_status("No existing record found for this serial. Enter a K-number to register.")
+            # Re-evaluate button state now that lookup is done
+            value = self.knumber_entry.get_text().strip()
+            if value and Utils.format_knumber(value) and not self._submitted:
+                self.register_button.set_sensitive(True)
 
     def _on_knumber_changed(self, entry):
         self._user_edited = True
@@ -164,7 +168,7 @@ class SortlyRegister(Adw.Bin):
 
         formatted = Utils.format_knumber(value)
         if formatted:
-            self.register_button.set_sensitive(not self._submitted)
+            self.register_button.set_sensitive(not self._submitted and self._lookup_done)
             # If entry matches existing item name, show "Update"; otherwise "Register"
             if self._existing_item and formatted == self._existing_item.get("name"):
                 self.register_button.set_label("Update")
