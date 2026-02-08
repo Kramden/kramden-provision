@@ -2,6 +2,7 @@ import psutil
 import subprocess
 import threading
 import os
+import tempfile
 from constants import snap_packages, deb_packages, CHASSIS_TYPE_MAP
 import gi
 
@@ -758,6 +759,57 @@ class Utils:
             return CHASSIS_TYPE_MAP.get(chassis_num)
         except (IOError, ValueError):
             return None
+
+    KRAMDEN_EFIVAR_GUID = "9a8e2042-75d4-4d70-9890-6a8437367c1f"
+    KRAMDEN_EFIVAR_PATH = (
+        f"/sys/firmware/efi/efivars/KramdenNumber-{KRAMDEN_EFIVAR_GUID}"
+    )
+
+    @staticmethod
+    def read_kramden_number_efivar():
+        """Read the KramdenNumber EFI variable, if it exists."""
+        try:
+            with open(Utils.KRAMDEN_EFIVAR_PATH, "rb") as f:
+                data = f.read()
+            # First 4 bytes are EFI variable attributes
+            value = data[4:].decode("utf-8").strip("\x00").strip()
+            return value if value else None
+        except Exception as e:
+            print(f"Could not read KramdenNumber efivar: {e}")
+            return None
+
+    @staticmethod
+    def write_kramden_number_efivar(value):
+        """Write the KramdenNumber EFI variable."""
+        temp_path = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w", delete=False, suffix=".efivar"
+            ) as f:
+                f.write(value)
+                temp_path = f.name
+            subprocess.run(
+                [
+                    "efivar",
+                    "--write",
+                    f"--name={Utils.KRAMDEN_EFIVAR_GUID}-KramdenNumber",
+                    f"--data={temp_path}",
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            print(
+                f"EFI variable KramdenNumber written with value '{value}'."
+            )
+        except Exception as e:
+            print(f"Failed to write KramdenNumber efivar: {e}")
+        finally:
+            if temp_path:
+                try:
+                    os.unlink(temp_path)
+                except Exception:
+                    pass
 
     @staticmethod
     def format_knumber(value):
