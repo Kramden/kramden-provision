@@ -106,6 +106,8 @@ class Utils:
         if len(hostname) < 1:
             return False
         result = subprocess.run(["hostnamectl", "set-hostname", hostname])
+        if result.returncode == 0:
+            Utils.write_kramden_number_efivar(hostname)
         return result.returncode == 0
 
     # Set timezone and sync hardware clock
