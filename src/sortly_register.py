@@ -84,6 +84,13 @@ class SortlyRegister(Adw.Bin):
         if self._lookup_done:
             return
 
+        # Prepopulate K-Number from EFI variable if available
+        efi_knumber = Utils.read_kramden_number_efivar()
+        if efi_knumber:
+            formatted = Utils.format_knumber(efi_knumber)
+            if formatted:
+                self.knumber_entry.set_text(formatted)
+
         self._set_status("Gathering system information...")
         self._system_info = get_system_info()
         self._populate_system_info()
@@ -249,6 +256,10 @@ class SortlyRegister(Adw.Bin):
 
         if success:
             self._submitted = True
+            # Write K-Number to EFI variable
+            knumber = Utils.format_knumber(self.knumber_entry.get_text().strip())
+            if knumber:
+                Utils.write_kramden_number_efivar(knumber)
             if self.register_button.get_label() == "Update":
                 self._set_status("Update successful!")
             else:

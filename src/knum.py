@@ -94,6 +94,13 @@ class KramdenNumber(Adw.Bin):
         if self._lookup_done:
             return
 
+        # Prepopulate K-Number from EFI variable if available
+        efi_knumber = Utils.read_kramden_number_efivar()
+        if efi_knumber:
+            formatted = Utils.format_knumber(efi_knumber)
+            if formatted and not self._user_edited:
+                self.knumber_entry.set_text(formatted)
+
         self._set_status("Gathering system information...")
         self._system_info = get_system_info()
         self._populate_system_info()
