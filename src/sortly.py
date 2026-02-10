@@ -13,7 +13,7 @@ from utils import Utils
 
 SORTLY_API_BASE_URL = "https://api.sortly.co/api/v1"
 OSLOAD_FOLDER_IDS = ["102396658", "102396645", "102312875"]
-SPEC_FOLDER_IDS = ["102312621", "102396723", "102396716"]
+SPEC_FOLDER_IDS = ["102312621", "102396723", "102396716", "102309828"]
 TEST_FOLDER_IDS = ["102298337"]
 SEARCH_FOLDER_IDS = ["102309375", "102312621", "102298337"]
 API_KEY_ENV_VAR = "SORTLY_API_KEY"
@@ -23,7 +23,11 @@ def get_stage_folder_ids(stage):
     """Return folder IDs for the given stage, or TEST_FOLDER_IDS if KRAMDEN_TEST is set."""
     if os.environ.get("KRAMDEN_TEST"):
         return TEST_FOLDER_IDS
-    stage_map = {"spec": SPEC_FOLDER_IDS, "osload": OSLOAD_FOLDER_IDS, "test": TEST_FOLDER_IDS}
+    stage_map = {
+        "spec": SPEC_FOLDER_IDS,
+        "osload": OSLOAD_FOLDER_IDS,
+        "test": TEST_FOLDER_IDS,
+    }
     return stage_map[stage]
 
 
@@ -33,7 +37,6 @@ def get_api_key():
     if not api_key:
         raise EnvironmentError(f"{API_KEY_ENV_VAR} environment variable must be set")
     return api_key
-
 
 
 def search_by_serial(api_key, folder_ids, serial_number):
@@ -301,7 +304,9 @@ def list_subfolders(api_key, parent_id, depth=0):
                         backoff_seconds *= 2
                         continue
                     else:
-                        print(f"{indent}Rate limit hit (429) and maximum retries reached.")
+                        print(
+                            f"{indent}Rate limit hit (429) and maximum retries reached."
+                        )
                         more_pages = False
                         break
 
