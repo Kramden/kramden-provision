@@ -5,3 +5,5 @@ usr/share/icons
 usr/share/pixmaps/kramden.png
 usr/bin/kramden-device
 etc/xdg/autostart/org.kramden.device.desktop
+usr/share/kramden-provision/scripts/efi-read.sh
+usr/share/kramden-provision/scripts/efi-write.sh
