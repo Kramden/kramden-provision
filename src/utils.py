@@ -309,6 +309,8 @@ class Utils:
             return "HP"
         if v.startswith("lenovo"):
             return "Lenovo"
+        if v.startswith("microsoft"):
+            return "Microsoft"
         return vendor
 
     # Get vendor
