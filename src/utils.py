@@ -805,6 +805,7 @@ class Utils:
                 temp_path = f.name
             subprocess.run(
                 [
+                    "sudo",
                     "efivar",
                     "--write",
                     f"--name={Utils.KRAMDEN_EFIVAR_GUID}-KramdenNumber",
