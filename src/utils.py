@@ -849,8 +849,8 @@ class Utils:
         if not suffix:
             return None
 
-        # Suffix must be all digits, or L followed by digits
-        if suffix[0] == "L":
+        # Suffix must be all digits, or a letter prefix (A, L) followed by digits
+        if suffix[0] in ("A", "L"):
             if len(suffix) < 2 or not suffix[1:].isdigit():
                 return None
         else:
