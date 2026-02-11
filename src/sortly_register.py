@@ -226,7 +226,6 @@ class SortlyRegister(Adw.Bin):
             return
 
         self.search_button.set_sensitive(False)
-        self.knumber_entry.set_sensitive(False)
         self.spinner.set_visible(True)
         self.spinner.start()
         self._set_status(f"Searching for '{formatted}' in Sortly...")
@@ -255,7 +254,6 @@ class SortlyRegister(Adw.Bin):
     def _on_search_complete(self, results, knumber, error):
         self.spinner.stop()
         self.spinner.set_visible(False)
-        self.knumber_entry.set_sensitive(True)
 
         if error:
             self._set_status(f"Search failed: {error}", error=True)
