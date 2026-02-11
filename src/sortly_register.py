@@ -107,18 +107,21 @@ class SortlyRegister(Adw.Bin):
             self._lookup_done = True
             return
 
+        # Capture K-number before starting thread (GTK widgets aren't thread-safe)
+        knumber = Utils.format_knumber(self.knumber_entry.get_text().strip())
+
         self._set_status(f"Looking up serial '{serial}' in Sortly...")
         self.spinner.set_visible(True)
         self.spinner.start()
 
         thread = threading.Thread(
             target=self._lookup_serial_thread,
-            args=(api_key, serial),
+            args=(api_key, serial, knumber),
             daemon=True,
         )
         thread.start()
 
-    def _lookup_serial_thread(self, api_key, serial):
+    def _lookup_serial_thread(self, api_key, serial, knumber):
         try:
             GLib.idle_add(self._set_status, "Discovering subfolders...")
             folder_ids = []
@@ -129,6 +132,12 @@ class SortlyRegister(Adw.Bin):
                 f"Searching {len(folder_ids)} folder(s) for serial '{serial}'...",
             )
             results = search_by_serial(api_key, folder_ids, serial)
+            if not results and knumber:
+                GLib.idle_add(
+                    self._set_status,
+                    f"Serial not found. Searching for '{knumber}' by name...",
+                )
+                results = search_item_by_name(api_key, folder_ids, knumber)
         except Exception as e:
             GLib.idle_add(self._on_lookup_complete, None, str(e))
             return
