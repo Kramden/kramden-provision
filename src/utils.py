@@ -35,7 +35,7 @@ class Utils:
             data = json.loads(json_output)
             self.hostname = data.get("StaticHostname", "")
             self.model = data.get("HardwareModel", "")
-            self.vendor = data.get("HardwareVendor", "")
+            self.vendor = self._normalize_vendor(data.get("HardwareVendor", ""))
             # NOTE: Some Lenovo firmware is known to expose an incorrect or dummy
             # HardwareSerial via systemd-hostnamed / `hostnamectl` (for example,
             # all-zero values or "Not Available"). For Lenovo systems we therefore
@@ -299,6 +299,17 @@ class Utils:
         except (OSError, subprocess.SubprocessError):
             pass
         return None
+
+    @staticmethod
+    def _normalize_vendor(vendor):
+        v = vendor.lower()
+        if v.startswith("dell"):
+            return "Dell"
+        if v.startswith("hp") or v.startswith("hewlett"):
+            return "HP"
+        if v.startswith("lenovo"):
+            return "Lenovo"
+        return vendor
 
     # Get vendor
     def get_vendor(self):
