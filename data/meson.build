@@ -49,5 +49,13 @@ device_autoinstall_file = configure_file(
   install_dir: join_paths(get_option('sysconfdir'), 'xdg/autostart')
 )
 
+secureerase_file = configure_file(
+  input: 'org.kramden.provision-secureerase.desktop.in',
+  output: 'org.kramden.provision-secureerase.desktop',
+  copy: true,
+  install: true,
+  install_dir: join_paths(get_option('datadir'), 'applications')
+)
+
 subdir('icons')
 subdir('documents')

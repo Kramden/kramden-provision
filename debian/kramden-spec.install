@@ -1,5 +1,7 @@
 usr/share/applications/org.kramden.spec.desktop
+usr/share/applications/org.kramden.provision-secureerase.desktop
 usr/bin/kramden-spec
+usr/bin/kramden-provision-secureerase
 etc/xdg/autostart/org.kramden.spec.desktop
 usr/share/kramden-provision/scripts/bios_password.sh
 usr/share/kramden-provision/scripts/dell.sh

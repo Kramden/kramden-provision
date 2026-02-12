@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import concurrent.futures
 import gi
 import os
 import subprocess
@@ -71,13 +72,13 @@ def _get_drive_size(path):
 
 
 def erase_drive(drive, test_mode):
-    """Erase a single drive. Returns (success, message)."""
+    """Erase a single drive. Returns (success, short_message, detail)."""
     path = drive["path"]
     drive_type = drive["type"]
 
     if test_mode:
         time.sleep(2)
-        return True, f"[TEST] Would erase {drive_type} drive {path}"
+        return True, f"[TEST] Would erase {drive_type} drive {path}", None
 
     try:
         if drive_type == "SATA":
@@ -100,12 +101,18 @@ def erase_drive(drive, test_mode):
             )
 
         if result.returncode == 0:
-            return True, f"Successfully erased {path}"
+            return True, f"Successfully erased {path}", None
         else:
-            error = result.stderr.strip() or result.stdout.strip()
-            return False, f"Failed to erase {path}: {error}"
+            detail = ""
+            if result.stdout.strip():
+                detail += result.stdout.strip()
+            if result.stderr.strip():
+                if detail:
+                    detail += "\n"
+                detail += result.stderr.strip()
+            return False, f"Failed to erase {path}", detail or None
     except OSError as e:
-        return False, f"Failed to erase {path}: {e}"
+        return False, f"Failed to erase {path}", str(e)
 
 
 class DriveRow(Adw.ActionRow):
@@ -114,8 +121,11 @@ class DriveRow(Adw.ActionRow):
     def __init__(self, drive):
         super().__init__()
         self.drive = drive
+        self._default_subtitle = f"{drive['type']}  —  {drive['size']}"
         self.set_title(drive["path"])
-        self.set_subtitle(f"{drive['type']}  —  {drive['size']}")
+        self.set_subtitle(self._default_subtitle)
+        self.succeeded = False
+        self.error_detail = None
 
         self.check = Gtk.CheckButton()
         self.check.set_active(True)
@@ -125,31 +135,74 @@ class DriveRow(Adw.ActionRow):
         self.status_icon.set_visible(False)
         self.add_suffix(self.status_icon)
 
+        self.detail_button = Gtk.Button(icon_name="dialog-information-symbolic")
+        self.detail_button.add_css_class("flat")
+        self.detail_button.set_visible(False)
+        self.detail_button.set_valign(Gtk.Align.CENTER)
+        self.detail_button.set_tooltip_text("View error details")
+        self.detail_button.connect("clicked", self._on_detail_clicked)
+        self.add_suffix(self.detail_button)
+
         self.spinner = Gtk.Spinner()
         self.spinner.set_visible(False)
         self.add_suffix(self.spinner)
 
+    def _clear_status_classes(self):
+        self.status_icon.remove_css_class("success-icon")
+        self.status_icon.remove_css_class("error-icon")
+
+    def reset(self):
+        """Reset row to pre-erase state for retry."""
+        self.spinner.stop()
+        self.spinner.set_visible(False)
+        self._clear_status_classes()
+        self.status_icon.set_visible(False)
+        self.detail_button.set_visible(False)
+        self.set_subtitle(self._default_subtitle)
+        self.succeeded = False
+        self.error_detail = None
+
     def set_in_progress(self):
         self.spinner.set_visible(True)
         self.spinner.start()
+        self._clear_status_classes()
         self.status_icon.set_visible(False)
+        self.detail_button.set_visible(False)
         self.check.set_sensitive(False)
 
     def set_success(self, message):
         self.spinner.stop()
         self.spinner.set_visible(False)
+        self._clear_status_classes()
         self.status_icon.set_from_icon_name("emblem-ok-symbolic")
         self.status_icon.add_css_class("success-icon")
         self.status_icon.set_visible(True)
         self.set_subtitle(message)
+        self.succeeded = True
 
-    def set_failure(self, message):
+    def set_failure(self, short_message, detail):
         self.spinner.stop()
         self.spinner.set_visible(False)
+        self._clear_status_classes()
         self.status_icon.set_from_icon_name("dialog-error-symbolic")
         self.status_icon.add_css_class("error-icon")
         self.status_icon.set_visible(True)
-        self.set_subtitle(message)
+        self.set_subtitle(short_message)
+        self.error_detail = detail
+        if detail:
+            self.detail_button.set_visible(True)
+        self.succeeded = False
+
+    def _on_detail_clicked(self, button):
+        window = self.get_root()
+        dialog = Adw.MessageDialog(
+            transient_for=window,
+            heading=f"Error erasing {self.drive['path']}",
+            body=self.error_detail or "No details available.",
+        )
+        dialog.add_response("close", "Close")
+        dialog.set_default_response("close")
+        dialog.present()
 
 
 class SecureEraseWindow(Gtk.ApplicationWindow):
@@ -306,9 +359,15 @@ class SecureEraseWindow(Gtk.ApplicationWindow):
 
         self.erasing = True
         self.erase_button.set_sensitive(False)
-        # Disable unchecked rows too during erase
+        # Reset selected rows and disable all checkboxes during erase
+        for row in selected_rows:
+            row.reset()
         for row in self.drive_rows:
             row.check.set_sensitive(False)
+        # Clear stale status label
+        self.status_label.set_visible(False)
+        self.status_label.remove_css_class("success-text")
+        self.status_label.remove_css_class("text-error")
 
         thread = threading.Thread(
             target=self._erase_thread,
@@ -317,24 +376,39 @@ class SecureEraseWindow(Gtk.ApplicationWindow):
         )
         thread.start()
 
+    def _erase_drive_worker(self, row):
+        """Erase a single drive and update its row. Returns success bool."""
+        GLib.idle_add(row.set_in_progress)
+        success, short_message, detail = erase_drive(row.drive, TEST_MODE)
+        if success:
+            GLib.idle_add(row.set_success, short_message)
+        else:
+            GLib.idle_add(row.set_failure, short_message, detail)
+        return success
+
     def _erase_thread(self, selected_rows):
         results = []
-        for row in selected_rows:
-            GLib.idle_add(row.set_in_progress)
-            success, message = erase_drive(row.drive, TEST_MODE)
-            results.append((success, message))
-            if success:
-                GLib.idle_add(row.set_success, message)
-            else:
-                GLib.idle_add(row.set_failure, message)
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=len(selected_rows)
+        ) as executor:
+            futures = {
+                executor.submit(self._erase_drive_worker, row): row
+                for row in selected_rows
+            }
+            for future in concurrent.futures.as_completed(futures):
+                results.append(future.result())
 
         GLib.idle_add(self._erase_complete, results)
 
     def _erase_complete(self, results):
         self.erasing = False
         total = len(results)
-        succeeded = sum(1 for s, _ in results if s)
+        succeeded = sum(1 for s in results if s)
         failed = total - succeeded
+
+        # Clear stale classes before applying
+        self.status_label.remove_css_class("success-text")
+        self.status_label.remove_css_class("text-error")
 
         if failed == 0:
             self.status_label.set_text(
@@ -348,6 +422,17 @@ class SecureEraseWindow(Gtk.ApplicationWindow):
             self.status_label.add_css_class("text-error")
 
         self.status_label.set_visible(True)
+
+        # Re-enable erase button and checkboxes on failed rows for retry
+        self.erase_button.set_sensitive(True)
+        for row in self.drive_rows:
+            if row.succeeded:
+                row.check.set_active(False)
+                row.check.set_sensitive(False)
+            else:
+                row.check.set_active(True)
+                row.check.set_sensitive(True)
+
         return False
 
 
