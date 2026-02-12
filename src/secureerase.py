@@ -3,6 +3,7 @@
 import concurrent.futures
 import gi
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -82,17 +83,7 @@ def erase_drive(drive, test_mode):
 
     try:
         if drive_type == "SATA":
-            result = subprocess.run(
-                [
-                    "sudo",
-                    "hdparm",
-                    "--yes-i-know-what-i-am-doing",
-                    "--sanitize-block-erase",
-                    path,
-                ],
-                capture_output=True,
-                text=True,
-            )
+            return _erase_sata(path)
         else:  # NVMe
             result = subprocess.run(
                 ["sudo", "nvme", "format", "--force", path],
@@ -113,6 +104,74 @@ def erase_drive(drive, test_mode):
             return False, f"Failed to erase {path}", detail or None
     except OSError as e:
         return False, f"Failed to erase {path}", str(e)
+
+
+def _erase_sata(path):
+    """Erase a SATA drive, falling back to ATA Security Erase if SANITIZE is not supported."""
+    # Try SANITIZE block erase first (preferred, faster)
+    result = subprocess.run(
+        [
+            "sudo",
+            "hdparm",
+            "--yes-i-know-what-i-am-doing",
+            "--sanitize-block-erase",
+            path,
+        ],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0:
+        return True, f"Successfully erased {path}", None
+
+    # SANITIZE not supported, fall back to ATA Security Erase
+    # Check if drive is frozen (security commands will fail on frozen drives)
+    info_result = subprocess.run(
+        ["sudo", "hdparm", "-I", path],
+        capture_output=True,
+        text=True,
+    )
+    if not re.search(r"not\s+frozen", info_result.stdout):
+        return (
+            False,
+            f"Failed to erase {path}",
+            "Drive is frozen. Try suspending and resuming the system first.",
+        )
+
+    # Set a temporary password (required before security erase)
+    result = subprocess.run(
+        ["sudo", "hdparm", "--security-set-pass", "p", path],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        detail = (result.stdout.strip() + "\n" + result.stderr.strip()).strip()
+        return (
+            False,
+            f"Failed to erase {path}",
+            f"Could not set security password:\n{detail}" if detail else None,
+        )
+
+    # Issue ATA Security Erase
+    result = subprocess.run(
+        ["sudo", "hdparm", "--security-erase", "p", path],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0:
+        return True, f"Successfully erased {path}", None
+
+    # Erase failed — try to clear the password so the drive isn't left locked
+    subprocess.run(
+        ["sudo", "hdparm", "--security-disable", "p", path],
+        capture_output=True,
+        text=True,
+    )
+    detail = (result.stdout.strip() + "\n" + result.stderr.strip()).strip()
+    return (
+        False,
+        f"Failed to erase {path}",
+        f"ATA Security Erase failed:\n{detail}" if detail else None,
+    )
 
 
 class DriveRow(Adw.ActionRow):
