@@ -305,7 +305,7 @@ class Utils:
         if not vendor:
             return ""
         # Ensure vendor is a string before calling .lower()
-        vendor_str = str(vendor) if not isinstance(vendor, str) else vendor
+        vendor_str = str(vendor)
         v = vendor_str.lower()
         if v.startswith("dell"):
             return "Dell"
