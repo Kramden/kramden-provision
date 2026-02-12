@@ -4,7 +4,7 @@ picture-uri-dark = 'file:///usr/share/backgrounds/kramden-wallpaper.png'
 
 [org.gnome.shell:ubuntu]
 always-show-log-out = true
-favorite-apps = [ 'firefox.desktop', 'org.gnome.Nautilus.desktop', 'gparted.desktop', 'org.kramden.spec.desktop', 'org.gnome.Terminal.desktop' ]
+favorite-apps = [ 'firefox.desktop', 'org.gnome.Nautilus.desktop', 'org.kramden.secure-erase.desktop', 'org.kramden.spec.desktop', 'org.gnome.Terminal.desktop' ]
 
 [org.gnome.desktop.interface]
 clock-format = '12h'
