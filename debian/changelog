@@ -1,3 +1,10 @@
+kramden-provision (0.1.99.4) UNRELEASED; urgency=medium
+
+  * kramden-provision:
+    - install get-kramden-provision script to fetch latest source for testing
+
+ -- Ken VanDine <ken.vandine@canonical.com>  Wed, 11 Feb 2026 22:42:51 -0500
+
 kramden-provision (0.1.99.3) noble; urgency=medium
 
   * kramden-spec:

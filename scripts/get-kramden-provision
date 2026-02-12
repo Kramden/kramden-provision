@@ -1,0 +1,27 @@
+#!/bin/bash
+
+set -euo pipefail
+
+REPO_URL="https://github.com/kramden/kramden-provision.git"
+REPO_DIR="kramden-provision"
+
+if ! command -v git &>/dev/null; then
+    echo "❌ Error: git is not installed." >&2
+    exit 1
+fi
+
+if [ -d "$REPO_DIR" ]; then
+    echo "📂 Directory '$REPO_DIR' already exists. Pulling latest changes..."
+    if ! git -C "$REPO_DIR" pull; then
+        echo "❌ Error: failed to pull updates in '$REPO_DIR'." >&2
+        exit 1
+    fi
+    echo "✅ Done: $PWD/$REPO_DIR is up to date."
+else
+    echo "📦 Cloning kramden-provision..."
+    if ! git clone "$REPO_URL"; then
+        echo "❌ Error: failed to clone $REPO_URL." >&2
+        exit 1
+    fi
+    echo "✅ Done: kramden-provision cloned to $PWD/$REPO_DIR"
+fi

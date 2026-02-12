@@ -4,3 +4,4 @@ usr/share/applications/org.kramden.provision-finaltest.desktop
 usr/share/applications/org.kramden.provision-osload.desktop
 usr/share/kramden-provision/scripts/kramden-reset-finaltest
 usr/share/kramden-provision/scripts/kramden-reset-osload
+usr/share/kramden-provision/scripts/get-kramden-provision
