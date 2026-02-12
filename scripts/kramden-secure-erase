@@ -14,12 +14,41 @@ then
         if [[ "$conf" == "y" || "$conf" == "Y" ]];
         then
             echo "Securely erasing SATA drive $disk"
-            hdparm --yes-i-know-what-i-am-doing --sanitize-block-erase $disk >/dev/null
-            hdparm --sanitize-status $disk
-	    if [ "$?" -eq 0 ]; then
+            # Try SANITIZE block erase first (preferred, faster)
+            if hdparm --yes-i-know-what-i-am-doing --sanitize-block-erase $disk >/dev/null 2>&1; then
+                hdparm --sanitize-status $disk
                 echo "Successfully erased $disk"
             else
-                echo "Secure erase of $disk failed"
+                echo "SANITIZE not supported on $disk, falling back to ATA Security Erase"
+                # Check if drive is frozen (security commands will fail on frozen drives)
+                if ! hdparm -I $disk 2>/dev/null | grep -q "not.*frozen"; then
+                    read -p "Drive $disk is frozen. Suspend and resume to unfreeze? y/n: " ans
+                    if [[ "$ans" == "y" || "$ans" == "Y" ]]; then
+                        echo "Suspending system for 5 seconds to unfreeze drive..."
+                        rtcwake -m mem -s 5
+                        if ! hdparm -I $disk 2>/dev/null | grep -q "not.*frozen"; then
+                            echo "ERROR: Drive $disk is still frozen after resume."
+                            continue
+                        fi
+                        echo "Drive $disk is now unfrozen."
+                    else
+                        echo "Skipping frozen drive $disk"
+                        continue
+                    fi
+                fi
+                # Set a temporary password (required before security erase)
+                if ! hdparm --security-set-pass p $disk; then
+                    echo "Failed to set security password on $disk"
+                    continue
+                fi
+                # Issue ATA Security Erase
+                if hdparm --security-erase p $disk; then
+                    echo "Successfully erased $disk via ATA Security Erase"
+                else
+                    echo "ATA Security Erase of $disk failed"
+                    # Try to clear the password so the drive isn't left locked
+                    hdparm --security-disable p $disk 2>/dev/null
+                fi
             fi
         fi
     done

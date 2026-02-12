@@ -44,6 +44,15 @@ configure_file(
   install_mode: 'rwxr-xr-x'
 )
 
+configure_file(
+  input: 'kramden-secure-erase.in',
+  output: 'kramden-secure-erase',
+  configuration: conf,
+  install: true,
+  install_dir: get_option('bindir'),
+  install_mode: 'rwxr-xr-x'
+)
+
 sources = [
   'check_packages.py',
   'constants.py',
@@ -67,6 +76,7 @@ sources = [
   'speccomplete.py',
   'specinfo.py',
   'sysinfo.py',
+  'secureerase.py',
   'utils.py',
   'getlearngive.png',
   'landscape_dark.png',
