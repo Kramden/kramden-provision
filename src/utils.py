@@ -302,7 +302,11 @@ class Utils:
 
     @staticmethod
     def _normalize_vendor(vendor):
-        v = vendor.lower()
+        if not vendor:
+            return ""
+        # Ensure vendor is a string before calling .lower()
+        vendor_str = str(vendor) if not isinstance(vendor, str) else vendor
+        v = vendor_str.lower()
         if v.startswith("dell"):
             return "Dell"
         if v.startswith("hp") or v.startswith("hewlett"):
@@ -311,7 +315,7 @@ class Utils:
             return "Lenovo"
         if v.startswith("microsoft"):
             return "Microsoft"
-        return vendor
+        return vendor_str
 
     # Get vendor
     def get_vendor(self):
