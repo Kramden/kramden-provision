@@ -1181,6 +1181,34 @@ Memory Device
         """Test L with single digit is accepted."""
         self.assertEqual(Utils.format_knumber("kl5"), "K-L5")
 
+    def test_format_knumber_lowercase_a_prefix(self):
+        """Test k followed by a and digits inserts dash and uppercases."""
+        self.assertEqual(Utils.format_knumber("ka12498"), "K-A12498")
+
+    def test_format_knumber_dash_and_uppercase_a(self):
+        """Test k-A prefix with digits."""
+        self.assertEqual(Utils.format_knumber("k-A89765"), "K-A89765")
+
+    def test_format_knumber_uppercase_a_no_dash(self):
+        """Test uppercase K and A without dash."""
+        self.assertEqual(Utils.format_knumber("KA99999"), "K-A99999")
+
+    def test_format_knumber_a_single_digit(self):
+        """Test A with single digit is accepted."""
+        self.assertEqual(Utils.format_knumber("ka5"), "K-A5")
+
+    def test_format_knumber_a_already_formatted(self):
+        """Test already correctly formatted A-prefix input."""
+        self.assertEqual(Utils.format_knumber("K-A03676"), "K-A03676")
+
+    def test_format_knumber_a_only_no_digits(self):
+        """Test K-A with no digits returns None."""
+        self.assertIsNone(Utils.format_knumber("K-A"))
+
+    def test_format_knumber_a_with_letters(self):
+        """Test K-A followed by non-digits returns None."""
+        self.assertIsNone(Utils.format_knumber("K-Aabc"))
+
     def test_format_knumber_test_prefix(self):
         """Test TEST- prefix with digits is accepted."""
         self.assertEqual(Utils.format_knumber("TEST-123"), "TEST-123")

@@ -35,7 +35,7 @@ class Utils:
             data = json.loads(json_output)
             self.hostname = data.get("StaticHostname", "")
             self.model = data.get("HardwareModel", "")
-            self.vendor = data.get("HardwareVendor", "")
+            self.vendor = self._normalize_vendor(data.get("HardwareVendor", ""))
             # NOTE: Some Lenovo firmware is known to expose an incorrect or dummy
             # HardwareSerial via systemd-hostnamed / `hostnamectl` (for example,
             # all-zero values or "Not Available"). For Lenovo systems we therefore
@@ -299,6 +299,23 @@ class Utils:
         except (OSError, subprocess.SubprocessError):
             pass
         return None
+
+    @staticmethod
+    def _normalize_vendor(vendor):
+        if not vendor:
+            return ""
+        # Ensure vendor is a string before calling .lower()
+        vendor_str = str(vendor)
+        v = vendor_str.lower()
+        if v.startswith("dell"):
+            return "Dell"
+        if v.startswith("hp") or v.startswith("hewlett"):
+            return "HP"
+        if v.startswith("lenovo"):
+            return "Lenovo"
+        if v.startswith("microsoft"):
+            return "Microsoft"
+        return vendor_str
 
     # Get vendor
     def get_vendor(self):
@@ -792,6 +809,7 @@ class Utils:
                 temp_path = f.name
             subprocess.run(
                 [
+                    "sudo",
                     "efivar",
                     "--write",
                     f"--name={Utils.KRAMDEN_EFIVAR_GUID}-KramdenNumber",
@@ -849,8 +867,8 @@ class Utils:
         if not suffix:
             return None
 
-        # Suffix must be all digits, or L followed by digits
-        if suffix[0] == "L":
+        # Suffix must be all digits, or a letter prefix (A, L) followed by digits
+        if suffix[0] in ("A", "L"):
             if len(suffix) < 2 or not suffix[1:].isdigit():
                 return None
         else:

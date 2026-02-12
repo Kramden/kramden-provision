@@ -2,8 +2,9 @@ import gi
 import threading
 
 gi.require_version("Adw", "1")
+gi.require_version("Gdk", "4.0")
 gi.require_version("Gtk", "4.0")
-from gi.repository import Adw, Gtk, GLib
+from gi.repository import Adw, Gdk, Gtk, GLib
 
 from utils import Utils
 from sortly import (
@@ -34,6 +35,7 @@ class SortlyRegister(Adw.Bin):
         self._existing_item = None
         self._system_info = None
         self._user_edited = False
+        self._folder_ids = []
 
         # Main vertical layout
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
@@ -46,11 +48,22 @@ class SortlyRegister(Adw.Bin):
         self.knumber_entry.set_hexpand(True)
         self.knumber_entry.connect("changed", self._on_knumber_changed)
 
+        key_controller = Gtk.EventControllerKey()
+        key_controller.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        key_controller.connect("key-pressed", self._on_knumber_key_pressed)
+        self.knumber_entry.add_controller(key_controller)
+
+        self.search_button = Gtk.Button(label="Search")
+        self.search_button.set_visible(False)
+        self.search_button.set_sensitive(False)
+        self.search_button.connect("clicked", self._on_search_clicked)
+
         self.spinner = Gtk.Spinner()
         self.spinner.set_visible(False)
 
         knumber_box.append(knumber_label)
         knumber_box.append(self.knumber_entry)
+        knumber_box.append(self.search_button)
         knumber_box.append(self.spinner)
 
         # Status label
@@ -124,6 +137,7 @@ class SortlyRegister(Adw.Bin):
             folder_ids = []
             for fid in get_stage_folder_ids("spec"):
                 folder_ids.extend(list_subfolders(api_key, fid))
+            self._folder_ids = folder_ids
             GLib.idle_add(
                 self._set_status,
                 f"Searching {len(folder_ids)} folder(s) for serial '{serial}'...",
@@ -153,32 +167,109 @@ class SortlyRegister(Adw.Bin):
             self.register_button.set_label("Update")
             self.register_button.set_sensitive(True)
         else:
-            self._set_status("No existing record found for this serial. Enter a K-number to register.")
-            # Re-evaluate button state now that lookup is done
+            self._set_status("No existing record found for this serial. Enter a K-number and search.")
+            self.search_button.set_visible(True)
+            # Enable search button if there's already a valid K-number
             value = self.knumber_entry.get_text().strip()
             if value and Utils.format_knumber(value) and not self._submitted:
-                self.register_button.set_sensitive(True)
+                self.search_button.set_sensitive(True)
 
     def _on_knumber_changed(self, entry):
         self._user_edited = True
         value = entry.get_text().strip()
+        formatted = Utils.format_knumber(value) if value else None
+
         if not value:
             self.register_button.set_sensitive(False)
+            self.search_button.set_sensitive(False)
             return
 
-        formatted = Utils.format_knumber(value)
-        if formatted:
+        if not formatted:
+            self.register_button.set_sensitive(False)
+            self.search_button.set_sensitive(False)
+            self._set_status("Invalid K-number format.", error=True)
+            return
+
+        self._set_status("")
+
+        if self.search_button.get_visible():
+            # Serial was not found — require explicit K-number search
+            self._existing_item = None
+            self.register_button.set_sensitive(False)
+            self.register_button.set_label("Register")
+            self.search_button.set_sensitive(not self._submitted)
+        else:
+            # Serial was found — existing behavior
             self.register_button.set_sensitive(not self._submitted and self._lookup_done)
-            # If entry matches existing item name, show "Update"; otherwise "Register"
             if self._existing_item and formatted == self._existing_item.get("name"):
                 self.register_button.set_label("Update")
             else:
                 self.register_button.set_label("Register")
-            self._set_status("")
+
+    def _on_knumber_key_pressed(self, controller, keyval, keycode, state):
+        if keyval in (Gdk.KEY_Return, Gdk.KEY_KP_Enter):
+            if self.search_button.get_visible() and self.search_button.get_sensitive():
+                GLib.idle_add(self._on_search_clicked, self.search_button)
+        return False
+
+    def _on_search_clicked(self, button):
+        raw_value = self.knumber_entry.get_text().strip()
+        formatted = Utils.format_knumber(raw_value)
+        if not formatted:
+            self._set_status("Invalid K-number format.", error=True)
+            return
+
+        try:
+            api_key = get_api_key()
+        except EnvironmentError as e:
+            self._set_status(str(e), error=True)
+            return
+
+        self.search_button.set_sensitive(False)
+        self.spinner.set_visible(True)
+        self.spinner.start()
+        self._set_status(f"Searching for '{formatted}' in Sortly...")
+
+        thread = threading.Thread(
+            target=self._search_knumber_thread,
+            args=(api_key, formatted),
+            daemon=True,
+        )
+        thread.start()
+
+    def _search_knumber_thread(self, api_key, knumber):
+        try:
+            folder_ids = self._folder_ids
+            if not folder_ids:
+                folder_ids = []
+                for fid in get_stage_folder_ids("spec"):
+                    folder_ids.extend(list_subfolders(api_key, fid))
+                self._folder_ids = folder_ids
+            results = search_item_by_name(api_key, folder_ids, knumber)
+        except Exception as e:
+            GLib.idle_add(self._on_search_complete, None, knumber, str(e))
+            return
+        GLib.idle_add(self._on_search_complete, results, knumber, None)
+
+    def _on_search_complete(self, results, knumber, error):
+        self.spinner.stop()
+        self.spinner.set_visible(False)
+
+        if error:
+            self._set_status(f"Search failed: {error}", error=True)
+            self.search_button.set_sensitive(True)
+            return
+
+        if results:
+            self._existing_item = results[0]
+            self._set_status(f"Found existing record: {knumber}")
+            self.register_button.set_label("Update")
         else:
-            self.register_button.set_sensitive(False)
-            if value:
-                self._set_status("Invalid K-number format.", error=True)
+            self._existing_item = None
+            self._set_status(f"No record found for {knumber}.")
+            self.register_button.set_label("Register")
+
+        self.register_button.set_sensitive(not self._submitted)
 
     def _on_register_clicked(self, button):
         if self._submitted:
