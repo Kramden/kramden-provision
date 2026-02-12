@@ -16,6 +16,8 @@ from gi.repository import Gdk, Gtk, Adw, GLib
 
 TEST_MODE = "--test" in sys.argv
 
+_FROZEN_DETAIL = "DRIVE_FROZEN"
+
 
 def detect_drives():
     """Detect non-removable SATA and NVMe drives using lsblk."""
@@ -131,11 +133,7 @@ def _erase_sata(path):
         text=True,
     )
     if not re.search(r"not\s+frozen", info_result.stdout):
-        return (
-            False,
-            f"Failed to erase {path}",
-            "Drive is frozen. Try suspending and resuming the system first.",
-        )
+        return (False, f"Failed to erase {path}", _FROZEN_DETAIL)
 
     # Set a temporary password (required before security erase)
     result = subprocess.run(
@@ -270,6 +268,9 @@ class SecureEraseWindow(Gtk.ApplicationWindow):
         self.set_icon_name("kramden")
         self.set_default_size(800, 600)
         self.erasing = False
+        self._suspend_lock = threading.Lock()
+        self._has_suspended = False
+        self._suspend_declined = False
 
         # Header bar
         header_bar = Gtk.HeaderBar()
@@ -417,6 +418,8 @@ class SecureEraseWindow(Gtk.ApplicationWindow):
             return
 
         self.erasing = True
+        self._has_suspended = False
+        self._suspend_declined = False
         self.erase_button.set_sensitive(False)
         # Reset selected rows and disable all checkboxes during erase
         for row in selected_rows:
@@ -439,11 +442,70 @@ class SecureEraseWindow(Gtk.ApplicationWindow):
         """Erase a single drive and update its row. Returns success bool."""
         GLib.idle_add(row.set_in_progress)
         success, short_message, detail = erase_drive(row.drive, TEST_MODE)
+
+        # Handle frozen SATA drives — prompt user to suspend/resume
+        if not success and detail == _FROZEN_DETAIL:
+            if self._handle_frozen_drive(row.drive["path"]):
+                success, short_message, detail = erase_drive(row.drive, TEST_MODE)
+            else:
+                detail = "Skipped — drive is frozen and suspend was declined."
+
         if success:
             GLib.idle_add(row.set_success, short_message)
         else:
             GLib.idle_add(row.set_failure, short_message, detail)
         return success
+
+    def _handle_frozen_drive(self, path):
+        """Prompt user to suspend/resume to unfreeze a drive. Returns True if suspend was performed."""
+        with self._suspend_lock:
+            if self._has_suspended:
+                return True
+            if self._suspend_declined:
+                return False
+
+            event = threading.Event()
+            confirmed = [False]
+
+            def show_dialog():
+                dialog = Adw.MessageDialog(
+                    transient_for=self,
+                    heading="Drive Frozen",
+                    body=(
+                        f"Drive {path} is frozen and cannot be securely erased.\n\n"
+                        "The system must briefly suspend and resume to unfreeze "
+                        "the drive. This will take about 5 seconds.\n\n"
+                        "Suspend now?"
+                    ),
+                )
+                dialog.add_response("skip", "Skip")
+                dialog.add_response("suspend", "Suspend & Resume")
+                dialog.set_response_appearance(
+                    "suspend", Adw.ResponseAppearance.SUGGESTED
+                )
+                dialog.set_default_response("suspend")
+                dialog.set_close_response("skip")
+
+                def on_response(d, response):
+                    confirmed[0] = response == "suspend"
+                    event.set()
+
+                dialog.connect("response", on_response)
+                dialog.present()
+
+            GLib.idle_add(show_dialog)
+            event.wait()
+
+            if confirmed[0]:
+                subprocess.run(
+                    ["sudo", "rtcwake", "-m", "mem", "-s", "5"],
+                    capture_output=True,
+                )
+                self._has_suspended = True
+                return True
+
+            self._suspend_declined = True
+            return False
 
     def _erase_thread(self, selected_rows):
         results = []

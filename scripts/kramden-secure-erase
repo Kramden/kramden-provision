@@ -22,8 +22,19 @@ then
                 echo "SANITIZE not supported on $disk, falling back to ATA Security Erase"
                 # Check if drive is frozen (security commands will fail on frozen drives)
                 if ! hdparm -I $disk 2>/dev/null | grep -q "not.*frozen"; then
-                    echo "ERROR: Drive $disk is frozen. Try suspending and resuming the system first."
-                    continue
+                    read -p "Drive $disk is frozen. Suspend and resume to unfreeze? y/n: " ans
+                    if [[ "$ans" == "y" || "$ans" == "Y" ]]; then
+                        echo "Suspending system for 5 seconds to unfreeze drive..."
+                        rtcwake -m mem -s 5
+                        if ! hdparm -I $disk 2>/dev/null | grep -q "not.*frozen"; then
+                            echo "ERROR: Drive $disk is still frozen after resume."
+                            continue
+                        fi
+                        echo "Drive $disk is now unfrozen."
+                    else
+                        echo "Skipping frozen drive $disk"
+                        continue
+                    fi
                 fi
                 # Set a temporary password (required before security erase)
                 if ! hdparm --security-set-pass p $disk; then
