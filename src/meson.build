@@ -45,8 +45,8 @@ configure_file(
 )
 
 configure_file(
-  input: 'kramden-provision-secureerase.in',
-  output: 'kramden-provision-secureerase',
+  input: 'kramden-secure-erase.in',
+  output: 'kramden-secure-erase',
   configuration: conf,
   install: true,
   install_dir: get_option('bindir'),

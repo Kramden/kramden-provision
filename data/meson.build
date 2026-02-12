@@ -50,8 +50,8 @@ device_autoinstall_file = configure_file(
 )
 
 secureerase_file = configure_file(
-  input: 'org.kramden.provision-secureerase.desktop.in',
-  output: 'org.kramden.provision-secureerase.desktop',
+  input: 'org.kramden.secure-erase.desktop.in',
+  output: 'org.kramden.secure-erase.desktop',
   copy: true,
   install: true,
   install_dir: join_paths(get_option('datadir'), 'applications')
