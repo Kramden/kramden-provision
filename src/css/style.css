@@ -11,3 +11,28 @@
 .text-error {
     color: #E95420; /* Text color */
 }
+
+/* Secure Erase styles */
+.destructive-banner {
+    background-color: #c01c28;
+    color: white;
+    font-weight: bold;
+}
+
+.test-mode-banner {
+    background-color: #e5a50a;
+    color: black;
+    font-weight: bold;
+}
+
+.success-icon {
+    color: #3fe35a;
+}
+
+.error-icon {
+    color: #E95420;
+}
+
+.success-text {
+    color: #3fe35a;
+}
