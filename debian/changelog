@@ -1,4 +1,4 @@
-kramden-provision (0.1.99.4) UNRELEASED; urgency=medium
+kramden-provision (0.1.99.4) noble; urgency=medium
 
   * kramden-provision:
     - install get-kramden-provision script to fetch latest source for testing
