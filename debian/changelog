@@ -1,3 +1,11 @@
+kramden-provision (0.1.99.3) noble; urgency=medium
+
+  * kramden-spec:
+    - sortly improvements after testing with a variety of devices at a WWN
+    event.
+
+ -- Ken VanDine <ken.vandine@canonical.com>  Wed, 11 Feb 2026 21:53:25 -0500
+
 kramden-provision (0.1.99.2) noble; urgency=medium
 
   * Fixed path to efi scripts
