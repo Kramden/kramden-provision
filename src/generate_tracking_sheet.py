@@ -90,7 +90,7 @@ def get_system_info():
     return info
 
 
-def generate_tracking_sheet(item_name, output_path=None, spec_passed=None):
+def generate_tracking_sheet(item_name, output_path=None, spec_passed=None, manual_test_results=None):
     """Generate a PDF tracking sheet for a computer."""
     if output_path is None:
         output_path = f"/tmp/{item_name}_tracking_sheet.pdf"
@@ -367,6 +367,62 @@ def generate_tracking_sheet(item_name, output_path=None, spec_passed=None):
         )
     )
     elements.append(qc_table)
+
+    # --- Manual Test Results ---
+    if manual_test_results is not None:
+        elements.append(Paragraph("MANUAL TEST RESULTS", section_header_style))
+
+        # Fixed display order
+        test_display_order = [
+            "USB", "Browser", "WiFi", "WebCam",
+            "Keyboard", "Touchpad", "ScreenTest", "Battery",
+        ]
+
+        mt_header = [
+            Paragraph("Test", label_style),
+            Paragraph("Result", label_style),
+        ]
+        mt_data = [mt_header]
+
+        for test_name in test_display_order:
+            if test_name not in manual_test_results:
+                continue
+            value = manual_test_results[test_name]
+            if isinstance(value, bool):
+                result_text = "\u2713 Pass" if value else "\u2717 Fail"
+            else:
+                # WebCam string values: "Pass", "Fail", "N/A", "Untested"
+                if value == "Pass":
+                    result_text = "\u2713 Pass"
+                elif value == "N/A":
+                    result_text = "N/A"
+                elif value == "Fail":
+                    result_text = "\u2717 Fail"
+                else:
+                    result_text = "\u2717 Untested"
+            mt_data.append([
+                Paragraph(test_name, value_style),
+                Paragraph(result_text, value_style),
+            ])
+
+        mt_table = Table(
+            mt_data,
+            colWidths=[page_width * 0.5, page_width * 0.5],
+        )
+        mt_table.setStyle(
+            TableStyle(
+                [
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f0f0f0")),
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("TOPPADDING", (0, 0), (-1, -1), 4),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                ]
+            )
+        )
+        elements.append(mt_table)
 
     # --- Notes ---
     elements.append(Paragraph("NOTES", section_header_style))
