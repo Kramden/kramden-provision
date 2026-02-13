@@ -12,6 +12,7 @@ class FinalTestComplete(Adw.Bin):
         self.set_margin_end(20)
         self.title = "Final Test Complete"
         self.skip = False
+        self.manual_test = None
         
         # Create a list box to hold the rows
         list_box = Gtk.ListBox()

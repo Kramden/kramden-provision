@@ -10,7 +10,7 @@ import os
 from datetime import date
 
 try:
-    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.pagesizes import letter, landscape
     from reportlab.lib.units import inch
     from reportlab.lib import colors
     from reportlab.platypus import (
@@ -90,8 +90,14 @@ def get_system_info():
     return info
 
 
-def generate_tracking_sheet(item_name, output_path=None, spec_passed=None):
-    """Generate a PDF tracking sheet for a computer."""
+def generate_tracking_sheet(item_name, output_path=None, spec_passed=None, manual_test_results=None):
+    """Generate a landscape PDF tracking sheet for a computer.
+
+    Layout: two-column landscape page. Left half contains system info
+    (header, logo, specs, QC workflow). Right half contains manual test
+    results and notes. When folded in half, the logo appears on the
+    right side of the left half-sheet.
+    """
     if output_path is None:
         output_path = f"/tmp/{item_name}_tracking_sheet.pdf"
 
@@ -105,13 +111,17 @@ def generate_tracking_sheet(item_name, output_path=None, spec_passed=None):
         else:
             print(f"  {key}: {value}")
 
+    page_size = landscape(letter)
+    margin_lr = 0.5 * inch
+    gutter = 0.25 * inch
+
     doc = SimpleDocTemplate(
         output_path,
-        pagesize=letter,
+        pagesize=page_size,
         topMargin=0.4 * inch,
         bottomMargin=0.3 * inch,
-        leftMargin=0.75 * inch,
-        rightMargin=0.75 * inch,
+        leftMargin=margin_lr,
+        rightMargin=margin_lr,
     )
 
     # Register Ubuntu fonts
@@ -131,7 +141,8 @@ def generate_tracking_sheet(item_name, output_path=None, spec_passed=None):
     pdfmetrics.registerFontFamily("Ubuntu", normal="Ubuntu", bold="Ubuntu-Bold")
 
     styles = getSampleStyleSheet()
-    page_width = letter[0] - 1.5 * inch  # Available width after margins
+    usable_width = page_size[0] - 2 * margin_lr
+    col_width = (usable_width - gutter) / 2
 
     # Custom styles
     title_style = ParagraphStyle(
@@ -205,9 +216,10 @@ def generate_tracking_sheet(item_name, output_path=None, spec_passed=None):
         leading=18,
     )
 
-    elements = []
+    # ===== LEFT COLUMN: System Information =====
+    left_content = []
 
-    # --- Header ---
+    # --- Header with logo on right side (near fold) ---
     logo_path = os.path.join(
         os.path.dirname(os.path.abspath(__file__)),
         "..",
@@ -222,7 +234,7 @@ def generate_tracking_sheet(item_name, output_path=None, spec_passed=None):
 
     if os.path.exists(logo_path):
         logo = Image(
-            logo_path, width=1.2 * inch, height=1.2 * inch, kind="proportional"
+            logo_path, width=1.0 * inch, height=1.0 * inch, kind="proportional"
         )
         header_data = [
             [title_para, logo],
@@ -230,7 +242,7 @@ def generate_tracking_sheet(item_name, output_path=None, spec_passed=None):
         ]
         header_table = Table(
             header_data,
-            colWidths=[page_width - 1.5 * inch, 1.5 * inch],
+            colWidths=[col_width - 1.3 * inch, 1.3 * inch],
         )
         header_table.setStyle(
             TableStyle(
@@ -245,20 +257,20 @@ def generate_tracking_sheet(item_name, output_path=None, spec_passed=None):
                 ]
             )
         )
-        elements.append(header_table)
+        left_content.append(header_table)
     else:
-        elements.append(title_para)
-        elements.append(date_para)
+        left_content.append(title_para)
+        left_content.append(date_para)
 
-    elements.append(Spacer(1, 2))
-    elements.append(HRFlowable(width="100%", thickness=1, color=colors.black))
-    elements.append(Spacer(1, 4))
+    left_content.append(Spacer(1, 2))
+    left_content.append(HRFlowable(width="100%", thickness=1, color=colors.black))
+    left_content.append(Spacer(1, 4))
 
     # --- Item Identity ---
-    elements.append(Paragraph(item_name, knum_style))
+    left_content.append(Paragraph(item_name, knum_style))
     serial = system_info.get("Serial# Scanner", "N/A")
     device_type = system_info.get("Item Type", "Unknown")
-    elements.append(
+    left_content.append(
         Paragraph(
             f"Serial: {serial}&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;Type: {device_type}",
             info_style,
@@ -266,7 +278,7 @@ def generate_tracking_sheet(item_name, output_path=None, spec_passed=None):
     )
 
     # --- System Specifications ---
-    elements.append(Paragraph("SYSTEM SPECIFICATIONS", section_header_style))
+    left_content.append(Paragraph("SYSTEM SPECIFICATIONS", section_header_style))
 
     spec_rows = [
         ("Brand", system_info.get("Brand", "")),
@@ -298,7 +310,7 @@ def generate_tracking_sheet(item_name, output_path=None, spec_passed=None):
 
     spec_table = Table(
         spec_table_data,
-        colWidths=[1.5 * inch, page_width - 1.5 * inch],
+        colWidths=[1.3 * inch, col_width - 1.3 * inch],
     )
     spec_table.setStyle(
         TableStyle(
@@ -313,10 +325,10 @@ def generate_tracking_sheet(item_name, output_path=None, spec_passed=None):
             ]
         )
     )
-    elements.append(spec_table)
+    left_content.append(spec_table)
 
     # --- QC Workflow ---
-    elements.append(Paragraph("QC WORKFLOW", section_header_style))
+    left_content.append(Paragraph("QC WORKFLOW", section_header_style))
 
     qc_header = [
         Paragraph("Stage", label_style),
@@ -340,11 +352,11 @@ def generate_tracking_sheet(item_name, output_path=None, spec_passed=None):
             date_cell = Paragraph(date.today().strftime("%m-%d-%Y"), value_style)
         qc_data.append([Paragraph(stage, value_style), pass_cell, fail_cell, "", date_cell])
 
-    qc_col_widths = [1.5 * inch, 0.75 * inch, 0.75 * inch, 1.8 * inch, 1.8 * inch]
-    # Scale columns to fit page width
+    qc_col_widths = [1.2 * inch, 0.6 * inch, 0.6 * inch, 1.0 * inch, col_width - 3.4 * inch]
+    # Scale columns to fit column width
     total_qc = sum(qc_col_widths)
-    if total_qc != page_width:
-        scale = page_width / total_qc
+    if abs(total_qc - col_width) > 0.01:
+        scale = col_width / total_qc
         qc_col_widths = [w * scale for w in qc_col_widths]
 
     qc_table = Table(
@@ -366,13 +378,75 @@ def generate_tracking_sheet(item_name, output_path=None, spec_passed=None):
             ]
         )
     )
-    elements.append(qc_table)
+    left_content.append(qc_table)
+
+    # ===== RIGHT COLUMN: Test Results & Notes =====
+    right_content = []
+
+    # --- Manual Test Results ---
+    if manual_test_results is not None:
+        right_content.append(Paragraph("MANUAL TEST RESULTS", section_header_style))
+
+        # Fixed display order
+        test_display_order = [
+            "USB", "Browser", "WiFi", "WebCam",
+            "Keyboard", "Touchpad", "ScreenTest", "Battery",
+        ]
+
+        mt_header = [
+            Paragraph("Test", label_style),
+            Paragraph("Result", label_style),
+        ]
+        mt_data = [mt_header]
+
+        for test_name in test_display_order:
+            if test_name not in manual_test_results:
+                continue
+            value = manual_test_results[test_name]
+            if isinstance(value, bool):
+                result_text = "\u2713 Pass" if value else "\u2717 Fail"
+            else:
+                # WebCam string values: "Pass", "Fail", "N/A", "Untested"
+                if value == "Pass":
+                    result_text = "\u2713 Pass"
+                elif value == "N/A":
+                    result_text = "N/A"
+                elif value == "Fail":
+                    result_text = "\u2717 Fail"
+                else:
+                    result_text = "\u2717 Untested"
+            mt_data.append([
+                Paragraph(test_name, value_style),
+                Paragraph(result_text, value_style),
+            ])
+
+        mt_table = Table(
+            mt_data,
+            colWidths=[col_width * 0.5, col_width * 0.5],
+        )
+        mt_table.setStyle(
+            TableStyle(
+                [
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f0f0f0")),
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("TOPPADDING", (0, 0), (-1, -1), 4),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                ]
+            )
+        )
+        right_content.append(mt_table)
 
     # --- Notes ---
-    elements.append(Paragraph("NOTES", section_header_style))
+    right_content.append(Paragraph("NOTES", section_header_style))
 
-    note_data = [[""] for _ in range(5)]
-    notes_table = Table(note_data, colWidths=[page_width], rowHeights=[0.35 * inch] * 5)
+    note_count = 10
+    note_data = [[""] for _ in range(note_count)]
+    notes_table = Table(
+        note_data, colWidths=[col_width], rowHeights=[0.35 * inch] * note_count
+    )
     notes_table.setStyle(
         TableStyle(
             [
@@ -380,7 +454,26 @@ def generate_tracking_sheet(item_name, output_path=None, spec_passed=None):
             ]
         )
     )
-    elements.append(notes_table)
+    right_content.append(notes_table)
+
+    # ===== Combine into two-column landscape layout =====
+    outer_table = Table(
+        [[left_content, "", right_content]],
+        colWidths=[col_width, gutter, col_width],
+    )
+    outer_table.setStyle(
+        TableStyle(
+            [
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("TOPPADDING", (0, 0), (-1, -1), 0),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+            ]
+        )
+    )
+
+    elements = [outer_table]
 
     # Build PDF
     print(f"\nGenerating PDF: {output_path}")

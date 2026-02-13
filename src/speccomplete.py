@@ -19,6 +19,7 @@ class SpecComplete(Adw.Bin):
         self.title = "Kramden Spec Complete"
         self.skip = False
         self.sortly_register = None
+        self.manual_test = None
 
         # Create a box to hold the content
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
@@ -76,6 +77,10 @@ class SpecComplete(Adw.Bin):
         state = self.state.get_value()
         spec_passed = all(state.values())
 
+        manual_test_results = None
+        if self.manual_test:
+            manual_test_results = self.manual_test.get_all_test_results()
+
         self.tracking_button.set_sensitive(False)
         self.tracking_status.set_label("Generating tracking sheet...")
         if self.tracking_status.has_css_class("text-error"):
@@ -83,14 +88,18 @@ class SpecComplete(Adw.Bin):
 
         thread = threading.Thread(
             target=self._generate_thread,
-            args=(knumber, spec_passed),
+            args=(knumber, spec_passed, manual_test_results),
             daemon=True,
         )
         thread.start()
 
-    def _generate_thread(self, knumber, spec_passed):
+    def _generate_thread(self, knumber, spec_passed, manual_test_results):
         try:
-            output_path = generate_tracking_sheet(knumber, spec_passed=spec_passed)
+            output_path = generate_tracking_sheet(
+                knumber,
+                spec_passed=spec_passed,
+                manual_test_results=manual_test_results,
+            )
             GLib.idle_add(self._on_generate_complete, output_path, None)
         except Exception as e:
             GLib.idle_add(self._on_generate_complete, None, str(e))
