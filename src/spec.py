@@ -20,7 +20,13 @@ class WizardWindow(Gtk.ApplicationWindow):
         super().__init__(application=app, title="Kramden - Spec")
 
         self.set_icon_name("kramden")
-        self.set_default_size(800, 800)
+        scale = 1
+        display = Gdk.Display.get_default()
+        if display:
+            monitors = display.get_monitors()
+            if monitors.get_n_items() > 0:
+                scale = monitors.get_item(0).get_scale_factor()
+        self.set_default_size(800 * scale, 800 * scale)
 
         # Initialize the observable property for tracking state
         self.observable_property = ObservableProperty(
