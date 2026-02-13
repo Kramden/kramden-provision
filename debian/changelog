@@ -1,3 +1,13 @@
+kramden-provision (0.1.99.8) noble; urgency=medium
+
+  * kramden-spec:
+    - staff override disk
+    - laptop - require all manual tests
+    - improve tracking sheet
+    - scaling fixes for hidpi displays
+
+ -- Ken VanDine <ken.vandine@canonical.com>  Thu, 12 Feb 2026 22:05:18 -0500
+
 kramden-provision (0.1.99.7) noble; urgency=medium
 
   * kramden-spec:
