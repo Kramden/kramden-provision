@@ -122,12 +122,6 @@ class WizardWindow(Gtk.ApplicationWindow):
     def _on_monitors_changed(self, monitors, position, removed, added):
         if monitors.get_n_items() > 0:
             self._apply_monitor_size(monitors.get_item(0))
-            # Disconnect this handler after applying the monitor size once
-            try:
-                monitors.disconnect_by_func(self._on_monitors_changed)
-            except AttributeError:
-                # Fallback if disconnect_by_func is not available; ignore in that case
-                pass
 
     def on_visible_page_changed(self, stack, params):
         print("on_visible_page_changed")
