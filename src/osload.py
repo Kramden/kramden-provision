@@ -20,15 +20,14 @@ class WizardWindow(Gtk.ApplicationWindow):
         super().__init__(application=app, title="Kramden - OS Load")
 
         self.set_icon_name("kramden")
-        width, height = 800, 800
+        self.set_default_size(800, 800)
         display = Gdk.Display.get_default()
         if display:
             monitors = display.get_monitors()
             if monitors.get_n_items() > 0:
-                geo = monitors.get_item(0).get_geometry()
-                width = min(800, int(geo.width * 0.8))
-                height = min(800, int(geo.height * 0.8))
-        self.set_default_size(width, height)
+                self._apply_monitor_size(monitors.get_item(0))
+            else:
+                monitors.connect("items-changed", self._on_monitors_changed)
 
         # Initialize the observable property for tracking state
         self.observable_property = ObservableProperty(
@@ -112,6 +111,23 @@ class WizardWindow(Gtk.ApplicationWindow):
         # Set title_widget after page was set
         self.stack.connect("notify::visible-child", self.on_visible_page_changed)
         self.title_widget.set_label(self.stack.get_visible_child().title)
+
+    def _apply_monitor_size(self, monitor):
+        geo = monitor.get_geometry()
+        self.set_default_size(
+            min(800, int(geo.width * 0.8)),
+            min(800, int(geo.height * 0.8)),
+        )
+
+    def _on_monitors_changed(self, monitors, position, removed, added):
+        if monitors.get_n_items() > 0:
+            self._apply_monitor_size(monitors.get_item(0))
+            # Disconnect this handler after applying the monitor size once
+            try:
+                monitors.disconnect_by_func(self._on_monitors_changed)
+            except AttributeError:
+                # Fallback if disconnect_by_func is not available; ignore in that case
+                pass
 
     def on_visible_page_changed(self, stack, params):
         print("on_visible_page_changed")
