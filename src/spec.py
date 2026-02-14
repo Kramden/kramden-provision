@@ -120,8 +120,10 @@ class WizardWindow(Gtk.ApplicationWindow):
         )
 
     def _on_monitors_changed(self, monitors, position, removed, added):
-        if monitors.get_n_items() > 0:
+        # Apply monitor size only once; subsequent monitor changes are ignored
+        if not getattr(self, "_monitor_size_applied", False) and monitors.get_n_items() > 0:
             self._apply_monitor_size(monitors.get_item(0))
+            self._monitor_size_applied = True
 
     def on_visible_page_changed(self, stack, params):
         print("on_visible_page_changed")
