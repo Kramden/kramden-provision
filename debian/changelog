@@ -1,3 +1,9 @@
+kramden-provision (0.1.99.9) noble; urgency=medium
+
+  * more scaling fixes for hidpi displays when autostarting 
+
+ -- Ken VanDine <ken.vandine@canonical.com>  Fri, 13 Feb 2026 20:10:19 -0500
+
 kramden-provision (0.1.99.8) noble; urgency=medium
 
   * kramden-spec:
