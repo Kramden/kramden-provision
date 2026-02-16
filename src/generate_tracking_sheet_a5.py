@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Generate a PDF tracking sheet with system hardware information.
+Generate a PDF tracking sheet with system hardware information for A5 paper.
 
-Usage: python3 generate_tracking_sheet.py <item_name> [output_path]
+Usage: python3 generate_tracking_sheet_a5.py <item_name> [output_path]
 """
 
 import sys
@@ -10,8 +10,8 @@ import os
 from datetime import date
 
 try:
-    from reportlab.lib.pagesizes import letter, landscape
-    from reportlab.lib.units import inch
+    from reportlab.lib.pagesizes import A5, landscape
+    from reportlab.lib.units import inch, mm
     from reportlab.lib import colors
     from reportlab.platypus import (
         SimpleDocTemplate,
@@ -102,15 +102,13 @@ def get_system_info():
 
 
 def generate_tracking_sheet(item_name, output_path=None, spec_passed=None, manual_test_results=None):
-    """Generate a landscape PDF tracking sheet for a computer.
+    """Generate a portrait A5 PDF tracking sheet for a computer.
 
-    Layout: two-column landscape page. Left half contains system info
-    (header, logo, specs, QC workflow). Right half contains manual test
-    results and notes. When folded in half, the logo appears on the
-    right side of the left half-sheet.
+    Layout: single-column portrait page with header, logo, specs,
+    QC workflow, manual test results, and notes sections.
     """
     if output_path is None:
-        output_path = f"/tmp/{item_name}_tracking_sheet.pdf"
+        output_path = f"/tmp/{item_name}_tracking_sheet_a5.pdf"
 
     print("Gathering system information...")
     system_info = get_system_info()
@@ -122,15 +120,14 @@ def generate_tracking_sheet(item_name, output_path=None, spec_passed=None, manua
         else:
             print(f"  {key}: {value}")
 
-    page_size = landscape(letter)
-    margin_lr = 0.5 * inch
-    gutter = 0.25 * inch
+    page_size = A5
+    margin_lr = 0.3 * inch
 
     doc = SimpleDocTemplate(
         output_path,
         pagesize=page_size,
-        topMargin=0.4 * inch,
-        bottomMargin=0.3 * inch,
+        topMargin=0.25 * inch,
+        bottomMargin=0.2 * inch,
         leftMargin=margin_lr,
         rightMargin=margin_lr,
     )
@@ -144,7 +141,7 @@ def generate_tracking_sheet(item_name, output_path=None, spec_passed=None, manua
         raise FileNotFoundError(
             "Error: Ubuntu fonts not found at "
             f"{font_dir}. Install with: sudo apt install fonts-ubuntu "
-            "or update the font paths in generate_tracking_sheet.py."
+            "or update the font paths in generate_tracking_sheet_a5.py."
         )
 
     pdfmetrics.registerFont(TTFont("Ubuntu", ubuntu_regular))
@@ -153,13 +150,12 @@ def generate_tracking_sheet(item_name, output_path=None, spec_passed=None, manua
 
     styles = getSampleStyleSheet()
     usable_width = page_size[0] - 2 * margin_lr
-    col_width = (usable_width - gutter) / 2
 
-    # Custom styles
+    # Custom styles - scaled down for A5
     title_style = ParagraphStyle(
         "TrackingTitle",
         parent=styles["Title"],
-        fontSize=20,
+        fontSize=14,
         fontName="Ubuntu-Bold",
         spaceAfter=0,
         spaceBefore=0,
@@ -169,68 +165,68 @@ def generate_tracking_sheet(item_name, output_path=None, spec_passed=None, manua
     subtitle_style = ParagraphStyle(
         "Subtitle",
         parent=styles["Normal"],
-        fontSize=10,
+        fontSize=7,
         fontName="Ubuntu",
         textColor=colors.grey,
         spaceAfter=0,
-        spaceBefore=2,
+        spaceBefore=1,
     )
 
     knum_style = ParagraphStyle(
         "KNumber",
         parent=styles["Normal"],
-        fontSize=24,
+        fontSize=16,
         fontName="Ubuntu-Bold",
-        leading=30,
-        spaceBefore=4,
-        spaceAfter=6,
+        leading=20,
+        spaceBefore=3,
+        spaceAfter=4,
     )
 
     info_style = ParagraphStyle(
         "Info",
         parent=styles["Normal"],
-        fontSize=11,
+        fontSize=8,
         fontName="Ubuntu",
         spaceBefore=0,
-        spaceAfter=4,
+        spaceAfter=3,
     )
 
     section_header_style = ParagraphStyle(
         "SectionHeader",
         parent=styles["Normal"],
-        fontSize=12,
+        fontSize=9,
         fontName="Ubuntu-Bold",
-        spaceBefore=10,
-        spaceAfter=4,
+        spaceBefore=6,
+        spaceAfter=3,
         textColor=colors.HexColor("#333333"),
     )
 
     label_style = ParagraphStyle(
         "Label",
         parent=styles["Normal"],
-        fontSize=10,
+        fontSize=7,
         fontName="Ubuntu-Bold",
     )
 
     value_style = ParagraphStyle(
         "Value",
         parent=styles["Normal"],
-        fontSize=10,
+        fontSize=7,
         fontName="Ubuntu",
     )
 
     checkbox_style = ParagraphStyle(
         "Checkbox",
         parent=styles["Normal"],
-        fontSize=14,
+        fontSize=10,
         fontName="Ubuntu",
-        leading=18,
+        leading=12,
     )
 
-    # ===== LEFT COLUMN: System Information =====
-    left_content = []
+    # ===== Build Content =====
+    content = []
 
-    # --- Header with logo on right side (near fold) ---
+    # --- Header with logo on right side ---
     logo_path = os.path.join(
         os.path.dirname(os.path.abspath(__file__)),
         "..",
@@ -245,7 +241,7 @@ def generate_tracking_sheet(item_name, output_path=None, spec_passed=None, manua
 
     if os.path.exists(logo_path):
         logo = Image(
-            logo_path, width=1.0 * inch, height=1.0 * inch, kind="proportional"
+            logo_path, width=0.65 * inch, height=0.65 * inch, kind="proportional"
         )
         header_data = [
             [title_para, logo],
@@ -253,7 +249,7 @@ def generate_tracking_sheet(item_name, output_path=None, spec_passed=None, manua
         ]
         header_table = Table(
             header_data,
-            colWidths=[col_width - 1.3 * inch, 1.3 * inch],
+            colWidths=[usable_width - 0.75 * inch, 0.75 * inch],
         )
         header_table.setStyle(
             TableStyle(
@@ -268,28 +264,28 @@ def generate_tracking_sheet(item_name, output_path=None, spec_passed=None, manua
                 ]
             )
         )
-        left_content.append(header_table)
+        content.append(header_table)
     else:
-        left_content.append(title_para)
-        left_content.append(date_para)
+        content.append(title_para)
+        content.append(date_para)
 
-    left_content.append(Spacer(1, 2))
-    left_content.append(HRFlowable(width="100%", thickness=1, color=colors.black))
-    left_content.append(Spacer(1, 4))
+    content.append(Spacer(1, 1))
+    content.append(HRFlowable(width="100%", thickness=0.5, color=colors.black))
+    content.append(Spacer(1, 2))
 
     # --- Item Identity ---
-    left_content.append(Paragraph(item_name, knum_style))
+    content.append(Paragraph(item_name, knum_style))
     serial = system_info.get("Serial# Scanner", "N/A")
     device_type = system_info.get("Item Type", "Unknown")
-    left_content.append(
+    content.append(
         Paragraph(
-            f"Serial: {serial}&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;Type: {device_type}",
+            f"Serial: {serial}&nbsp;&nbsp;|&nbsp;&nbsp;Type: {device_type}",
             info_style,
         )
     )
 
     # --- System Specifications ---
-    left_content.append(Paragraph("SYSTEM SPECIFICATIONS", section_header_style))
+    content.append(Paragraph("SYSTEM SPECIFICATIONS", section_header_style))
 
     spec_rows = [
         ("Brand", system_info.get("Brand", "")),
@@ -315,17 +311,17 @@ def generate_tracking_sheet(item_name, output_path=None, spec_passed=None, manua
         for label, value in spec_rows
     ]
 
-    # Add OS row with larger checkboxes for usability
+    # Add OS row with checkboxes
     spec_table_data.append(
         [
             Paragraph("OS", label_style),
-            Paragraph("☐ Ubuntu      ☐ Windows", checkbox_style),
+            Paragraph("☐ Ubuntu  ☐ Windows", checkbox_style),
         ]
     )
 
     spec_table = Table(
         spec_table_data,
-        colWidths=[1.3 * inch, col_width - 1.3 * inch],
+        colWidths=[0.8 * inch, usable_width - 0.8 * inch],
     )
     spec_table.setStyle(
         TableStyle(
@@ -333,23 +329,23 @@ def generate_tracking_sheet(item_name, output_path=None, spec_passed=None, manua
                 ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
                 ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#f0f0f0")),
                 ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ("TOPPADDING", (0, 0), (-1, -1), 4),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-                ("LEFTPADDING", (0, 0), (-1, -1), 8),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                ("TOPPADDING", (0, 0), (-1, -1), 2),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+                ("LEFTPADDING", (0, 0), (-1, -1), 4),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 4),
             ]
         )
     )
-    left_content.append(spec_table)
+    content.append(spec_table)
 
     # --- QC Workflow ---
-    left_content.append(Paragraph("QC WORKFLOW", section_header_style))
+    content.append(Paragraph("QC WORKFLOW", section_header_style))
 
     qc_header = [
         Paragraph("Stage", label_style),
         Paragraph("Pass", label_style),
         Paragraph("Fail", label_style),
-        Paragraph("Initials", label_style),
+        Paragraph("Init.", label_style),
         Paragraph("Date", label_style),
     ]
 
@@ -367,17 +363,17 @@ def generate_tracking_sheet(item_name, output_path=None, spec_passed=None, manua
             date_cell = Paragraph(date.today().strftime("%m-%d-%Y"), value_style)
         qc_data.append([Paragraph(stage, value_style), pass_cell, fail_cell, "", date_cell])
 
-    qc_col_widths = [1.2 * inch, 0.6 * inch, 0.6 * inch, 1.0 * inch, col_width - 3.4 * inch]
-    # Scale columns to fit column width
+    qc_col_widths = [0.7 * inch, 0.35 * inch, 0.35 * inch, 0.5 * inch, usable_width - 1.9 * inch]
+    # Scale columns to fit width
     total_qc = sum(qc_col_widths)
-    if abs(total_qc - col_width) > 0.01:
-        scale = col_width / total_qc
+    if abs(total_qc - usable_width) > 0.01:
+        scale = usable_width / total_qc
         qc_col_widths = [w * scale for w in qc_col_widths]
 
     qc_table = Table(
         qc_data,
         colWidths=qc_col_widths,
-        rowHeights=[None] + [0.35 * inch] * len(qc_stages),
+        rowHeights=[None] + [0.22 * inch] * len(qc_stages),
     )
     qc_table.setStyle(
         TableStyle(
@@ -386,20 +382,17 @@ def generate_tracking_sheet(item_name, output_path=None, spec_passed=None, manua
                 ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f0f0f0")),
                 ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
                 ("ALIGN", (1, 1), (2, -1), "CENTER"),
-                ("TOPPADDING", (0, 0), (-1, -1), 6),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-                ("LEFTPADDING", (0, 0), (-1, -1), 8),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                ("TOPPADDING", (0, 0), (-1, -1), 3),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+                ("LEFTPADDING", (0, 0), (-1, -1), 4),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 4),
             ]
         )
     )
-    left_content.append(qc_table)
-
-    # ===== RIGHT COLUMN: Test Results & Notes =====
-    right_content = []
+    content.append(qc_table)
 
     # --- Manual Test Results ---
-    right_content.append(Paragraph("MANUAL TEST RESULTS", section_header_style))
+    content.append(Paragraph("MANUAL TEST RESULTS", section_header_style))
 
     # Fixed display order
     test_display_order = [
@@ -436,7 +429,7 @@ def generate_tracking_sheet(item_name, output_path=None, spec_passed=None, manua
 
     mt_table = Table(
         mt_data,
-        colWidths=[col_width * 0.5, col_width * 0.5],
+        colWidths=[usable_width * 0.5, usable_width * 0.5],
     )
     mt_table.setStyle(
         TableStyle(
@@ -444,22 +437,22 @@ def generate_tracking_sheet(item_name, output_path=None, spec_passed=None, manua
                 ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
                 ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f0f0f0")),
                 ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ("TOPPADDING", (0, 0), (-1, -1), 4),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-                ("LEFTPADDING", (0, 0), (-1, -1), 8),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                ("TOPPADDING", (0, 0), (-1, -1), 2),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+                ("LEFTPADDING", (0, 0), (-1, -1), 4),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 4),
             ]
         )
     )
-    right_content.append(mt_table)
+    content.append(mt_table)
 
     # --- Notes ---
-    right_content.append(Paragraph("NOTES", section_header_style))
+    content.append(Paragraph("NOTES", section_header_style))
 
-    note_count = 10
+    note_count = 8
     note_data = [[""] for _ in range(note_count)]
     notes_table = Table(
-        note_data, colWidths=[col_width], rowHeights=[0.35 * inch] * note_count
+        note_data, colWidths=[usable_width], rowHeights=[0.22 * inch] * note_count
     )
     notes_table.setStyle(
         TableStyle(
@@ -468,31 +461,12 @@ def generate_tracking_sheet(item_name, output_path=None, spec_passed=None, manua
             ]
         )
     )
-    right_content.append(notes_table)
-
-    # ===== Combine into two-column landscape layout =====
-    outer_table = Table(
-        [[left_content, "", right_content]],
-        colWidths=[col_width, gutter, col_width],
-    )
-    outer_table.setStyle(
-        TableStyle(
-            [
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("TOPPADDING", (0, 0), (-1, -1), 0),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
-                ("LEFTPADDING", (0, 0), (-1, -1), 0),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-            ]
-        )
-    )
-
-    elements = [outer_table]
+    content.append(notes_table)
 
     # Build PDF
     print(f"\nGenerating PDF: {output_path}")
-    doc.build(elements)
-    print(f"Done! Tracking sheet saved to: {output_path}")
+    doc.build(content)
+    print(f"Done! A5 tracking sheet saved to: {output_path}")
     return output_path
 
 
