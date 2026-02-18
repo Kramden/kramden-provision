@@ -435,23 +435,10 @@ class SortlyRegister(Adw.Bin):
             if is_update:
                 item = self._existing_item
             else:
-                # Search for existing item by name
-                GLib.idle_add(self._set_status, "Discovering subfolders...")
-                folder_ids = []
-                for fid in get_stage_folder_ids("spec"):
-                    folder_ids.extend(list_subfolders(api_key, fid))
-                GLib.idle_add(
-                    self._set_status,
-                    f"Searching {len(folder_ids)} folder(s) for '{knumber}'...",
-                )
-                results = search_item_by_name(api_key, folder_ids, knumber)
-                if results:
-                    item = results[0]
-                else:
-                    item = create_item(api_key, INCOMING_FOLDER_ID, knumber)
-                    if not item:
-                        GLib.idle_add(self._on_register_complete, False, "Failed to create item.")
-                        return
+                item = create_item(api_key, INCOMING_FOLDER_ID, knumber)
+                if not item:
+                    GLib.idle_add(self._on_register_complete, False, "Failed to create item.")
+                    return
 
             item_id = item["id"]
             info = self._system_info or {}
