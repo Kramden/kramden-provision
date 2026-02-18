@@ -275,6 +275,62 @@ class SortlyRegister(Adw.Bin):
         if self._submitted:
             return
 
+        dialog = Gtk.Window()
+        dialog.set_title("Register Authorization")
+        dialog.set_transient_for(self.get_root())
+        dialog.set_modal(True)
+        dialog.set_default_size(350, -1)
+        dialog.set_resizable(False)
+
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        box.set_margin_top(24)
+        box.set_margin_bottom(24)
+        box.set_margin_start(24)
+        box.set_margin_end(24)
+
+        label = Gtk.Label(label="Enter staff password to register:")
+        box.append(label)
+
+        entry = Gtk.PasswordEntry()
+        entry.set_show_peek_icon(True)
+        box.append(entry)
+
+        error_label = Gtk.Label(label="")
+        error_label.add_css_class("text-error")
+        box.append(error_label)
+
+        btn_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        btn_box.set_halign(Gtk.Align.END)
+
+        cancel_btn = Gtk.Button(label="Cancel")
+        cancel_btn.connect("clicked", lambda b: dialog.close())
+        btn_box.append(cancel_btn)
+
+        ok_btn = Gtk.Button(label="OK")
+        ok_btn.add_css_class("suggested-action")
+        ok_btn.connect(
+            "clicked", self._on_register_auth_ok, entry, error_label, dialog
+        )
+        btn_box.append(ok_btn)
+
+        entry.connect(
+            "activate",
+            lambda e: self._on_register_auth_ok(ok_btn, entry, error_label, dialog),
+        )
+
+        box.append(btn_box)
+        dialog.set_child(box)
+        dialog.present()
+
+    def _on_register_auth_ok(self, button, entry, error_label, dialog):
+        if entry.get_text() == "kramdenstaffok":
+            dialog.close()
+            self._do_register()
+        else:
+            error_label.set_label("Incorrect password")
+            entry.set_text("")
+
+    def _do_register(self):
         raw_value = self.knumber_entry.get_text().strip()
         formatted = Utils.format_knumber(raw_value)
         if not formatted:
