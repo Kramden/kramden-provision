@@ -9,6 +9,7 @@ from gi.repository import Adw, Gdk, Gtk, GLib
 from utils import Utils
 from sortly import (
     EXPANDED_FOLDER_IDS,
+    INCOMING_FOLDER_ID,
     get_api_key,
     get_stage_folder_ids,
     list_subfolders,
@@ -174,7 +175,7 @@ class SortlyRegister(Adw.Bin):
             self.register_button.set_label("Update")
             self.register_button.set_sensitive(True)
         else:
-            self._set_status("No existing record found for this serial. Enter a K-number and search.")
+            self._set_status("No existing record found for this serial. Enter a K-number and search. Registration requires staff approval.")
             self.search_button.set_visible(True)
             # Enable search button if there's already a valid K-number
             value = self.knumber_entry.get_text().strip()
@@ -238,6 +239,7 @@ class SortlyRegister(Adw.Bin):
 
         self.search_button.set_sensitive(False)
         self.expanded_search_button.set_sensitive(False)
+        self.register_button.set_sensitive(False)
         self.spinner.set_visible(True)
         self.spinner.start()
         self._set_status(f"Searching for '{formatted}' in Sortly...")
@@ -281,7 +283,7 @@ class SortlyRegister(Adw.Bin):
             self.search_button.set_visible(True)
         else:
             self._existing_item = None
-            self._set_status(f"No record found for {knumber}.")
+            self._set_status(f"No record found for {knumber}. Register requires staff approval.")
             self.register_button.set_label("Register")
             if EXPANDED_FOLDER_IDS:
                 self.expanded_search_button.set_visible(True)
@@ -305,6 +307,7 @@ class SortlyRegister(Adw.Bin):
 
         self.search_button.set_sensitive(False)
         self.expanded_search_button.set_sensitive(False)
+        self.register_button.set_sensitive(False)
         self.spinner.set_visible(True)
         self.spinner.start()
         self._set_status(f"Expanded search for '{formatted}' in Sortly...")
@@ -445,7 +448,7 @@ class SortlyRegister(Adw.Bin):
                 if results:
                     item = results[0]
                 else:
-                    item = create_item(api_key, get_stage_folder_ids("spec")[0], knumber)
+                    item = create_item(api_key, INCOMING_FOLDER_ID, knumber)
                     if not item:
                         GLib.idle_add(self._on_register_complete, False, "Failed to create item.")
                         return
