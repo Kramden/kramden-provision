@@ -60,7 +60,7 @@ class SortlyRegister(Adw.Bin):
         self.search_button.set_sensitive(False)
         self.search_button.connect("clicked", self._on_search_clicked)
 
-        self.expanded_search_button = Gtk.Button(label="Expanded Search")
+        self.expanded_search_button = Gtk.Button(label="Expanded Search (Staff)")
         self.expanded_search_button.set_visible(False)
         self.expanded_search_button.set_sensitive(False)
         self.expanded_search_button.connect("clicked", self._on_expanded_search_clicked)
@@ -175,7 +175,9 @@ class SortlyRegister(Adw.Bin):
             self.register_button.set_label("Update")
             self.register_button.set_sensitive(True)
         else:
-            self._set_status("No existing record found for this serial. Enter a K-number and search. Registration requires staff approval.")
+            self._set_status(
+                "No existing record found for this serial. Enter a K-number and search. Registration requires staff approval."
+            )
             self.search_button.set_visible(True)
             # Enable search button if there's already a valid K-number
             value = self.knumber_entry.get_text().strip()
@@ -212,7 +214,9 @@ class SortlyRegister(Adw.Bin):
             self.search_button.set_sensitive(not self._submitted)
         else:
             # Serial was found — existing behavior
-            self.register_button.set_sensitive(not self._submitted and self._lookup_done)
+            self.register_button.set_sensitive(
+                not self._submitted and self._lookup_done
+            )
             if self._existing_item and formatted == self._existing_item.get("name"):
                 self.register_button.set_label("Update")
             else:
@@ -283,7 +287,9 @@ class SortlyRegister(Adw.Bin):
             self.search_button.set_visible(True)
         else:
             self._existing_item = None
-            self._set_status(f"No record found for {knumber}. Register requires staff approval.")
+            self._set_status(
+                f"No record found for {knumber}. Register requires staff approval."
+            )
             self.register_button.set_label("Register")
             if EXPANDED_FOLDER_IDS:
                 self.expanded_search_button.set_visible(True)
@@ -372,9 +378,7 @@ class SortlyRegister(Adw.Bin):
 
         ok_btn = Gtk.Button(label="OK")
         ok_btn.add_css_class("suggested-action")
-        ok_btn.connect(
-            "clicked", self._on_register_auth_ok, entry, error_label, dialog
-        )
+        ok_btn.connect("clicked", self._on_register_auth_ok, entry, error_label, dialog)
         btn_box.append(ok_btn)
 
         entry.connect(
@@ -408,10 +412,7 @@ class SortlyRegister(Adw.Bin):
             return
 
         # If entry matches the existing item, update it directly
-        is_update = (
-            self._existing_item
-            and formatted == self._existing_item.get("name")
-        )
+        is_update = self._existing_item and formatted == self._existing_item.get("name")
 
         self.register_button.set_sensitive(False)
         self.knumber_entry.set_sensitive(False)
@@ -437,7 +438,9 @@ class SortlyRegister(Adw.Bin):
             else:
                 item = create_item(api_key, INCOMING_FOLDER_ID, knumber)
                 if not item:
-                    GLib.idle_add(self._on_register_complete, False, "Failed to create item.")
+                    GLib.idle_add(
+                        self._on_register_complete, False, "Failed to create item."
+                    )
                     return
 
             item_id = item["id"]
@@ -445,7 +448,9 @@ class SortlyRegister(Adw.Bin):
             if info:
                 success = update_item(api_key, item_id, info)
                 if not success:
-                    GLib.idle_add(self._on_register_complete, False, "Failed to update item.")
+                    GLib.idle_add(
+                        self._on_register_complete, False, "Failed to update item."
+                    )
                     return
 
             GLib.idle_add(self._on_register_complete, True, None)
@@ -480,8 +485,15 @@ class SortlyRegister(Adw.Bin):
 
         # Display order
         field_order = [
-            "Brand", "Model", "CPU", "RAM", "Storage",
-            "Serial# Scanner", "Item Type", "Graphics", "Battery Health",
+            "Brand",
+            "Model",
+            "CPU",
+            "RAM",
+            "Storage",
+            "Serial# Scanner",
+            "Item Type",
+            "Graphics",
+            "Battery Health",
         ]
 
         for field in field_order:
