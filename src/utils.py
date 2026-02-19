@@ -90,11 +90,34 @@ class Utils:
             if device.get("DM_NAME"):
                 continue
 
-            disks[str(devname)] = int(
+            size_gb = int(
                 round(device.attributes.asint("size") * 512 / 1024**3, 0)
             )
+            
+            # Determine drive type
+            drive_type = self._get_drive_type(devname)
+            
+            disks[str(devname)] = {
+                "size": size_gb,
+                "type": drive_type
+            }
 
         return disks
+
+    def _get_drive_type(self, devname):
+        """Determine if drive is NVMe, SATA SSD, or SATA HDD."""
+        if "nvme" in devname:
+            return "NVMe"
+        
+        # Check rotational attribute for SATA drives
+        try:
+            # Extract device name (e.g., "sda" from "/dev/sda")
+            dev = devname.split('/')[-1]
+            with open(f"/sys/block/{dev}/queue/rotational", "r") as f:
+                is_rotational = f.read().strip() == "1"
+                return "SATA HDD" if is_rotational else "SATA SSD"
+        except (FileNotFoundError, OSError):
+            return "SATA"
 
     # Return host name
     def get_hostname(self):
@@ -599,8 +622,17 @@ class Utils:
                         0,
                     )
                 )
-                model = device_properties.Get("org.freedesktop.UPower.Device", "Model")
-                capacities[model] = capacity
+                # Extract battery name from device path (e.g., /org/freedesktop/UPower/devices/battery_BAT0)
+                # Use native name like BAT0/BAT1 instead of manufacturer model name
+                try:
+                    native_path = device_properties.Get("org.freedesktop.UPower.Device", "NativePath")
+                    # NativePath is typically /sys/devices/.../BAT0 or BAT1
+                    battery_name = native_path.split('/')[-1]
+                except Exception:
+                    # Fallback to extracting from device_path
+                    battery_name = device_path.split('_')[-1] if '_' in device_path else "BAT"
+                
+                capacities[battery_name] = capacity
 
         return capacities
 
@@ -886,7 +918,9 @@ if __name__ == "__main__":
     capacities = utils.get_battery_capacities()
     # for battery in capacities.keys():
     #    print(f"Battery {id + 1} Capacity: {capacity}%")
-    print("Disk Capacity: " + str(utils.get_disks()) + " GB")
+    disks = utils.get_disks()
+    for disk_path, disk_info in disks.items():
+        print(f"Disk {disk_path}: {disk_info['type']}, {disk_info['size']} GB")
     print("CPU Model: " + utils.get_cpu_info())
     print("Snaps: " + str(utils.check_snaps(snap_packages)))
     print("Debs: " + str(utils.check_debs(deb_packages)))

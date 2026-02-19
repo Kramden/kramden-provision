@@ -180,7 +180,8 @@ class SpecInfo(Adw.Bin):
                 for disk in disks.keys():
                     row = Adw.ActionRow()
                     row.set_title(f"{str(disk)})")
-                    row.set_subtitle(f"{str(disks[disk])} GB")
+                    disk_info = disks[disk]
+                    row.set_subtitle(f"{disk_info['type']}: {disk_info['size']} GB")
                     disks_row.add_row(row)
                     disks_row.set_expanded(True)
                     disks_row.set_visible(True)
@@ -196,7 +197,8 @@ class SpecInfo(Adw.Bin):
                 disk_row.set_expanded(True)
                 row = Adw.ActionRow()
                 row.set_title(f"{str(disk[0][0])}")
-                row.set_subtitle(f"{str(disk[0][1])} GB")
+                disk_info = disk[0][1]
+                row.set_subtitle(f"{disk_info['type']}: {disk_info['size']} GB")
                 row.set_icon_name("emblem-important-symbolic")
                 row.add_css_class("text-error")
                 self._disk_error_widgets.append(row)
