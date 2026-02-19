@@ -19,8 +19,12 @@ class SpecInfo(Adw.Bin):
         self.batteries_populated = False
         self.disks_populated = False
         self.disk_override = False
+        self.bios_password_override = False
+        self.asset_info_override = False
         self.has_disks = False
         self._disk_error_widgets = []
+        self._bios_password_override_button = None
+        self._asset_info_override_button = None
         self.sortly_register = None
 
         # Create a box to hold the content
@@ -136,24 +140,40 @@ class SpecInfo(Adw.Bin):
             self.mem_row.add_css_class("text-error")
 
         bios_password = utils.has_bios_password()
-        if bios_password:
+        if bios_password and not self.bios_password_override:
             self.bios_password_row.set_subtitle("Has Password")
             self.bios_password_row.set_icon_name("emblem-important-symbolic")
             self.bios_password_row.add_css_class("text-error")
+            if not self._bios_password_override_button:
+                self._bios_password_override_button = self._add_override_button(
+                    self.bios_password_row,
+                    "BIOS Password Override",
+                    self._on_bios_password_override_accepted,
+                )
             passed = False
         else:
-            self.bios_password_row.set_subtitle("No Password")
+            self.bios_password_row.set_subtitle("No Password" if not bios_password else "Has Password (Overridden)")
             self.bios_password_row.set_icon_name("emblem-ok-symbolic")
+            if self.bios_password_row.has_css_class("text-error"):
+                self.bios_password_row.remove_css_class("text-error")
 
         asset_info = utils.has_asset_info()
-        if asset_info:
+        if asset_info and not self.asset_info_override:
             self.asset_info_row.set_subtitle("Has Asset Info")
             self.asset_info_row.set_icon_name("emblem-important-symbolic")
             self.asset_info_row.add_css_class("text-error")
+            if not self._asset_info_override_button:
+                self._asset_info_override_button = self._add_override_button(
+                    self.asset_info_row,
+                    "Asset Info Override",
+                    self._on_asset_info_override_accepted,
+                )
             passed = False
         else:
-            self.asset_info_row.set_subtitle("No Asset Info")
+            self.asset_info_row.set_subtitle("No Asset Info" if not asset_info else "Has Asset Info (Overridden)")
             self.asset_info_row.set_icon_name("emblem-ok-symbolic")
+            if self.asset_info_row.has_css_class("text-error"):
+                self.asset_info_row.remove_css_class("text-error")
 
         computrace_activated = utils.has_computrace_enabled()
         if computrace_activated is True:
@@ -180,7 +200,8 @@ class SpecInfo(Adw.Bin):
                 for disk in disks.keys():
                     row = Adw.ActionRow()
                     row.set_title(f"{str(disk)})")
-                    row.set_subtitle(f"{str(disks[disk])} GB")
+                    disk_info = disks[disk]
+                    row.set_subtitle(f"{disk_info['type']}: {disk_info['size']} GB")
                     disks_row.add_row(row)
                     disks_row.set_expanded(True)
                     disks_row.set_visible(True)
@@ -196,7 +217,8 @@ class SpecInfo(Adw.Bin):
                 disk_row.set_expanded(True)
                 row = Adw.ActionRow()
                 row.set_title(f"{str(disk[0][0])}")
-                row.set_subtitle(f"{str(disk[0][1])} GB")
+                disk_info = disk[0][1]
+                row.set_subtitle(f"{disk_info['type']}: {disk_info['size']} GB")
                 row.set_icon_name("emblem-important-symbolic")
                 row.add_css_class("text-error")
                 self._disk_error_widgets.append(row)
@@ -242,16 +264,33 @@ class SpecInfo(Adw.Bin):
         state["SpecInfo"] = passed
         print("specinfo:on_shown " + str(self.state.get_value()))
 
+    def _add_override_button(self, parent_row, dialog_title, on_accepted):
+        """Add an Override button to the given row. Returns the button."""
+        override_button = Gtk.Button(label="Override")
+        override_button.set_valign(Gtk.Align.CENTER)
+        override_button.connect(
+            "clicked",
+            lambda b: self._show_override_dialog(dialog_title, override_button, on_accepted),
+        )
+        parent_row.add_suffix(override_button)
+        return override_button
+
     def _add_disk_override_button(self, parent_row):
         """Add an Override button to the given disk row."""
         self._disk_override_button = Gtk.Button(label="Override")
         self._disk_override_button.set_valign(Gtk.Align.CENTER)
-        self._disk_override_button.connect("clicked", self._on_disk_override_clicked)
+        self._disk_override_button.connect(
+            "clicked",
+            lambda b: self._show_override_dialog(
+                "Disk Override", self._disk_override_button, self._on_disk_override_accepted
+            ),
+        )
         parent_row.add_suffix(self._disk_override_button)
 
-    def _on_disk_override_clicked(self, button):
+    def _show_override_dialog(self, title, override_button, on_accepted):
+        """Show a password dialog for overriding a check."""
         dialog = Gtk.Window()
-        dialog.set_title("Disk Override")
+        dialog.set_title(title)
         dialog.set_transient_for(self.get_root())
         dialog.set_modal(True)
         dialog.set_default_size(350, -1)
@@ -284,30 +323,42 @@ class SpecInfo(Adw.Bin):
         ok_btn = Gtk.Button(label="OK")
         ok_btn.add_css_class("suggested-action")
         ok_btn.connect(
-            "clicked", self._on_override_ok, entry, error_label, dialog
+            "clicked",
+            self._on_override_ok, entry, error_label, dialog, override_button, on_accepted,
         )
         btn_box.append(ok_btn)
 
         entry.connect(
             "activate",
-            lambda e: self._on_override_ok(ok_btn, entry, error_label, dialog),
+            lambda e: self._on_override_ok(
+                ok_btn, entry, error_label, dialog, override_button, on_accepted
+            ),
         )
 
         box.append(btn_box)
         dialog.set_child(box)
         dialog.present()
 
-    def _on_override_ok(self, button, entry, error_label, dialog):
+    def _on_override_ok(self, button, entry, error_label, dialog, override_button, on_accepted):
         if entry.get_text() == "kramdenok":
-            self.disk_override = True
-            for widget in self._disk_error_widgets:
-                widget.set_icon_name("emblem-ok-symbolic")
-                if widget.has_css_class("text-error"):
-                    widget.remove_css_class("text-error")
-            self._disk_override_button.set_visible(False)
+            on_accepted()
+            override_button.set_visible(False)
             dialog.close()
             self.on_shown()
         else:
             error_label.set_label("Incorrect password")
             entry.set_text("")
             entry.grab_focus()
+
+    def _on_disk_override_accepted(self):
+        self.disk_override = True
+        for widget in self._disk_error_widgets:
+            widget.set_icon_name("emblem-ok-symbolic")
+            if widget.has_css_class("text-error"):
+                widget.remove_css_class("text-error")
+
+    def _on_bios_password_override_accepted(self):
+        self.bios_password_override = True
+
+    def _on_asset_info_override_accepted(self):
+        self.asset_info_override = True

@@ -141,7 +141,8 @@ class SysInfo(Adw.Bin):
                 for disk in disks.keys():
                     row = Adw.ActionRow()
                     row.set_title(f"{str(disk)})")
-                    row.set_subtitle(f"{str(disks[disk])} GB")
+                    disk_info = disks[disk]
+                    row.set_subtitle(f"{disk_info['type']}: {disk_info['size']} GB")
                     disks_row.add_row(row)
                     disks_row.set_expanded(True)
                     disks_row.set_visible(True)
@@ -155,8 +156,9 @@ class SysInfo(Adw.Bin):
                 disk_row.set_expanded(True)
                 row = Adw.ActionRow()
                 row.set_title(f"{str(disk[0][0])}")
-                row.set_subtitle(f"{str(disk[0][1])} GB")
-                if int(disk[0][1]) >= 100:
+                disk_info = disk[0][1]
+                row.set_subtitle(f"{disk_info['type']}: {disk_info['size']} GB")
+                if disk_info['size'] >= 100:
                     row.set_icon_name("emblem-ok-symbolic")
                     if row.has_css_class("text-error"):
                         row.remove_css_class("text-error")
