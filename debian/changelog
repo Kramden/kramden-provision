@@ -1,3 +1,12 @@
+kramden-provision (0.1.99.11) noble; urgency=medium
+
+  * kramden-spec
+    - Assorted fixes from WWN testing
+    - Improved sortly searching and default to registering systems to an
+      Incoming folder in sortly
+
+ -- Ken VanDine <ken.vandine@canonical.com>  Tue, 24 Feb 2026 19:50:00 -0500
+
 kramden-provision (0.1.99.10) noble; urgency=medium
 
   * more scaling fixes for hidpi displays when autostarting 
