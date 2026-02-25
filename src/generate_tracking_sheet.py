@@ -48,21 +48,27 @@ def get_system_info():
     serial = utils.get_serial()
     batteries = utils.get_battery_capacities()
     device_type = utils.get_chassis_type()
+    bios_password = utils.has_bios_password()
+    asset_info = utils.has_asset_info()
+    computrace = utils.has_computrace_enabled()
 
-    # Sum total storage in GB
+    # Format storage with type
     if disks:
-        total_storage = sum(disks.values())
+        if len(disks) == 1:
+            disk_info = list(disks.values())[0]
+            total_storage = f"{disk_info['type']}: {disk_info['size']} GB"
+        else:
+            # Multiple disks - show total and note multiple
+            total_size = sum(d['size'] for d in disks.values())
+            total_storage = f"Multiple ({total_size} GB total)"
     else:
-        total_storage = 0
+        total_storage = "None"
 
     # Format battery capacity
     if batteries:
-        capacities = list(batteries.values())
-        if len(capacities) == 1:
-            battery_health = f"{capacities[0]}%"
-        else:
-            # Multiple batteries - show all
-            battery_health = ", ".join(f"{c}%" for c in capacities)
+        # Format as "BAT0: 87%" or "BAT0: 87%, BAT1: 78%"
+        battery_parts = [f"{name}: {capacity}%" for name, capacity in batteries.items()]
+        battery_health = ", ".join(battery_parts)
     else:
         battery_health = None
 
@@ -71,8 +77,10 @@ def get_system_info():
         "Model": model,
         "CPU": cpu,
         "RAM": ram,  # Numeric value only
-        "Storage": total_storage,  # Numeric value only
+        "Storage": total_storage,
         "Serial# Scanner": serial,
+        "BIOS Password": "Yes" if bios_password else "No",
+        "Asset Info": "Yes" if asset_info else "No",
     }
 
     # Only include Item Type if chassis type could be determined
@@ -86,6 +94,12 @@ def get_system_info():
     # Only include Battery Capacity if batteries are detected
     if battery_health:
         info["Battery Capacity"] = battery_health
+
+    # Only include Computrace if status is known
+    if computrace is True:
+        info["Computrace"] = "Activated"
+    elif computrace is False:
+        info["Computrace"] = "Not Activated"
 
     return info
 
@@ -286,9 +300,13 @@ def generate_tracking_sheet(item_name, output_path=None, spec_passed=None, manua
     ]
     if "Item Type" in system_info:
         spec_rows.append(("Device Type", system_info["Item Type"]))
+    spec_rows.append(("BIOS Password", system_info.get("BIOS Password", "")))
+    spec_rows.append(("Asset Info", system_info.get("Asset Info", "")))
+    if "Computrace" in system_info:
+        spec_rows.append(("Computrace", system_info["Computrace"]))
     spec_rows.append(("CPU", system_info.get("CPU", "")))
     spec_rows.append(("RAM", f"{system_info.get('RAM', '')} GB"))
-    spec_rows.append(("Storage", f"{system_info.get('Storage', '')} GB"))
+    spec_rows.append(("Storage", system_info.get("Storage", "")))
     if "Graphics" in system_info:
         spec_rows.append(("Graphics", system_info["Graphics"]))
     if "Battery Capacity" in system_info:

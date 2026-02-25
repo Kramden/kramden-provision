@@ -12,11 +12,20 @@ import os
 from utils import Utils
 
 SORTLY_API_BASE_URL = "https://api.sortly.co/api/v1"
-OSLOAD_FOLDER_IDS = ["102396658", "102396645", "102312875"]
-# SPEC_FOLDER_IDS = ["102309375", "102312621", "102396723", "102396716", "102309828"]
-SPEC_FOLDER_IDS = ["102396716", "102396723", "102312621", "102309828"]
+OSLOAD_FOLDER_IDS = ["102396645", "102312875", "102396658"]
+SPEC_FOLDER_IDS = ["102396716", "102396723", "102312621"]
+# RFT All-In-Ones: 102396716
+# RFT Desktop: 102396723
+# RFT Laptops: 102312621
+# TRIAGE TEST 102298337
+# Allocated: 102309828
+# RTA All-In-Ones:  102396645
+# RTA Laptops: 102312875
+# RTA Desktop: 102396658
 TEST_FOLDER_IDS = ["102298337"]
 SEARCH_FOLDER_IDS = ["102309375", "102312621", "102298337"]
+EXPANDED_FOLDER_IDS = OSLOAD_FOLDER_IDS + SPEC_FOLDER_IDS + ["102309828", "102298337"]
+INCOMING_FOLDER_ID = "105442428"
 API_KEY_ENV_VAR = "SORTLY_API_KEY"
 
 
@@ -366,17 +375,15 @@ def get_system_info():
 
     # Sum total storage in GB
     if disks:
-        total_storage = sum(disks.values())
+        total_storage = sum(d["size"] for d in disks.values())
     else:
         total_storage = 0
 
     # Format battery capacity
     if batteries:
-        capacities = list(batteries.values())
-        if len(capacities) == 1:
-            battery_health = f"{capacities[0]}%"
-        else:
-            battery_health = ", ".join(f"{c}%" for c in capacities)
+        # Format as "BAT0: 87%" or "BAT0: 87%, BAT1: 78%"
+        battery_parts = [f"{name}: {capacity}%" for name, capacity in batteries.items()]
+        battery_health = ", ".join(battery_parts)
     else:
         battery_health = None
 

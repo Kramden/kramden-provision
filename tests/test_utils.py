@@ -108,8 +108,9 @@ class TestUtils(unittest.TestCase):
         # The DMI fallback also fails, so serial should be empty
         self.assertEqual(utils.get_serial(), "")
 
+    @patch('utils.Utils._get_drive_type')
     @patch('utils.pyudev.Context')
-    def test_get_disks(self, mock_context):
+    def test_get_disks(self, mock_context, mock_get_drive_type):
         # Create a mock device
         mock_device = MagicMock()
         mock_device.__getitem__ = MagicMock(side_effect=lambda key: '/dev/sda' if key == 'DEVNAME' else None)
@@ -120,13 +121,17 @@ class TestUtils(unittest.TestCase):
         mock_context_instance = MagicMock()
         mock_context_instance.list_devices.return_value = [mock_device]
         mock_context.return_value = mock_context_instance
+        
+        # Mock drive type detection
+        mock_get_drive_type.return_value = 'SATA SSD'
 
         # 209715200 * 512 / 1024^3 = 100 GB
         result = self.utils.get_disks()
-        self.assertEqual(result, {'/dev/sda': 100})
+        self.assertEqual(result, {'/dev/sda': {'size': 100, 'type': 'SATA SSD'}})
 
+    @patch('utils.Utils._get_drive_type')
     @patch('utils.pyudev.Context')
-    def test_get_disks_filters_dm_prefix(self, mock_context):
+    def test_get_disks_filters_dm_prefix(self, mock_context, mock_get_drive_type):
         """Test that devices with /dev/dm- prefix are filtered out."""
         # Create mock devices: one normal disk and one with dm- prefix
         mock_device_sda = MagicMock()
@@ -143,13 +148,17 @@ class TestUtils(unittest.TestCase):
         mock_context_instance = MagicMock()
         mock_context_instance.list_devices.return_value = [mock_device_sda, mock_device_dm]
         mock_context.return_value = mock_context_instance
+        
+        # Mock drive type detection
+        mock_get_drive_type.return_value = 'SATA SSD'
 
         # Only /dev/sda should be included, /dev/dm-0 should be filtered out
         result = self.utils.get_disks()
-        self.assertEqual(result, {'/dev/sda': 100})
+        self.assertEqual(result, {'/dev/sda': {'size': 100, 'type': 'SATA SSD'}})
 
+    @patch('utils.Utils._get_drive_type')
     @patch('utils.pyudev.Context')
-    def test_get_disks_filters_mapper_path(self, mock_context):
+    def test_get_disks_filters_mapper_path(self, mock_context, mock_get_drive_type):
         """Test that devices with /mapper/ in the path are filtered out."""
         # Create mock devices: one normal disk and one with /mapper/ in path
         mock_device_sda = MagicMock()
@@ -166,13 +175,17 @@ class TestUtils(unittest.TestCase):
         mock_context_instance = MagicMock()
         mock_context_instance.list_devices.return_value = [mock_device_sda, mock_device_mapper]
         mock_context.return_value = mock_context_instance
+        
+        # Mock drive type detection
+        mock_get_drive_type.return_value = 'SATA SSD'
 
         # Only /dev/sda should be included, /dev/mapper/vg-lv should be filtered out
         result = self.utils.get_disks()
-        self.assertEqual(result, {'/dev/sda': 100})
+        self.assertEqual(result, {'/dev/sda': {'size': 100, 'type': 'SATA SSD'}})
 
+    @patch('utils.Utils._get_drive_type')
     @patch('utils.pyudev.Context')
-    def test_get_disks_filters_dm_name_property(self, mock_context):
+    def test_get_disks_filters_dm_name_property(self, mock_context, mock_get_drive_type):
         """Test that devices with DM_NAME property are filtered out."""
         # Create mock devices: one normal disk and one with DM_NAME property
         mock_device_sda = MagicMock()
@@ -189,10 +202,13 @@ class TestUtils(unittest.TestCase):
         mock_context_instance = MagicMock()
         mock_context_instance.list_devices.return_value = [mock_device_sda, mock_device_lvm]
         mock_context.return_value = mock_context_instance
+        
+        # Mock drive type detection
+        mock_get_drive_type.return_value = 'SATA SSD'
 
         # Only /dev/sda should be included, device with DM_NAME should be filtered out
         result = self.utils.get_disks()
-        self.assertEqual(result, {'/dev/sda': 100})
+        self.assertEqual(result, {'/dev/sda': {'size': 100, 'type': 'SATA SSD'}})
 
     @patch('utils.Utils._get_installed_ram_from_dmi')
     def test_get_mem_8gib_system(self, mock_dmi):
@@ -1228,6 +1244,116 @@ Memory Device
     def test_format_knumber_test_prefix_mixed(self):
         """Test TEST- with mixed content returns None."""
         self.assertIsNone(Utils.format_knumber("TEST-12a"))
+
+    @patch('dbus.SystemBus')
+    def test_get_battery_capacities_single_battery(self, mock_bus):
+        """Test battery capacity returns BAT0/BAT1 names instead of model."""
+        # Mock UPower device
+        mock_device = MagicMock()
+        mock_properties = MagicMock()
+        
+        # Mock property responses
+        def get_property(interface, prop):
+            if prop == "Type":
+                return 2  # Battery type
+            elif prop == "Capacity":
+                return 87.0
+            elif prop == "NativePath":
+                return "/sys/devices/LNXSYSTM:00/LNXSYBUS:00/PNP0A08:00/device:00/PNP0C09:00/PNP0C0A:00/power_supply/BAT0"
+            return None
+        
+        mock_properties.Get = MagicMock(side_effect=get_property)
+        
+        # Setup dbus mocks
+        mock_bus_instance = MagicMock()
+        mock_upower = MagicMock()
+        mock_manager = MagicMock()
+        mock_manager.EnumerateDevices.return_value = ["/org/freedesktop/UPower/devices/battery_BAT0"]
+        
+        mock_bus.return_value = mock_bus_instance
+        mock_bus_instance.get_object = MagicMock(return_value=mock_device)
+        
+        # Mock dbus.Interface to return different objects
+        def interface_factory(obj, interface_name):
+            if "UPower" in interface_name and "Device" not in interface_name:
+                return mock_manager
+            else:
+                return mock_properties
+        
+        with patch('dbus.Interface', side_effect=interface_factory):
+            result = self.utils.get_battery_capacities()
+            self.assertEqual(result, {"BAT0": 87})
+
+    @patch('dbus.SystemBus')
+    def test_get_battery_capacities_multiple_batteries(self, mock_bus):
+        """Test multiple batteries return BAT0 and BAT1 names."""
+        mock_device1 = MagicMock()
+        mock_device2 = MagicMock()
+        mock_properties1 = MagicMock()
+        mock_properties2 = MagicMock()
+        
+        # Mock property responses for BAT0
+        def get_property1(interface, prop):
+            if prop == "Type":
+                return 2  # Battery type
+            elif prop == "Capacity":
+                return 87.0
+            elif prop == "NativePath":
+                return "/sys/devices/.../BAT0"
+            return None
+        
+        # Mock property responses for BAT1
+        def get_property2(interface, prop):
+            if prop == "Type":
+                return 2  # Battery type
+            elif prop == "Capacity":
+                return 78.0
+            elif prop == "NativePath":
+                return "/sys/devices/.../BAT1"
+            return None
+        
+        mock_properties1.Get = MagicMock(side_effect=get_property1)
+        mock_properties2.Get = MagicMock(side_effect=get_property2)
+        
+        # Setup dbus mocks
+        mock_bus_instance = MagicMock()
+        mock_manager = MagicMock()
+        mock_manager.EnumerateDevices.return_value = [
+            "/org/freedesktop/UPower/devices/battery_BAT0",
+            "/org/freedesktop/UPower/devices/battery_BAT1"
+        ]
+        
+        mock_bus.return_value = mock_bus_instance
+        
+        # Return different devices for different paths
+        device_map = {
+            "/org/freedesktop/UPower/devices/battery_BAT0": mock_device1,
+            "/org/freedesktop/UPower/devices/battery_BAT1": mock_device2,
+        }
+        
+        def get_object(service, path):
+            if path == "/org/freedesktop/UPower":
+                return MagicMock()
+            return device_map.get(path, mock_device1)
+        
+        mock_bus_instance.get_object = MagicMock(side_effect=get_object)
+        
+        # Track which device we're working with
+        current_device = [0]
+        
+        def interface_factory(obj, interface_name):
+            if "UPower" in interface_name and "Device" not in interface_name:
+                return mock_manager
+            else:
+                # Alternate between properties for each device
+                if obj == mock_device1:
+                    return mock_properties1
+                else:
+                    return mock_properties2
+        
+        with patch('dbus.Interface', side_effect=interface_factory):
+            result = self.utils.get_battery_capacities()
+            self.assertEqual(result, {"BAT0": 87, "BAT1": 78})
 
 
 if __name__ == '__main__':

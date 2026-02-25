@@ -8,6 +8,8 @@ from gi.repository import Adw, Gdk, Gtk, GLib
 
 from utils import Utils
 from sortly import (
+    EXPANDED_FOLDER_IDS,
+    INCOMING_FOLDER_ID,
     get_api_key,
     get_stage_folder_ids,
     list_subfolders,
@@ -58,12 +60,18 @@ class SortlyRegister(Adw.Bin):
         self.search_button.set_sensitive(False)
         self.search_button.connect("clicked", self._on_search_clicked)
 
+        self.expanded_search_button = Gtk.Button(label="Expanded Search (Staff)")
+        self.expanded_search_button.set_visible(False)
+        self.expanded_search_button.set_sensitive(False)
+        self.expanded_search_button.connect("clicked", self._on_expanded_search_clicked)
+
         self.spinner = Gtk.Spinner()
         self.spinner.set_visible(False)
 
         knumber_box.append(knumber_label)
         knumber_box.append(self.knumber_entry)
         knumber_box.append(self.search_button)
+        knumber_box.append(self.expanded_search_button)
         knumber_box.append(self.spinner)
 
         # Status label
@@ -167,7 +175,9 @@ class SortlyRegister(Adw.Bin):
             self.register_button.set_label("Update")
             self.register_button.set_sensitive(True)
         else:
-            self._set_status("No existing record found for this serial. Enter a K-number and search.")
+            self._set_status(
+                "No existing record found for this serial. Enter a K-number and search. Registration requires staff approval."
+            )
             self.search_button.set_visible(True)
             # Enable search button if there's already a valid K-number
             value = self.knumber_entry.get_text().strip()
@@ -176,6 +186,10 @@ class SortlyRegister(Adw.Bin):
 
     def _on_knumber_changed(self, entry):
         self._user_edited = True
+        self.expanded_search_button.set_visible(False)
+        self.expanded_search_button.set_sensitive(False)
+        if self._lookup_done and not self.search_button.get_visible():
+            self.search_button.set_visible(True)
         value = entry.get_text().strip()
         formatted = Utils.format_knumber(value) if value else None
 
@@ -200,7 +214,9 @@ class SortlyRegister(Adw.Bin):
             self.search_button.set_sensitive(not self._submitted)
         else:
             # Serial was found — existing behavior
-            self.register_button.set_sensitive(not self._submitted and self._lookup_done)
+            self.register_button.set_sensitive(
+                not self._submitted and self._lookup_done
+            )
             if self._existing_item and formatted == self._existing_item.get("name"):
                 self.register_button.set_label("Update")
             else:
@@ -226,6 +242,8 @@ class SortlyRegister(Adw.Bin):
             return
 
         self.search_button.set_sensitive(False)
+        self.expanded_search_button.set_sensitive(False)
+        self.register_button.set_sensitive(False)
         self.spinner.set_visible(True)
         self.spinner.start()
         self._set_status(f"Searching for '{formatted}' in Sortly...")
@@ -264,17 +282,123 @@ class SortlyRegister(Adw.Bin):
             self._existing_item = results[0]
             self._set_status(f"Found existing record: {knumber}")
             self.register_button.set_label("Update")
+            self.expanded_search_button.set_visible(False)
+            self.expanded_search_button.set_sensitive(False)
+            self.search_button.set_visible(True)
         else:
             self._existing_item = None
-            self._set_status(f"No record found for {knumber}.")
+            self._set_status(
+                f"No record found for {knumber}. Register requires staff approval."
+            )
             self.register_button.set_label("Register")
+            if EXPANDED_FOLDER_IDS:
+                self.expanded_search_button.set_visible(True)
+                self.expanded_search_button.set_sensitive(True)
+                self.search_button.set_visible(False)
 
         self.register_button.set_sensitive(not self._submitted)
+
+    def _on_expanded_search_clicked(self, button):
+        raw_value = self.knumber_entry.get_text().strip()
+        formatted = Utils.format_knumber(raw_value)
+        if not formatted:
+            self._set_status("Invalid K-number format.", error=True)
+            return
+
+        try:
+            api_key = get_api_key()
+        except EnvironmentError as e:
+            self._set_status(str(e), error=True)
+            return
+
+        self.search_button.set_sensitive(False)
+        self.expanded_search_button.set_sensitive(False)
+        self.register_button.set_sensitive(False)
+        self.spinner.set_visible(True)
+        self.spinner.start()
+        self._set_status(f"Expanded search for '{formatted}' in Sortly...")
+
+        thread = threading.Thread(
+            target=self._expanded_search_knumber_thread,
+            args=(api_key, formatted),
+            daemon=True,
+        )
+        thread.start()
+
+    def _expanded_search_knumber_thread(self, api_key, knumber):
+        try:
+            GLib.idle_add(self._set_status, "Discovering expanded folders...")
+            folder_ids = []
+            for fid in EXPANDED_FOLDER_IDS:
+                folder_ids.extend(list_subfolders(api_key, fid))
+            GLib.idle_add(
+                self._set_status,
+                f"Searching {len(folder_ids)} expanded folder(s) for '{knumber}'...",
+            )
+            results = search_item_by_name(api_key, folder_ids, knumber)
+        except Exception as e:
+            GLib.idle_add(self._on_search_complete, None, knumber, str(e))
+            return
+        GLib.idle_add(self._on_search_complete, results, knumber, None)
 
     def _on_register_clicked(self, button):
         if self._submitted:
             return
 
+        dialog = Gtk.Window()
+        dialog.set_title("Register Authorization")
+        dialog.set_transient_for(self.get_root())
+        dialog.set_modal(True)
+        dialog.set_default_size(350, -1)
+        dialog.set_resizable(False)
+
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        box.set_margin_top(24)
+        box.set_margin_bottom(24)
+        box.set_margin_start(24)
+        box.set_margin_end(24)
+
+        label = Gtk.Label(label="Enter staff password to register:")
+        box.append(label)
+
+        entry = Gtk.PasswordEntry()
+        entry.set_show_peek_icon(True)
+        box.append(entry)
+
+        error_label = Gtk.Label(label="")
+        error_label.add_css_class("text-error")
+        box.append(error_label)
+
+        btn_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        btn_box.set_halign(Gtk.Align.END)
+
+        cancel_btn = Gtk.Button(label="Cancel")
+        cancel_btn.connect("clicked", lambda b: dialog.close())
+        btn_box.append(cancel_btn)
+
+        ok_btn = Gtk.Button(label="OK")
+        ok_btn.add_css_class("suggested-action")
+        ok_btn.connect("clicked", self._on_register_auth_ok, entry, error_label, dialog)
+        btn_box.append(ok_btn)
+
+        entry.connect(
+            "activate",
+            lambda e: self._on_register_auth_ok(ok_btn, entry, error_label, dialog),
+        )
+
+        box.append(btn_box)
+        dialog.set_child(box)
+        dialog.present()
+
+    def _on_register_auth_ok(self, button, entry, error_label, dialog):
+        if entry.get_text() == "kramdenstaffok":
+            dialog.close()
+            self._do_register()
+        else:
+            error_label.set_label("Incorrect password")
+            entry.set_text("")
+
+    def _do_register(self):
         raw_value = self.knumber_entry.get_text().strip()
         formatted = Utils.format_knumber(raw_value)
         if not formatted:
@@ -288,10 +412,7 @@ class SortlyRegister(Adw.Bin):
             return
 
         # If entry matches the existing item, update it directly
-        is_update = (
-            self._existing_item
-            and formatted == self._existing_item.get("name")
-        )
+        is_update = self._existing_item and formatted == self._existing_item.get("name")
 
         self.register_button.set_sensitive(False)
         self.knumber_entry.set_sensitive(False)
@@ -315,30 +436,21 @@ class SortlyRegister(Adw.Bin):
             if is_update:
                 item = self._existing_item
             else:
-                # Search for existing item by name
-                GLib.idle_add(self._set_status, "Discovering subfolders...")
-                folder_ids = []
-                for fid in get_stage_folder_ids("spec"):
-                    folder_ids.extend(list_subfolders(api_key, fid))
-                GLib.idle_add(
-                    self._set_status,
-                    f"Searching {len(folder_ids)} folder(s) for '{knumber}'...",
-                )
-                results = search_item_by_name(api_key, folder_ids, knumber)
-                if results:
-                    item = results[0]
-                else:
-                    item = create_item(api_key, get_stage_folder_ids("spec")[0], knumber)
-                    if not item:
-                        GLib.idle_add(self._on_register_complete, False, "Failed to create item.")
-                        return
+                item = create_item(api_key, INCOMING_FOLDER_ID, knumber)
+                if not item:
+                    GLib.idle_add(
+                        self._on_register_complete, False, "Failed to create item."
+                    )
+                    return
 
             item_id = item["id"]
             info = self._system_info or {}
             if info:
                 success = update_item(api_key, item_id, info)
                 if not success:
-                    GLib.idle_add(self._on_register_complete, False, "Failed to update item.")
+                    GLib.idle_add(
+                        self._on_register_complete, False, "Failed to update item."
+                    )
                     return
 
             GLib.idle_add(self._on_register_complete, True, None)
@@ -373,8 +485,15 @@ class SortlyRegister(Adw.Bin):
 
         # Display order
         field_order = [
-            "Brand", "Model", "CPU", "RAM", "Storage",
-            "Serial# Scanner", "Item Type", "Graphics", "Battery Health",
+            "Brand",
+            "Model",
+            "CPU",
+            "RAM",
+            "Storage",
+            "Serial# Scanner",
+            "Item Type",
+            "Graphics",
+            "Battery Health",
         ]
 
         for field in field_order:
