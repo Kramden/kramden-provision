@@ -438,6 +438,7 @@ def get_system_info():
         "RAM": ram,
         "Storage": total_storage,
         "Serial# Scanner": serial,
+        "Serial Number": serial,
     }
 
     if device_type:
