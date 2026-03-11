@@ -12,20 +12,64 @@ import os
 from utils import Utils
 
 SORTLY_API_BASE_URL = "https://api.sortly.co/api/v1"
-OSLOAD_FOLDER_IDS = ["102396645", "102312875", "102396658"]
-SPEC_FOLDER_IDS = ["102396716", "102396723", "102312621"]
+OSLOAD_FOLDER_IDS = [
+    "106345033",
+    "106345034",
+    "106345035",
+    "106345038",
+    "106345039",
+    "106345040",
+    "106345043",
+    "106345044",
+    "106345045",
+]
+SPEC_FOLDER_IDS = [
+    "102396716",
+    "102396723",
+    "102312621",
+    "102312733",
+    "102312726",
+    "102312732",
+    "102312850",
+]
+
 # RFT All-In-Ones: 102396716
 # RFT Desktop: 102396723
 # RFT Laptops: 102312621
-# TRIAGE TEST 102298337
-# Allocated: 102309828
-# RTA All-In-Ones:  102396645
+# RFT Temporary Projects: 102312733
+# RFT Problem Machines:
+### RFT Defective Laptop Shelf: 102312726
+### RFT BIOS Locked Shelf: 102312732
+### RFT Digital Asset Tag Bin: 102312850
+
+# RTA Programs (Linux) Desktop: 106345030
+### RTA Programs (Linux) Desktop Stage 1: 106345033
+### RTA Programs (Linux) Desktop Stage 2: 106345034
+### RTA Programs (Linux) Desktop Stage 3: 106345035
+# RTA Programs (Linux) Laptops: 106345031
+### RTA Programs (Linux) Laptops Stage 1: 106345038
+### RTA Programs (Linux) Laptops Stage 2: 106345039
+### RTA Programs (Linux) Laptops Stage 3: 106345040
+# RTA Programs (Linux) All-In-Ones: 106345032
+### RTA Programs (Linux) All-In-Ones Stage 1: 106345043
+### RTA Programs (Linux) All-In-Ones Stage 2: 106345044
+### RTA Programs (Linux) All-In-Ones Stage 3: 106345045
+
+# SPEC: Search all RFT folders
+# OSLOAD/FINALTEST: All RTA + RTF Desktops + RTF All-In-Ones
+
+#####################OLD###############################
+# RTA All-In-Ones: 102396645
 # RTA Laptops: 102312875
 # RTA Desktop: 102396658
+# TRIAGE TEST 102298337
+# Allocated: 102309828
+#####################OLD###############################
+
 TEST_FOLDER_IDS = ["102298337"]
 SEARCH_FOLDER_IDS = ["102309375", "102312621", "102298337"]
 EXPANDED_FOLDER_IDS = OSLOAD_FOLDER_IDS + SPEC_FOLDER_IDS + ["102309828", "102298337"]
-INCOMING_FOLDER_ID = "105442428"
+INCOMING_FOLDER_ID = "106628131"  # Spec-Not-Found - Leadership Only
 API_KEY_ENV_VAR = "SORTLY_API_KEY"
 
 
