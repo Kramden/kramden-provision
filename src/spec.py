@@ -140,6 +140,31 @@ class WizardWindow(Gtk.ApplicationWindow):
                 self.on_prev_clicked()
 
     def on_next_clicked(self, button=None):
+        # Warn if leaving the Sortly page without submitting hardware info
+        if self.current_page == 0 and not self.page1._submitted:
+            self._show_sortly_warning()
+            return
+
+        self._advance_next()
+
+    def _show_sortly_warning(self):
+        dialog = Gtk.MessageDialog(
+            transient_for=self,
+            modal=True,
+            message_type=Gtk.MessageType.WARNING,
+            buttons=Gtk.ButtonsType.OK_CANCEL,
+            text="Hardware info not submitted",
+            secondary_text="You have not submitted the updated hardware info to Sortly. Are you sure you want to continue?",
+        )
+        dialog.connect("response", self._on_sortly_warning_response)
+        dialog.present()
+
+    def _on_sortly_warning_response(self, dialog, response):
+        dialog.close()
+        if response == Gtk.ResponseType.OK:
+            self._advance_next()
+
+    def _advance_next(self):
         if self.current_page < 3:
             self.current_page += 1
             self.stack.set_visible_child_name(f"page{self.current_page + 1}")

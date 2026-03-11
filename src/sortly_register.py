@@ -60,7 +60,7 @@ class SortlyRegister(Adw.Bin):
         self.search_button.set_sensitive(False)
         self.search_button.connect("clicked", self._on_search_clicked)
 
-        self.expanded_search_button = Gtk.Button(label="Expanded Search (Staff)")
+        self.expanded_search_button = Gtk.Button(label="Expanded Search")
         self.expanded_search_button.set_visible(False)
         self.expanded_search_button.set_sensitive(False)
         self.expanded_search_button.connect("clicked", self._on_expanded_search_clicked)
