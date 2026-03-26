@@ -13,6 +13,7 @@ from sysinfo import SysInfo
 from landscape import Landscape
 from osloadcomplete import OSLoadComplete
 from observable import ObservableProperty, StateObserver
+from utils import Utils
 
 
 class WizardWindow(Gtk.ApplicationWindow):
@@ -94,6 +95,12 @@ class WizardWindow(Gtk.ApplicationWindow):
         self.current_page = 0
         self.update_buttons()
 
+        # Inhibit shutdown until OS Load is completed
+        self.inhibit_fd = Utils.inhibit_shutdown(
+            "Kramden OS Load",
+            "OS Load has not been completed. Please complete OS Load before powering off.",
+        )
+
         # Fake visible change to set state info
         self.page1.on_shown()
 
@@ -171,6 +178,8 @@ class WizardWindow(Gtk.ApplicationWindow):
         current = self.stack.get_visible_child()
         if hasattr(current, "complete"):
             current.complete()
+        Utils.release_inhibit(self.inhibit_fd)
+        self.inhibit_fd = None
 
 
 class Application(Adw.Application):

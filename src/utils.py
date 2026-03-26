@@ -747,6 +747,32 @@ class Utils:
     def file_exists_and_executable(self, filepath):
         return os.path.isfile(filepath) and os.access(filepath, os.X_OK)
 
+    # Take a systemd-logind inhibit lock to prevent shutdown until stage is complete
+    @staticmethod
+    def inhibit_shutdown(who, why):
+        try:
+            bus = dbus.SystemBus()
+            login1 = bus.get_object(
+                "org.freedesktop.login1", "/org/freedesktop/login1"
+            )
+            manager = dbus.Interface(login1, "org.freedesktop.login1.Manager")
+            fd = manager.Inhibit("shutdown", who, why, "block")
+            print(f"Utils: inhibit_shutdown acquired for {who}")
+            return fd
+        except dbus.DBusException as e:
+            print(f"Utils: failed to acquire shutdown inhibitor: {e}")
+            return None
+
+    # Release a previously acquired inhibit lock
+    @staticmethod
+    def release_inhibit(fd):
+        if fd is not None:
+            try:
+                os.close(fd.take())
+                print("Utils: inhibit lock released")
+            except Exception as e:
+                print(f"Utils: failed to release inhibit lock: {e}")
+
     # Perform reset
     def complete_reset(self, stage):
         val = False
