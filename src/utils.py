@@ -747,28 +747,38 @@ class Utils:
     def file_exists_and_executable(self, filepath):
         return os.path.isfile(filepath) and os.access(filepath, os.X_OK)
 
-    # Take a systemd-logind inhibit lock to prevent shutdown until stage is complete
+    # Take a systemd-logind inhibit lock to prevent shutdown until stage is complete.
+    # Returns the Popen process holding the lock; the lock is held until the
+    # process terminates (see release_inhibit).
     @staticmethod
     def inhibit_shutdown(who, why):
         try:
-            bus = dbus.SystemBus()
-            login1 = bus.get_object(
-                "org.freedesktop.login1", "/org/freedesktop/login1"
+            proc = subprocess.Popen(
+                [
+                    "systemd-inhibit",
+                    f"--what=shutdown",
+                    f"--who={who}",
+                    f"--why={why}",
+                    "--mode=block",
+                    "cat",
+                ],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
             )
-            manager = dbus.Interface(login1, "org.freedesktop.login1.Manager")
-            fd = manager.Inhibit("shutdown", who, why, "block")
             print(f"Utils: inhibit_shutdown acquired for {who}")
-            return fd
-        except dbus.DBusException as e:
+            return proc
+        except OSError as e:
             print(f"Utils: failed to acquire shutdown inhibitor: {e}")
             return None
 
     # Release a previously acquired inhibit lock
     @staticmethod
-    def release_inhibit(fd):
-        if fd is not None:
+    def release_inhibit(proc):
+        if proc is not None:
             try:
-                os.close(fd.take())
+                proc.stdin.close()
+                proc.wait()
                 print("Utils: inhibit lock released")
             except Exception as e:
                 print(f"Utils: failed to release inhibit lock: {e}")
