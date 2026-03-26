@@ -747,41 +747,6 @@ class Utils:
     def file_exists_and_executable(self, filepath):
         return os.path.isfile(filepath) and os.access(filepath, os.X_OK)
 
-    # Take a systemd-logind inhibit lock to prevent shutdown until stage is complete.
-    # Returns the Popen process holding the lock; the lock is held until the
-    # process terminates (see release_inhibit).
-    @staticmethod
-    def inhibit_shutdown(who, why):
-        try:
-            proc = subprocess.Popen(
-                [
-                    "systemd-inhibit",
-                    f"--what=shutdown",
-                    f"--who={who}",
-                    f"--why={why}",
-                    "--mode=block",
-                    "cat",
-                ],
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            )
-            print(f"Utils: inhibit_shutdown acquired for {who}")
-            return proc
-        except OSError as e:
-            print(f"Utils: failed to acquire shutdown inhibitor: {e}")
-            return None
-
-    # Release a previously acquired inhibit lock
-    @staticmethod
-    def release_inhibit(proc):
-        if proc is not None:
-            try:
-                proc.stdin.close()
-                proc.wait()
-                print("Utils: inhibit lock released")
-            except Exception as e:
-                print(f"Utils: failed to release inhibit lock: {e}")
 
     # Perform reset
     def complete_reset(self, stage):

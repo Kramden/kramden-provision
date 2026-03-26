@@ -13,7 +13,6 @@ from check_packages import CheckPackages
 from manualtest import ManualTest
 from finaltestcomplete import FinalTestComplete
 from observable import ObservableProperty, StateObserver
-from utils import Utils
 
 
 class WizardWindow(Gtk.ApplicationWindow):
@@ -93,8 +92,9 @@ class WizardWindow(Gtk.ApplicationWindow):
         self.update_buttons()
 
         # Inhibit shutdown until Final Test is completed
-        self.inhibit_fd = Utils.inhibit_shutdown(
-            "Kramden Final Test",
+        self.inhibit_cookie = app.inhibit(
+            self,
+            Gtk.ApplicationInhibitFlags.LOGOUT,
             "Final Test has not been completed. Please complete Final Test before powering off.",
         )
 
@@ -175,8 +175,9 @@ class WizardWindow(Gtk.ApplicationWindow):
         current = self.stack.get_visible_child()
         if hasattr(current, "complete"):
             current.complete()
-        Utils.release_inhibit(self.inhibit_fd)
-        self.inhibit_fd = None
+        if self.inhibit_cookie:
+            self.get_application().uninhibit(self.inhibit_cookie)
+            self.inhibit_cookie = 0
 
 
 class Application(Adw.Application):
