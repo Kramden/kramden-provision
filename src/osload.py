@@ -98,8 +98,10 @@ class WizardWindow(Gtk.ApplicationWindow):
         self.inhibit_cookie = app.inhibit(
             self,
             Gtk.ApplicationInhibitFlags.LOGOUT,
-            "OS Load has not been completed. Please complete OS Load before powering off.",
+            "OS Load has not been completed",
         )
+        self.completed = False
+        self.connect("close-request", self._on_close_request)
 
         # Fake visible change to set state info
         self.page1.on_shown()
@@ -173,11 +175,37 @@ class WizardWindow(Gtk.ApplicationWindow):
         if self.current_page == 2:
             self.next_button.grab_focus()
 
+    def _on_close_request(self, window):
+        if self.completed:
+            return False
+        dialog = Adw.MessageDialog(
+            transient_for=self,
+            heading="OS Load Not Complete",
+            body=(
+                "OS Load has not been completed. "
+                "Please click Complete before closing or powering off."
+            ),
+        )
+        dialog.add_response("cancel", "Go Back")
+        dialog.add_response("close", "Close Anyway")
+        dialog.set_response_appearance("close", Adw.ResponseAppearance.DESTRUCTIVE)
+        dialog.set_default_response("cancel")
+        dialog.set_close_response("cancel")
+        dialog.connect("response", self._on_close_response)
+        dialog.present()
+        return True
+
+    def _on_close_response(self, dialog, response):
+        if response == "close":
+            self.completed = True
+            self.close()
+
     def complete(self):
         print("Complete Clicked")
         current = self.stack.get_visible_child()
         if hasattr(current, "complete"):
             current.complete()
+        self.completed = True
         if self.inhibit_cookie:
             self.get_application().uninhibit(self.inhibit_cookie)
             self.inhibit_cookie = 0
