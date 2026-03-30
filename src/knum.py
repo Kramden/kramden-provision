@@ -12,7 +12,6 @@ from sortly import (
     list_subfolders,
     search_by_serial,
     search_item_by_name,
-    create_item,
     update_item,
     get_system_info,
 )
@@ -252,12 +251,9 @@ class KramdenNumber(Adw.Bin):
                 if results:
                     item = results[0]
                 else:
-                    item = create_item(api_key, get_stage_folder_ids("osload")[0], knumber)
-                    if not item:
-                        GLib.idle_add(
-                            self._on_register_complete, False, "Failed to create item."
-                        )
-                        return
+                    # No existing record — skip Sortly update and proceed
+                    GLib.idle_add(self._on_register_complete, True, knumber)
+                    return
 
             item_id = item["id"]
             info = self._system_info or {}
@@ -280,10 +276,7 @@ class KramdenNumber(Adw.Bin):
         if success:
             knumber = result
             self._submitted = True
-            if self.register_button.get_label() == "Update":
-                self._set_status("Update successful!")
-            else:
-                self._set_status("Registration successful!")
+            self._set_status(f"K-number set to {knumber}.")
 
             # Set hostname and advance
             utils = Utils()
