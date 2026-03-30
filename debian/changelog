@@ -1,3 +1,9 @@
+kramden-provision (0.1.99.13+resolute1) resolute; urgency=medium
+
+  * Prepare for resolute
+
+ -- Ken VanDine <ken.vandine@canonical.com>  Mon, 30 Mar 2026 17:01:15 -0400
+
 kramden-provision (0.1.99.13) nobel; urgency=medium
 
   * Fixes for osload flow, knum validation and sortly
