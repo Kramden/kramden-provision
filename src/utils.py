@@ -90,17 +90,12 @@ class Utils:
             if device.get("DM_NAME"):
                 continue
 
-            size_gb = int(
-                round(device.attributes.asint("size") * 512 / 1024**3, 0)
-            )
-            
+            size_gb = int(round(device.attributes.asint("size") * 512 / 1024**3, 0))
+
             # Determine drive type
             drive_type = self._get_drive_type(devname)
-            
-            disks[str(devname)] = {
-                "size": size_gb,
-                "type": drive_type
-            }
+
+            disks[str(devname)] = {"size": size_gb, "type": drive_type}
 
         return disks
 
@@ -108,11 +103,11 @@ class Utils:
         """Determine if drive is NVMe, SATA SSD, or SATA HDD."""
         if "nvme" in devname:
             return "NVMe"
-        
+
         # Check rotational attribute for SATA drives
         try:
             # Extract device name (e.g., "sda" from "/dev/sda")
-            dev = devname.split('/')[-1]
+            dev = devname.split("/")[-1]
             with open(f"/sys/block/{dev}/queue/rotational", "r") as f:
                 is_rotational = f.read().strip() == "1"
                 return "SATA HDD" if is_rotational else "SATA SSD"
@@ -213,7 +208,7 @@ class Utils:
                         if result.returncode == 0:
                             value = result.stdout.strip().lower()
                             # For *Activation attributes, Enable means activated
-                            if value in ["enable", "enabled"]:
+                            if value in ["enabled"]:
                                 return True
                             elif value in [
                                 "disable",
@@ -625,13 +620,17 @@ class Utils:
                 # Extract battery name from device path (e.g., /org/freedesktop/UPower/devices/battery_BAT0)
                 # Use native name like BAT0/BAT1 instead of manufacturer model name
                 try:
-                    native_path = device_properties.Get("org.freedesktop.UPower.Device", "NativePath")
+                    native_path = device_properties.Get(
+                        "org.freedesktop.UPower.Device", "NativePath"
+                    )
                     # NativePath is typically /sys/devices/.../BAT0 or BAT1
-                    battery_name = native_path.split('/')[-1]
+                    battery_name = native_path.split("/")[-1]
                 except Exception:
                     # Fallback to extracting from device_path
-                    battery_name = device_path.split('_')[-1] if '_' in device_path else "BAT"
-                
+                    battery_name = (
+                        device_path.split("_")[-1] if "_" in device_path else "BAT"
+                    )
+
                 capacities[battery_name] = capacity
 
         return capacities
@@ -851,9 +850,7 @@ class Utils:
                 capture_output=True,
                 text=True,
             )
-            print(
-                f"EFI variable KramdenNumber written with value '{value}'."
-            )
+            print(f"EFI variable KramdenNumber written with value '{value}'.")
         except Exception as e:
             print(f"Failed to write KramdenNumber efivar: {e}")
         finally:
