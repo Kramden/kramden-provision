@@ -1,4 +1,4 @@
-kramden-provision (0.1.99.13) nobel; urgency=medium
+kramden-provision (0.1.99.13) noble; urgency=medium
 
   * Fixes for osload flow, knum validation and sortly
 
