@@ -1,3 +1,9 @@
+kramden-provision (0.1.99.12) noble; urgency=medium
+
+  * Fixed for detecting absolute
+
+ -- Ken VanDine <ken.vandine@canonical.com>  Mon, 30 Mar 2026 15:09:26 -0400
+
 kramden-provision (0.1.99.11) noble; urgency=medium
 
   * kramden-spec
