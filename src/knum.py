@@ -189,6 +189,7 @@ class KramdenNumber(Adw.Bin):
                 self.register_button.set_label("Set")
             if self.status_label.has_css_class("text-error"):
                 self.status_label.remove_css_class("text-error")
+                self.status_label.set_label("")
         else:
             self.register_button.set_sensitive(False)
             if value:
