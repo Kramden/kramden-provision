@@ -446,6 +446,49 @@ class Utils:
 
         return cpu_info["model name"]
 
+    def get_integrated_gpu(self):
+        """Return a friendly name for the integrated GPU, or None."""
+        # Find the first VGA controller from lspci (typically the iGPU)
+        integrated_pci_slot = None
+        try:
+            result = subprocess.run(
+                ["lspci", "-nn"],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            for line in result.stdout.splitlines():
+                line_lower = line.lower()
+                if "vga compatible controller" in line_lower:
+                    pci_match = re.match(r"([0-9a-f:.]+)", line)
+                    if pci_match:
+                        integrated_pci_slot = pci_match.group(1)
+                    break  # first VGA controller is typically the iGPU
+        except (subprocess.CalledProcessError, OSError):
+            pass
+
+        # Try glxinfo without PRIME offload to get the integrated renderer
+        try:
+            result = subprocess.run(
+                ["glxinfo"],
+                capture_output=True,
+                text=True,
+            )
+            for line in result.stdout.splitlines():
+                if "OpenGL renderer string:" in line:
+                    renderer = line.split(":", 1)[1].strip()
+                    return self._format_gpu_renderer(renderer, integrated_pci_slot)
+        except (subprocess.CalledProcessError, OSError):
+            pass
+
+        # Fall back to udev
+        if integrated_pci_slot:
+            udev_name = self._get_gpu_name_from_udev(integrated_pci_slot)
+            if udev_name:
+                return udev_name
+
+        return None
+
     # Return discrete GPU info if found, otherwise None
     def get_discrete_gpu(self):
         # First check if a discrete GPU exists using lspci

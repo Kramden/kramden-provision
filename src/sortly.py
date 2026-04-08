@@ -457,6 +457,10 @@ def get_system_info():
 
     if gpu:
         info["Graphics"] = gpu
+    else:
+        igpu = utils.get_integrated_gpu()
+        if igpu:
+            info["Graphics"] = igpu
 
     if battery_health:
         info["Battery Health"] = battery_health

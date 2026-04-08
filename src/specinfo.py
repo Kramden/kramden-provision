@@ -63,14 +63,23 @@ class SpecInfo(Adw.Bin):
         self.mem_row.set_title("Memory")
         self.mem_row.set_subtitle(utils.get_mem() + " GB")
 
-        gpu_row = Adw.ActionRow()
-        gpu_row.set_title("Discrete GPU")
+        igpu_row = Adw.ActionRow()
+        igpu_row.set_title("Graphics")
+        igpu = utils.get_integrated_gpu()
+        if igpu:
+            igpu_row.set_subtitle(igpu)
+        else:
+            igpu_row.set_subtitle("Unknown")
+        igpu_row.set_icon_name("emblem-ok-symbolic")
+
+        dgpu_row = Adw.ActionRow()
+        dgpu_row.set_title("Discrete GPU")
         discrete_gpu = utils.get_discrete_gpu()
         if discrete_gpu:
-            gpu_row.set_subtitle(discrete_gpu)
+            dgpu_row.set_subtitle(discrete_gpu)
         else:
-            gpu_row.set_subtitle("None")
-        gpu_row.set_icon_name("emblem-ok-symbolic")
+            dgpu_row.set_subtitle("None")
+        dgpu_row.set_icon_name("emblem-ok-symbolic")
 
         self.disks_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
 
@@ -96,7 +105,8 @@ class SpecInfo(Adw.Bin):
         list_box.append(self.computrace_row)
         list_box.append(cpu_row)
         list_box.append(self.mem_row)
-        list_box.append(gpu_row)
+        list_box.append(igpu_row)
+        list_box.append(dgpu_row)
         list_box.append(self.disks_box)
         list_box.append(self.battery_row)
 
