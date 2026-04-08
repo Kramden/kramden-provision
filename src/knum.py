@@ -298,7 +298,7 @@ class KramdenNumber(Adw.Bin):
             return
 
         field_order = [
-            "Brand", "Model", "CPU", "RAM", "Storage",
+            "Brand", "Chassis Model", "CPU", "RAM", "Storage",
             "Serial# Scanner", "Item Type", "Graphics", "Battery Health",
         ]
 

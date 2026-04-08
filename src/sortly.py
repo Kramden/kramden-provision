@@ -444,7 +444,7 @@ def get_system_info():
 
     info = {
         "Brand": brand,
-        "Model": model,
+        "Chassis Model": model,
         "CPU": cpu,
         "RAM": ram,
         "Storage": total_storage,
