@@ -50,7 +50,7 @@ class Utils:
             # The fallback logic below will still attempt to populate serial from DMI
             pass
         if not self.serial:
-            serial_files = ["board_serial", "product_serial", "chassis_serial"]
+            serial_files = ["chassis_serial", "product_serial", "board_serial"]
             for serial_file in serial_files:
                 try:
                     result = subprocess.run(
