@@ -1,6 +1,3 @@
-import math
-
-import cairo  # noqa: F401 — required for GI cairo foreign type conversion
 import gi
 
 gi.require_version("Adw", "1")
@@ -502,26 +499,34 @@ class TouchscreenTest(Gtk.Window):
         (0.30, 0.70),   # inner bottom-left
         (0.70, 0.70),   # inner bottom-right
     ]
-    TARGET_RADIUS = 30
-    HIT_RADIUS = 50  # slightly larger than visual for easier tapping
+    TARGET_SIZE = 60  # diameter of each touch target
 
     def __init__(self, parent, callback):
         super().__init__()
         self._callback = callback
         self.set_decorated(False)
-        self.set_modal(True)
-        self.set_transient_for(parent)
 
-        self._touched = [False] * len(self.TARGET_POSITIONS)
+        # Load CSS for target styling
+        css = Gtk.CssProvider()
+        css.load_from_string(
+            "window.touchscreen-test { background-color: white; }"
+            ".touch-target { background: #4d4d4d; border-radius: 50%; "
+            "min-width: 60px; min-height: 60px; border: none; padding: 0; }"
+            ".touch-target.touched { background: #33cc33; }"
+        )
+        Gtk.StyleContext.add_provider_for_display(
+            parent.get_display(), css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+        )
+
+        self.add_css_class("touchscreen-test")
+
+        self._fixed = Gtk.Fixed()
+        self._fixed.set_hexpand(True)
+        self._fixed.set_vexpand(True)
 
         overlay = Gtk.Overlay()
+        overlay.set_child(self._fixed)
         self.set_child(overlay)
-
-        self._drawing_area = Gtk.DrawingArea()
-        self._drawing_area.set_draw_func(self._draw)
-        self._drawing_area.set_hexpand(True)
-        self._drawing_area.set_vexpand(True)
-        overlay.set_child(self._drawing_area)
 
         # Quit button in top-right so user can exit with mouse/touchpad
         quit_btn = Gtk.Button(label="Quit")
@@ -533,52 +538,43 @@ class TouchscreenTest(Gtk.Window):
         quit_btn.connect("clicked", self._on_quit)
         overlay.add_overlay(quit_btn)
 
-        # Use a GestureClick to detect touch/click on the drawing area
-        gesture = Gtk.GestureClick()
-        gesture.set_button(0)  # any button / touch
-        gesture.connect("pressed", self._on_pressed)
-        self._drawing_area.add_controller(gesture)
+        # Create touch target buttons
+        self._targets = []
+        for i, (_fx, _fy) in enumerate(self.TARGET_POSITIONS):
+            btn = Gtk.Button()
+            btn.add_css_class("touch-target")
+            btn.set_size_request(self.TARGET_SIZE, self.TARGET_SIZE)
+            btn.connect("clicked", self._on_target_clicked, i)
+            self._fixed.put(btn, 0, 0)
+            self._targets.append(btn)
 
-        # Fullscreen after the window is mapped to ensure it takes effect
-        self.connect("realize", lambda w: w.fullscreen())
+        self._touched = [False] * len(self.TARGET_POSITIONS)
 
-    def _draw(self, area, cr, width, height):
-        # White background
-        cr.set_source_rgb(1, 1, 1)
-        cr.paint()
+        # Position targets once the window has a size
+        self._fixed.connect("notify::allocation", self._reposition_targets)
+        self.connect("notify::default-width", lambda *a: self._reposition_targets())
+        self.connect("notify::default-height", lambda *a: self._reposition_targets())
 
+        self.fullscreen()
+
+    def _reposition_targets(self, *args):
+        width = self._fixed.get_width()
+        height = self._fixed.get_height()
+        if width <= 1 or height <= 1:
+            return
+        half = self.TARGET_SIZE // 2
         for i, (fx, fy) in enumerate(self.TARGET_POSITIONS):
-            cx = fx * width
-            cy = fy * height
-            if self._touched[i]:
-                # Green filled circle for touched targets
-                cr.set_source_rgb(0.2, 0.8, 0.2)
-            else:
-                # Dark gray dot for untouched targets
-                cr.set_source_rgb(0.3, 0.3, 0.3)
-            cr.arc(cx, cy, self.TARGET_RADIUS, 0, 2 * math.pi)
-            cr.fill()
+            x = int(fx * width) - half
+            y = int(fy * height) - half
+            self._fixed.move(self._targets[i], x, y)
 
-    def _on_pressed(self, gesture, n_press, x, y):
-        width = self._drawing_area.get_width()
-        height = self._drawing_area.get_height()
-
-        changed = False
-        for i, (fx, fy) in enumerate(self.TARGET_POSITIONS):
-            if self._touched[i]:
-                continue
-            cx = fx * width
-            cy = fy * height
-            dx = x - cx
-            dy = y - cy
-            if dx * dx + dy * dy <= self.HIT_RADIUS * self.HIT_RADIUS:
-                self._touched[i] = True
-                changed = True
-
-        if changed:
-            self._drawing_area.queue_draw()
-            if all(self._touched):
-                GLib.timeout_add(300, self._finish_passed)
+    def _on_target_clicked(self, button, index):
+        if self._touched[index]:
+            return
+        self._touched[index] = True
+        button.add_css_class("touched")
+        if all(self._touched):
+            GLib.timeout_add(300, self._finish_passed)
 
     def _finish_passed(self):
         self._callback(True)
