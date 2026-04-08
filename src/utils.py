@@ -810,6 +810,20 @@ class Utils:
         except (IOError, ValueError):
             return None
 
+    @staticmethod
+    def has_touchscreen():
+        """Check if the system has a touchscreen by inspecting input devices."""
+        try:
+            with open("/proc/bus/input/devices", "r") as f:
+                content = f.read()
+            for block in content.split("\n\n"):
+                name_line = [l for l in block.splitlines() if l.startswith("N: Name=")]
+                if name_line and "touch" in name_line[0].lower():
+                    return True
+        except OSError:
+            pass
+        return False
+
     KRAMDEN_EFIVAR_GUID = "9a8e2042-75d4-4d70-9890-6a8437367c1f"
     KRAMDEN_EFIVAR_PATH = (
         f"/sys/firmware/efi/efivars/KramdenNumber-{KRAMDEN_EFIVAR_GUID}"

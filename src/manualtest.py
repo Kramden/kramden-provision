@@ -1,7 +1,9 @@
+import math
+
 import gi
 
 gi.require_version("Adw", "1")
-from gi.repository import Adw, Gtk
+from gi.repository import Adw, GLib, Gtk
 from utils import Utils
 
 # Fixed display order for all tests
@@ -12,6 +14,7 @@ TEST_DISPLAY_ORDER = [
     "WebCam",
     "Keyboard",
     "Touchpad",
+    "Touchscreen",
     "ScreenTest",
     "Battery",
 ]
@@ -38,6 +41,7 @@ class ManualTest(Adw.Bin):
         # Detect chassis type to determine which tests are required
         chassis_type = Utils.get_chassis_type()
         self.is_laptop = chassis_type == "Laptop"
+        self.has_touchscreen = Utils.has_touchscreen()
 
         # Build required and optional test dicts based on chassis type
         self.required_tests = {"USB": False, "Browser": False}
@@ -53,6 +57,10 @@ class ManualTest(Adw.Bin):
                 self.optional_tests[name] = False
             if show_battery_test:
                 self.optional_tests["Battery"] = False
+
+        # Touchscreen test: required if detected, otherwise omitted entirely
+        if self.has_touchscreen:
+            self.required_tests["Touchscreen"] = False
 
         # Create a box to hold the content
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
@@ -190,6 +198,19 @@ class ManualTest(Adw.Bin):
         touchpad_row.set_activatable(True)
         touchpad_row.connect("activated", self.on_touchpad_row_activated)
 
+        # Touchscreen row (only created if touchscreen detected)
+        if self.has_touchscreen:
+            touchscreen_row = Adw.ActionRow()
+            self.touchscreen_button = Gtk.CheckButton()
+            self.touchscreen_button.set_sensitive(False)
+            self.touchscreen_button.connect("toggled", self.on_touchscreen_toggled)
+            touchscreen_row.add_prefix(self.touchscreen_button)
+            touchscreen_row.set_title("Touchscreen")
+
+            touchscreen_clickhere = Gtk.Button(label="Click Here")
+            touchscreen_row.add_suffix(touchscreen_clickhere)
+            touchscreen_clickhere.connect("clicked", self.on_touchscreen_clicked)
+
         # ScreenTest row
         screentest_row = Adw.ActionRow()
         self.screentest_button = Gtk.CheckButton()
@@ -213,6 +234,9 @@ class ManualTest(Adw.Bin):
             "Touchpad": touchpad_row,
             "ScreenTest": screentest_row,
         }
+
+        if self.has_touchscreen:
+            test_rows["Touchscreen"] = touchscreen_row
 
         # Battery test row - only shown when running from spec.py
         if self.show_battery_test:
@@ -354,6 +378,24 @@ class ManualTest(Adw.Bin):
         print(d)
         self.check_status()
 
+    # Handle toggled event for the touchscreen button
+    def on_touchscreen_toggled(self, button):
+        print("ManualTest:on_touchscreen_toggled")
+        d = self._test_dict_for("Touchscreen")
+        d["Touchscreen"] = button.get_active()
+        print(d)
+        self.check_status()
+
+    # Launch the fullscreen touchscreen test
+    def on_touchscreen_clicked(self, button):
+        print("ManualTest:on_touchscreen_clicked")
+        window = self.get_root()
+        test = TouchscreenTest(window, self._on_touchscreen_test_complete)
+        test.present()
+
+    def _on_touchscreen_test_complete(self, passed):
+        self.touchscreen_button.set_active(passed)
+
     # Make battery row clickable
     def on_battery_row_activated(self, row):
         current_state = self.battery_button.get_active()
@@ -442,3 +484,103 @@ class ManualTest(Adw.Bin):
     def on_shown(self):
         print("ManualTest:on_shown")
         self.check_status()
+
+
+class TouchscreenTest(Gtk.Window):
+    """Fullscreen white window with 8 touch targets that must all be tapped to pass."""
+
+    # Target positions as fractions of (width, height).
+    # 4 near corners, 4 closer to the middle.
+    TARGET_POSITIONS = [
+        (0.08, 0.08),   # top-left corner
+        (0.92, 0.08),   # top-right corner
+        (0.08, 0.92),   # bottom-left corner
+        (0.92, 0.92),   # bottom-right corner
+        (0.30, 0.30),   # inner top-left
+        (0.70, 0.30),   # inner top-right
+        (0.30, 0.70),   # inner bottom-left
+        (0.70, 0.70),   # inner bottom-right
+    ]
+    TARGET_RADIUS = 30
+    HIT_RADIUS = 50  # slightly larger than visual for easier tapping
+
+    def __init__(self, parent, callback):
+        super().__init__()
+        self._callback = callback
+        self.set_transient_for(parent)
+        self.set_modal(True)
+        self.fullscreen()
+
+        self._touched = [False] * len(self.TARGET_POSITIONS)
+
+        overlay = Gtk.Overlay()
+        self.set_child(overlay)
+
+        self._drawing_area = Gtk.DrawingArea()
+        self._drawing_area.set_draw_func(self._draw)
+        self._drawing_area.set_hexpand(True)
+        self._drawing_area.set_vexpand(True)
+        overlay.set_child(self._drawing_area)
+
+        # Quit button in top-right so user can exit with mouse/touchpad
+        quit_btn = Gtk.Button(label="Quit")
+        quit_btn.add_css_class("destructive-action")
+        quit_btn.set_halign(Gtk.Align.END)
+        quit_btn.set_valign(Gtk.Align.START)
+        quit_btn.set_margin_top(12)
+        quit_btn.set_margin_end(12)
+        quit_btn.connect("clicked", self._on_quit)
+        overlay.add_overlay(quit_btn)
+
+        # Use a GestureClick to detect touch/click on the drawing area
+        gesture = Gtk.GestureClick()
+        gesture.set_button(0)  # any button / touch
+        gesture.connect("pressed", self._on_pressed)
+        self._drawing_area.add_controller(gesture)
+
+    def _draw(self, area, cr, width, height):
+        # White background
+        cr.set_source_rgb(1, 1, 1)
+        cr.paint()
+
+        for i, (fx, fy) in enumerate(self.TARGET_POSITIONS):
+            cx = fx * width
+            cy = fy * height
+            if self._touched[i]:
+                # Green filled circle for touched targets
+                cr.set_source_rgb(0.2, 0.8, 0.2)
+            else:
+                # Dark gray dot for untouched targets
+                cr.set_source_rgb(0.3, 0.3, 0.3)
+            cr.arc(cx, cy, self.TARGET_RADIUS, 0, 2 * math.pi)
+            cr.fill()
+
+    def _on_pressed(self, gesture, n_press, x, y):
+        width = self._drawing_area.get_width()
+        height = self._drawing_area.get_height()
+
+        changed = False
+        for i, (fx, fy) in enumerate(self.TARGET_POSITIONS):
+            if self._touched[i]:
+                continue
+            cx = fx * width
+            cy = fy * height
+            dx = x - cx
+            dy = y - cy
+            if dx * dx + dy * dy <= self.HIT_RADIUS * self.HIT_RADIUS:
+                self._touched[i] = True
+                changed = True
+
+        if changed:
+            self._drawing_area.queue_draw()
+            if all(self._touched):
+                GLib.timeout_add(300, self._finish_passed)
+
+    def _finish_passed(self):
+        self._callback(True)
+        self.close()
+        return False
+
+    def _on_quit(self, button):
+        self._callback(False)
+        self.close()
