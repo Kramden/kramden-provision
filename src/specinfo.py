@@ -64,7 +64,7 @@ class SpecInfo(Adw.Bin):
         self.mem_row.set_subtitle(utils.get_mem() + " GB")
 
         igpu_row = Adw.ActionRow()
-        igpu_row.set_title("Graphics")
+        igpu_row.set_title("Integrated Graphics")
         igpu = utils.get_integrated_gpu()
         if igpu:
             igpu_row.set_subtitle(igpu)
@@ -73,7 +73,7 @@ class SpecInfo(Adw.Bin):
         igpu_row.set_icon_name("emblem-ok-symbolic")
 
         dgpu_row = Adw.ActionRow()
-        dgpu_row.set_title("Discrete GPU")
+        dgpu_row.set_title("Discrete Graphics")
         discrete_gpu = utils.get_discrete_gpu()
         if discrete_gpu:
             dgpu_row.set_subtitle(discrete_gpu)
@@ -162,7 +162,9 @@ class SpecInfo(Adw.Bin):
                 )
             passed = False
         else:
-            self.bios_password_row.set_subtitle("No Password" if not bios_password else "Has Password (Overridden)")
+            self.bios_password_row.set_subtitle(
+                "No Password" if not bios_password else "Has Password (Overridden)"
+            )
             self.bios_password_row.set_icon_name("emblem-ok-symbolic")
             if self.bios_password_row.has_css_class("text-error"):
                 self.bios_password_row.remove_css_class("text-error")
@@ -180,7 +182,9 @@ class SpecInfo(Adw.Bin):
                 )
             passed = False
         else:
-            self.asset_info_row.set_subtitle("No Asset Info" if not asset_info else "Has Asset Info (Overridden)")
+            self.asset_info_row.set_subtitle(
+                "No Asset Info" if not asset_info else "Has Asset Info (Overridden)"
+            )
             self.asset_info_row.set_icon_name("emblem-ok-symbolic")
             if self.asset_info_row.has_css_class("text-error"):
                 self.asset_info_row.remove_css_class("text-error")
@@ -280,7 +284,9 @@ class SpecInfo(Adw.Bin):
         override_button.set_valign(Gtk.Align.CENTER)
         override_button.connect(
             "clicked",
-            lambda b: self._show_override_dialog(dialog_title, override_button, on_accepted),
+            lambda b: self._show_override_dialog(
+                dialog_title, override_button, on_accepted
+            ),
         )
         parent_row.add_suffix(override_button)
         return override_button
@@ -292,7 +298,9 @@ class SpecInfo(Adw.Bin):
         self._disk_override_button.connect(
             "clicked",
             lambda b: self._show_override_dialog(
-                "Disk Override", self._disk_override_button, self._on_disk_override_accepted
+                "Disk Override",
+                self._disk_override_button,
+                self._on_disk_override_accepted,
             ),
         )
         parent_row.add_suffix(self._disk_override_button)
@@ -334,7 +342,12 @@ class SpecInfo(Adw.Bin):
         ok_btn.add_css_class("suggested-action")
         ok_btn.connect(
             "clicked",
-            self._on_override_ok, entry, error_label, dialog, override_button, on_accepted,
+            self._on_override_ok,
+            entry,
+            error_label,
+            dialog,
+            override_button,
+            on_accepted,
         )
         btn_box.append(ok_btn)
 
@@ -349,7 +362,9 @@ class SpecInfo(Adw.Bin):
         dialog.set_child(box)
         dialog.present()
 
-    def _on_override_ok(self, button, entry, error_label, dialog, override_button, on_accepted):
+    def _on_override_ok(
+        self, button, entry, error_label, dialog, override_button, on_accepted
+    ):
         if entry.get_text() == "kramdenok":
             on_accepted()
             override_button.set_visible(False)
