@@ -812,16 +812,44 @@ class Utils:
 
     @staticmethod
     def has_touchscreen():
-        """Check if the system has a touchscreen by inspecting input devices."""
+        """Check if the system has a touchscreen by inspecting input devices.
+
+        Checks two signals:
+        1. Device name contains "touch"
+        2. Device reports ABS_MT_POSITION_X (bit 0x35 = 53) in its absolute
+           axis bitmap, which is the definitive marker for multitouch hardware.
+        """
         try:
             with open("/proc/bus/input/devices", "r") as f:
                 content = f.read()
             for block in content.split("\n\n"):
-                name_line = [l for l in block.splitlines() if l.startswith("N: Name=")]
-                if name_line and "touch" in name_line[0].lower():
+                lines = block.splitlines()
+
+                name_line = [l for l in lines if l.startswith("N: Name=")]
+                name = name_line[0] if name_line else ""
+                print(f"touchscreen detection: checking device: {name}")
+
+                # Check by name
+                if "touch" in name.lower():
+                    print("touchscreen detection: matched by name")
                     return True
-        except OSError:
-            pass
+
+                # Check for multitouch absolute axis (ABS_MT_POSITION_X = 53)
+                abs_lines = [l for l in lines if l.startswith("B: ABS=")]
+                if abs_lines:
+                    hex_parts = abs_lines[0].split("=", 1)[1].strip().split()
+                    # Bitmap is printed in chunks from high to low bits;
+                    # reconstruct full value
+                    abs_bitmap = int("".join(hex_parts), 16)
+                    if abs_bitmap & (1 << 53):
+                        print(
+                            f"touchscreen detection: matched by ABS_MT_POSITION_X: "
+                            f"{name}"
+                        )
+                        return True
+        except OSError as e:
+            print(f"touchscreen detection: error reading input devices: {e}")
+        print("touchscreen detection: no touchscreen found")
         return False
 
     KRAMDEN_EFIVAR_GUID = "9a8e2042-75d4-4d70-9890-6a8437367c1f"
