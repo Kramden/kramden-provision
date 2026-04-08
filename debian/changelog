@@ -1,3 +1,14 @@
+kramden-provision (0.1.99.14) noble; urgency=medium
+
+  * Use "Chassis Model" instead of "Model" for Sortly custom field
+  * Hide Register button; only show Update when a Sortly record exists
+  * Add touchscreen detection and interactive touch target test
+  * Improve touchscreen detection with ABS_MT_POSITION_X fallback
+  * Reorder serial detection to prefer chassis_serial first
+  * Add integrated GPU display to specinfo and Sortly graphics field
+
+ -- Ken VanDine <ken.vandine@canonical.com>  Wed, 08 Apr 2026 19:26:45 -0400
+
 kramden-provision (0.1.99.13) noble; urgency=medium
 
   * Fixes for osload flow, knum validation and sortly
