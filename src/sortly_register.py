@@ -89,9 +89,10 @@ class SortlyRegister(Adw.Bin):
         scrolled_window.set_child(self.info_list_box)
 
         # Register button
-        self.register_button = Gtk.Button(label="Register")
+        self.register_button = Gtk.Button(label="Update")
         self.register_button.add_css_class("button-green")
         self.register_button.set_sensitive(False)
+        self.register_button.set_visible(False)
         self.register_button.connect("clicked", self._on_register_clicked)
 
         vbox.append(knumber_box)
@@ -172,7 +173,7 @@ class SortlyRegister(Adw.Bin):
             if not self._user_edited:
                 self.knumber_entry.set_text(item_name)
             self._set_status(f"Found existing record: {item_name}")
-            self.register_button.set_label("Update")
+            self.register_button.set_visible(True)
             self.register_button.set_sensitive(True)
         else:
             self._set_status(
@@ -194,11 +195,13 @@ class SortlyRegister(Adw.Bin):
         formatted = Utils.format_knumber(value) if value else None
 
         if not value:
+            self.register_button.set_visible(False)
             self.register_button.set_sensitive(False)
             self.search_button.set_sensitive(False)
             return
 
         if not formatted:
+            self.register_button.set_visible(False)
             self.register_button.set_sensitive(False)
             self.search_button.set_sensitive(False)
             self._set_status("Invalid K-number format.", error=True)
@@ -209,18 +212,19 @@ class SortlyRegister(Adw.Bin):
         if self.search_button.get_visible():
             # Serial was not found — require explicit K-number search
             self._existing_item = None
+            self.register_button.set_visible(False)
             self.register_button.set_sensitive(False)
-            self.register_button.set_label("Register")
             self.search_button.set_sensitive(not self._submitted)
         else:
             # Serial was found — existing behavior
-            self.register_button.set_sensitive(
-                not self._submitted and self._lookup_done
-            )
             if self._existing_item and formatted == self._existing_item.get("name"):
-                self.register_button.set_label("Update")
+                self.register_button.set_visible(True)
+                self.register_button.set_sensitive(
+                    not self._submitted and self._lookup_done
+                )
             else:
-                self.register_button.set_label("Register")
+                self.register_button.set_visible(False)
+                self.register_button.set_sensitive(False)
 
     def _on_knumber_key_pressed(self, controller, keyval, keycode, state):
         if keyval in (Gdk.KEY_Return, Gdk.KEY_KP_Enter):
@@ -243,6 +247,7 @@ class SortlyRegister(Adw.Bin):
 
         self.search_button.set_sensitive(False)
         self.expanded_search_button.set_sensitive(False)
+        self.register_button.set_visible(False)
         self.register_button.set_sensitive(False)
         self.spinner.set_visible(True)
         self.spinner.start()
@@ -281,22 +286,22 @@ class SortlyRegister(Adw.Bin):
         if results:
             self._existing_item = results[0]
             self._set_status(f"Found existing record: {knumber}")
-            self.register_button.set_label("Update")
+            self.register_button.set_visible(True)
+            self.register_button.set_sensitive(not self._submitted)
             self.expanded_search_button.set_visible(False)
             self.expanded_search_button.set_sensitive(False)
             self.search_button.set_visible(True)
         else:
             self._existing_item = None
             self._set_status(
-                f"No record found for {knumber}. Register requires staff approval."
+                f"No record found for {knumber}."
             )
-            self.register_button.set_label("Register")
+            self.register_button.set_visible(False)
+            self.register_button.set_sensitive(False)
             if EXPANDED_FOLDER_IDS:
                 self.expanded_search_button.set_visible(True)
                 self.expanded_search_button.set_sensitive(True)
                 self.search_button.set_visible(False)
-
-        self.register_button.set_sensitive(not self._submitted)
 
     def _on_expanded_search_clicked(self, button):
         raw_value = self.knumber_entry.get_text().strip()
@@ -313,6 +318,7 @@ class SortlyRegister(Adw.Bin):
 
         self.search_button.set_sensitive(False)
         self.expanded_search_button.set_sensitive(False)
+        self.register_button.set_visible(False)
         self.register_button.set_sensitive(False)
         self.spinner.set_visible(True)
         self.spinner.start()
@@ -467,10 +473,7 @@ class SortlyRegister(Adw.Bin):
             knumber = Utils.format_knumber(self.knumber_entry.get_text().strip())
             if knumber:
                 Utils.write_kramden_number_efivar(knumber)
-            if self.register_button.get_label() == "Update":
-                self._set_status("Update successful!")
-            else:
-                self._set_status("Registration successful!")
+            self._set_status("Update successful!")
             if self.next:
                 self.next()
                 self.skip = True
