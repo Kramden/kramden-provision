@@ -550,12 +550,18 @@ class TouchscreenTest(Gtk.Window):
 
         self._touched = [False] * len(self.TARGET_POSITIONS)
 
-        # Position targets once the window has a size
-        self._fixed.connect("notify::allocation", self._reposition_targets)
-        self.connect("notify::default-width", lambda *a: self._reposition_targets())
-        self.connect("notify::default-height", lambda *a: self._reposition_targets())
+        # Reposition targets whenever the Fixed container is resized
+        resize = Gtk.EventControllerMotion()
+        resize.connect("enter", lambda *a: self._reposition_targets())
+        self._fixed.add_controller(resize)
+
+        # Also reposition on a short delay after fullscreen to catch the resize
+        self.connect("map", self._on_map)
 
         self.fullscreen()
+
+    def _on_map(self, widget):
+        GLib.timeout_add(100, self._reposition_targets)
 
     def _reposition_targets(self, *args):
         width = self._fixed.get_width()
