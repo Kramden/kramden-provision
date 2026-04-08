@@ -1,5 +1,6 @@
 import math
 
+import cairo  # noqa: F401 — required for GI cairo foreign type conversion
 import gi
 
 gi.require_version("Adw", "1")
@@ -507,9 +508,9 @@ class TouchscreenTest(Gtk.Window):
     def __init__(self, parent, callback):
         super().__init__()
         self._callback = callback
-        self.set_transient_for(parent)
+        self.set_decorated(False)
         self.set_modal(True)
-        self.fullscreen()
+        self.set_transient_for(parent)
 
         self._touched = [False] * len(self.TARGET_POSITIONS)
 
@@ -537,6 +538,9 @@ class TouchscreenTest(Gtk.Window):
         gesture.set_button(0)  # any button / touch
         gesture.connect("pressed", self._on_pressed)
         self._drawing_area.add_controller(gesture)
+
+        # Fullscreen after the window is mapped to ensure it takes effect
+        self.connect("realize", lambda w: w.fullscreen())
 
     def _draw(self, area, cr, width, height):
         # White background
