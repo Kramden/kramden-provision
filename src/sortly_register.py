@@ -486,7 +486,7 @@ class SortlyRegister(Adw.Bin):
         # Display order
         field_order = [
             "Brand",
-            "Model",
+            "Chassis Model",
             "CPU",
             "RAM",
             "Storage",
