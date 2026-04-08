@@ -408,7 +408,7 @@ def generate_tracking_sheet(item_name, output_path=None, spec_passed=None, manua
         # Fixed display order
         test_display_order = [
             "USB", "Browser", "WiFi", "WebCam",
-            "Keyboard", "Touchpad", "ScreenTest", "Battery",
+            "Keyboard", "Touchpad", "Touchscreen", "ScreenTest", "Battery",
         ]
 
         mt_header = [

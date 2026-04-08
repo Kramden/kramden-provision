@@ -1,7 +1,7 @@
 import gi
 
 gi.require_version("Adw", "1")
-from gi.repository import Adw, Gtk
+from gi.repository import Adw, GLib, Gtk
 from utils import Utils
 
 # Fixed display order for all tests
@@ -12,6 +12,7 @@ TEST_DISPLAY_ORDER = [
     "WebCam",
     "Keyboard",
     "Touchpad",
+    "Touchscreen",
     "ScreenTest",
     "Battery",
 ]
@@ -38,6 +39,7 @@ class ManualTest(Adw.Bin):
         # Detect chassis type to determine which tests are required
         chassis_type = Utils.get_chassis_type()
         self.is_laptop = chassis_type == "Laptop"
+        self.has_touchscreen = Utils.has_touchscreen()
 
         # Build required and optional test dicts based on chassis type
         self.required_tests = {"USB": False, "Browser": False}
@@ -53,6 +55,10 @@ class ManualTest(Adw.Bin):
                 self.optional_tests[name] = False
             if show_battery_test:
                 self.optional_tests["Battery"] = False
+
+        # Touchscreen test: required if detected, otherwise omitted entirely
+        if self.has_touchscreen:
+            self.required_tests["Touchscreen"] = False
 
         # Create a box to hold the content
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
@@ -190,6 +196,19 @@ class ManualTest(Adw.Bin):
         touchpad_row.set_activatable(True)
         touchpad_row.connect("activated", self.on_touchpad_row_activated)
 
+        # Touchscreen row (only created if touchscreen detected)
+        if self.has_touchscreen:
+            touchscreen_row = Adw.ActionRow()
+            self.touchscreen_button = Gtk.CheckButton()
+            self.touchscreen_button.set_sensitive(False)
+            self.touchscreen_button.connect("toggled", self.on_touchscreen_toggled)
+            touchscreen_row.add_prefix(self.touchscreen_button)
+            touchscreen_row.set_title("Touchscreen")
+
+            touchscreen_clickhere = Gtk.Button(label="Click Here")
+            touchscreen_row.add_suffix(touchscreen_clickhere)
+            touchscreen_clickhere.connect("clicked", self.on_touchscreen_clicked)
+
         # ScreenTest row
         screentest_row = Adw.ActionRow()
         self.screentest_button = Gtk.CheckButton()
@@ -213,6 +232,9 @@ class ManualTest(Adw.Bin):
             "Touchpad": touchpad_row,
             "ScreenTest": screentest_row,
         }
+
+        if self.has_touchscreen:
+            test_rows["Touchscreen"] = touchscreen_row
 
         # Battery test row - only shown when running from spec.py
         if self.show_battery_test:
@@ -354,6 +376,24 @@ class ManualTest(Adw.Bin):
         print(d)
         self.check_status()
 
+    # Handle toggled event for the touchscreen button
+    def on_touchscreen_toggled(self, button):
+        print("ManualTest:on_touchscreen_toggled")
+        d = self._test_dict_for("Touchscreen")
+        d["Touchscreen"] = button.get_active()
+        print(d)
+        self.check_status()
+
+    # Launch the fullscreen touchscreen test
+    def on_touchscreen_clicked(self, button):
+        print("ManualTest:on_touchscreen_clicked")
+        window = self.get_root()
+        test = TouchscreenTest(window, self._on_touchscreen_test_complete)
+        test.present()
+
+    def _on_touchscreen_test_complete(self, passed):
+        self.touchscreen_button.set_active(passed)
+
     # Make battery row clickable
     def on_battery_row_activated(self, row):
         current_state = self.battery_button.get_active()
@@ -442,3 +482,111 @@ class ManualTest(Adw.Bin):
     def on_shown(self):
         print("ManualTest:on_shown")
         self.check_status()
+
+
+class TouchscreenTest(Gtk.Window):
+    """Fullscreen white window with 8 touch targets that must all be tapped to pass."""
+
+    # Target positions as fractions of (width, height).
+    # 4 near corners, 4 closer to the middle.
+    TARGET_POSITIONS = [
+        (0.08, 0.08),   # top-left corner
+        (0.92, 0.08),   # top-right corner
+        (0.08, 0.92),   # bottom-left corner
+        (0.92, 0.92),   # bottom-right corner
+        (0.30, 0.30),   # inner top-left
+        (0.70, 0.30),   # inner top-right
+        (0.30, 0.70),   # inner bottom-left
+        (0.70, 0.70),   # inner bottom-right
+    ]
+    TARGET_SIZE = 60  # diameter of each touch target
+
+    def __init__(self, parent, callback):
+        super().__init__()
+        self._callback = callback
+        self.set_decorated(False)
+
+        # Load CSS for target styling
+        css = Gtk.CssProvider()
+        css.load_from_string(
+            "window.touchscreen-test { background-color: white; }"
+            ".touch-target { background: #4d4d4d; border-radius: 50%; "
+            "min-width: 60px; min-height: 60px; border: none; padding: 0; }"
+            ".touch-target.touched { background: #33cc33; }"
+        )
+        Gtk.StyleContext.add_provider_for_display(
+            parent.get_display(), css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+        )
+
+        self.add_css_class("touchscreen-test")
+
+        self._fixed = Gtk.Fixed()
+        self._fixed.set_hexpand(True)
+        self._fixed.set_vexpand(True)
+
+        overlay = Gtk.Overlay()
+        overlay.set_child(self._fixed)
+        self.set_child(overlay)
+
+        # Quit button in top-right so user can exit with mouse/touchpad
+        quit_btn = Gtk.Button(label="Quit")
+        quit_btn.add_css_class("destructive-action")
+        quit_btn.set_halign(Gtk.Align.END)
+        quit_btn.set_valign(Gtk.Align.START)
+        quit_btn.set_margin_top(12)
+        quit_btn.set_margin_end(12)
+        quit_btn.connect("clicked", self._on_quit)
+        overlay.add_overlay(quit_btn)
+
+        # Create touch target buttons
+        self._targets = []
+        for i, (_fx, _fy) in enumerate(self.TARGET_POSITIONS):
+            btn = Gtk.Button()
+            btn.add_css_class("touch-target")
+            btn.set_size_request(self.TARGET_SIZE, self.TARGET_SIZE)
+            btn.connect("clicked", self._on_target_clicked, i)
+            self._fixed.put(btn, 0, 0)
+            self._targets.append(btn)
+
+        self._touched = [False] * len(self.TARGET_POSITIONS)
+
+        # Reposition targets whenever the Fixed container is resized
+        resize = Gtk.EventControllerMotion()
+        resize.connect("enter", lambda *a: self._reposition_targets())
+        self._fixed.add_controller(resize)
+
+        # Also reposition on a short delay after fullscreen to catch the resize
+        self.connect("map", self._on_map)
+
+        self.fullscreen()
+
+    def _on_map(self, widget):
+        GLib.timeout_add(100, self._reposition_targets)
+
+    def _reposition_targets(self, *args):
+        width = self._fixed.get_width()
+        height = self._fixed.get_height()
+        if width <= 1 or height <= 1:
+            return
+        half = self.TARGET_SIZE // 2
+        for i, (fx, fy) in enumerate(self.TARGET_POSITIONS):
+            x = int(fx * width) - half
+            y = int(fy * height) - half
+            self._fixed.move(self._targets[i], x, y)
+
+    def _on_target_clicked(self, button, index):
+        if self._touched[index]:
+            return
+        self._touched[index] = True
+        button.add_css_class("touched")
+        if all(self._touched):
+            GLib.timeout_add(300, self._finish_passed)
+
+    def _finish_passed(self):
+        self._callback(True)
+        self.close()
+        return False
+
+    def _on_quit(self, button):
+        self._callback(False)
+        self.close()
