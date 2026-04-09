@@ -1,3 +1,9 @@
+kramden-provision (0.1.99.15) noble; urgency=medium
+
+  * Fixes for touchscreen detection
+
+ -- Ken VanDine <ken.vandine@canonical.com>  Wed, 08 Apr 2026 23:33:44 -0400
+
 kramden-provision (0.1.99.14) noble; urgency=medium
 
   * Use "Chassis Model" instead of "Model" for Sortly custom field
