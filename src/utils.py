@@ -857,10 +857,11 @@ class Utils:
     def has_touchscreen():
         """Check if the system has a touchscreen by inspecting input devices.
 
-        Checks two signals:
-        1. Device name contains "touch"
-        2. Device reports ABS_MT_POSITION_X (bit 0x35 = 53) in its absolute
-           axis bitmap, which is the definitive marker for multitouch hardware.
+        A touchscreen is identified by having INPUT_PROP_DIRECT (bit 1) set
+        in its property bitmap, which distinguishes direct-input devices
+        (touchscreens) from indirect ones (touchpads). As a secondary check,
+        the device must also report ABS_MT_POSITION_X (bit 53) in its
+        absolute axis bitmap, confirming multitouch capability.
         """
         try:
             with open("/proc/bus/input/devices", "r") as f:
@@ -872,10 +873,19 @@ class Utils:
                 name = name_line[0] if name_line else ""
                 print(f"touchscreen detection: checking device: {name}")
 
-                # Check by name
-                if "touch" in name.lower():
-                    print("touchscreen detection: matched by name")
-                    return True
+                # Check INPUT_PROP_DIRECT (bit 1) to distinguish
+                # touchscreens from touchpads
+                prop_lines = [l for l in lines if l.startswith("B: PROP=")]
+                if prop_lines:
+                    prop_val = int(
+                        prop_lines[0].split("=", 1)[1].strip(), 16
+                    )
+                else:
+                    prop_val = 0
+                is_direct = bool(prop_val & (1 << 1))
+
+                if not is_direct:
+                    continue
 
                 # Check for multitouch absolute axis (ABS_MT_POSITION_X = 53)
                 abs_lines = [l for l in lines if l.startswith("B: ABS=")]
@@ -886,7 +896,8 @@ class Utils:
                     abs_bitmap = int("".join(hex_parts), 16)
                     if abs_bitmap & (1 << 53):
                         print(
-                            f"touchscreen detection: matched by ABS_MT_POSITION_X: "
+                            f"touchscreen detection: matched by "
+                            f"INPUT_PROP_DIRECT + ABS_MT_POSITION_X: "
                             f"{name}"
                         )
                         return True
