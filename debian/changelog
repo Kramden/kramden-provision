@@ -1,3 +1,9 @@
+kramden-provision (0.1.99.16) noble; urgency=medium
+
+  * Ensure we can't register a new record in sortly, only update
+
+ -- Ken VanDine <ken.vandine@canonical.com>  Mon, 13 Apr 2026 14:53:48 -0400
+
 kramden-provision (0.1.99.15) noble; urgency=medium
 
   * Fixes for touchscreen detection
