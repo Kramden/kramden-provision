@@ -512,6 +512,8 @@ class TouchscreenTest(Gtk.Window):
         css = Gtk.CssProvider()
         css.load_from_string(
             "window.touchscreen-test { background-color: white; }"
+            ".touchscreen-instructions { color: #1f1f1f; font-size: 22px; "
+            "font-weight: bold; }"
             ".touch-target { background: #4d4d4d; border-radius: 50%; "
             "min-width: 60px; min-height: 60px; border: none; padding: 0; }"
             ".touch-target.touched { background: #33cc33; }"
@@ -529,6 +531,15 @@ class TouchscreenTest(Gtk.Window):
         overlay = Gtk.Overlay()
         overlay.set_child(self._fixed)
         self.set_child(overlay)
+
+        instructions = Gtk.Label(
+            label="Touch every spot until all spots are green to pass the test."
+        )
+        instructions.add_css_class("touchscreen-instructions")
+        instructions.set_halign(Gtk.Align.CENTER)
+        instructions.set_valign(Gtk.Align.START)
+        instructions.set_margin_top(18)
+        overlay.add_overlay(instructions)
 
         # Quit button in top-right so user can exit with mouse/touchpad
         quit_btn = Gtk.Button(label="Quit")
