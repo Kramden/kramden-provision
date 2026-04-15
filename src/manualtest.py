@@ -490,14 +490,14 @@ class TouchscreenTest(Gtk.Window):
     # Target positions as fractions of (width, height).
     # 4 near corners, 4 closer to the middle.
     TARGET_POSITIONS = [
-        (0.08, 0.08),   # top-left corner
-        (0.92, 0.08),   # top-right corner
-        (0.08, 0.92),   # bottom-left corner
-        (0.92, 0.92),   # bottom-right corner
-        (0.30, 0.30),   # inner top-left
-        (0.70, 0.30),   # inner top-right
-        (0.30, 0.70),   # inner bottom-left
-        (0.70, 0.70),   # inner bottom-right
+        (0.08, 0.08),  # top-left corner
+        (0.92, 0.08),  # top-right corner
+        (0.08, 0.92),  # bottom-left corner
+        (0.92, 0.92),  # bottom-right corner
+        (0.30, 0.30),  # inner top-left
+        (0.70, 0.30),  # inner top-right
+        (0.30, 0.70),  # inner bottom-left
+        (0.70, 0.70),  # inner bottom-right
     ]
     TARGET_SIZE = 60  # diameter of each touch target
     REPOSITION_DELAY_MS = 16
@@ -533,7 +533,7 @@ class TouchscreenTest(Gtk.Window):
         self.set_child(overlay)
 
         instructions = Gtk.Label(
-            label="Touch every spot until all spots are green to pass the test."
+            label="Touch every spot with your finger until all spots are green to pass the test."
         )
         instructions.add_css_class("touchscreen-instructions")
         instructions.set_halign(Gtk.Align.CENTER)
