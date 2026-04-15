@@ -5,9 +5,11 @@ Provides functions for searching, creating, and updating items in Sortly,
 plus local system information gathering.
 """
 
-import requests
-import time
 import os
+import reprlib
+import time
+
+import requests
 
 from utils import Utils
 
@@ -81,6 +83,56 @@ EXPANDED_FOLDER_IDS = (
 SEARCH_FOLDER_IDS = ["102309375", "102312621", "102298337"]
 INCOMING_FOLDER_ID = "106628131"  # Spec-Not-Found - Leadership Only
 API_KEY_ENV_VAR = "SORTLY_API_KEY"
+SORTLY_API_CALL_COUNT = 0
+_DEBUG_REPR = reprlib.Repr()
+_DEBUG_REPR.maxdict = 8
+_DEBUG_REPR.maxlist = 8
+_DEBUG_REPR.maxstring = 120
+
+
+def _format_request_debug(params=None, json_body=None):
+    """Return a compact debug string for Sortly API request details."""
+    details = []
+    if params is not None:
+        details.append(f"params={_DEBUG_REPR.repr(params)}")
+    if json_body is not None:
+        details.append(f"json={_DEBUG_REPR.repr(json_body)}")
+    return " ".join(details)
+
+
+def get_api_call_count():
+    """Return the number of Sortly API calls made in this process."""
+    return SORTLY_API_CALL_COUNT
+
+
+def reset_api_call_count():
+    """Reset the Sortly API call counter."""
+    global SORTLY_API_CALL_COUNT
+    SORTLY_API_CALL_COUNT = 0
+
+
+def _sortly_request(method, url, **kwargs):
+    """Send a Sortly API request with debug output and a running call counter."""
+    global SORTLY_API_CALL_COUNT
+
+    SORTLY_API_CALL_COUNT += 1
+    call_number = SORTLY_API_CALL_COUNT
+    debug_details = _format_request_debug(
+        params=kwargs.get("params"), json_body=kwargs.get("json")
+    )
+    if debug_details:
+        print(f"[Sortly API #{call_number}] {method.upper()} {url} {debug_details}")
+    else:
+        print(f"[Sortly API #{call_number}] {method.upper()} {url}")
+
+    try:
+        response = requests.request(method, url, **kwargs)
+    except requests.RequestException as exc:
+        print(f"[Sortly API #{call_number}] Request failed: {exc}")
+        raise
+
+    print(f"[Sortly API #{call_number}] Response {response.status_code}")
+    return response
 
 
 def get_stage_folder_ids(stage):
@@ -130,8 +182,8 @@ def search_by_serial(api_key, folder_ids, serial_number):
         }
 
         try:
-            response = requests.post(
-                url, params=query_params, json=payload, headers=headers
+            response = _sortly_request(
+                "post", url, params=query_params, json=payload, headers=headers
             )
 
             if response.status_code == 429:
@@ -191,8 +243,8 @@ def search_item_by_name(api_key, folder_ids, item_name):
         response = None
 
         for attempt in range(max_retries):
-            response = requests.post(
-                url, params=query_params, json=payload, headers=headers
+            response = _sortly_request(
+                "post", url, params=query_params, json=payload, headers=headers
             )
 
             if response.status_code != 429:
@@ -241,7 +293,7 @@ def create_item(api_key, folder_id, item_name):
 
     print(f"Creating new item '{item_name}'...")
     try:
-        response = requests.post(url, json=payload, headers=headers)
+        response = _sortly_request("post", url, json=payload, headers=headers)
         if not response.ok:
             print(f"Failed to create item: {response.status_code}")
             print(f"Server response: {response.text}")
@@ -269,8 +321,8 @@ def update_item(api_key, item_id, updates_dict):
 
     print(f"Fetching item {item_id} to get attribute IDs...")
     try:
-        response = requests.get(
-            base_url, params={"include": "custom_attributes"}, headers=headers
+        response = _sortly_request(
+            "get", base_url, params={"include": "custom_attributes"}, headers=headers
         )
         response.raise_for_status()
         raw_json = response.json()
@@ -320,7 +372,7 @@ def update_item(api_key, item_id, updates_dict):
 
     print("Sending update...")
     try:
-        put_resp = requests.put(base_url, json=final_body, headers=headers)
+        put_resp = _sortly_request("put", base_url, json=final_body, headers=headers)
         if not put_resp.ok:
             print(f"Update failed: {put_resp.status_code}")
             print(f"Server response: {put_resp.text}")
@@ -356,7 +408,9 @@ def list_subfolders(api_key, parent_id, depth=0):
 
         for attempt in range(max_retries):
             try:
-                response = requests.get(url, params=query_params, headers=headers)
+                response = _sortly_request(
+                    "get", url, params=query_params, headers=headers
+                )
 
                 if response.status_code == 429:
                     if attempt < max_retries - 1:
