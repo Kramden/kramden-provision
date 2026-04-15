@@ -500,10 +500,12 @@ class TouchscreenTest(Gtk.Window):
         (0.70, 0.70),   # inner bottom-right
     ]
     TARGET_SIZE = 60  # diameter of each touch target
+    REPOSITION_DELAY_MS = 16
 
     def __init__(self, parent, callback):
         super().__init__()
         self._callback = callback
+        self._reposition_source_id = None
         self.set_decorated(False)
 
         # Load CSS for target styling
@@ -550,29 +552,53 @@ class TouchscreenTest(Gtk.Window):
 
         self._touched = [False] * len(self.TARGET_POSITIONS)
 
-        # Reposition targets whenever the Fixed container is resized
-        resize = Gtk.EventControllerMotion()
-        resize.connect("enter", lambda *a: self._reposition_targets())
-        self._fixed.add_controller(resize)
-
-        # Also reposition on a short delay after fullscreen to catch the resize
+        self._fixed.connect("notify::width", self._on_layout_changed)
+        self._fixed.connect("notify::height", self._on_layout_changed)
         self.connect("map", self._on_map)
+        self.connect("close-request", self._on_close_request)
 
         self.fullscreen()
 
     def _on_map(self, widget):
-        GLib.timeout_add(100, self._reposition_targets)
+        self._queue_reposition_targets()
+
+    def _on_layout_changed(self, *args):
+        self._queue_reposition_targets()
+
+    def _queue_reposition_targets(self):
+        if self._reposition_source_id is not None:
+            return
+        self._reposition_source_id = GLib.timeout_add(
+            self.REPOSITION_DELAY_MS, self._reposition_targets
+        )
+
+    @staticmethod
+    def _calculate_target_coordinates(width, height):
+        if width <= 1 or height <= 1:
+            return []
+
+        half = TouchscreenTest.TARGET_SIZE // 2
+        max_x = max(0, width - TouchscreenTest.TARGET_SIZE)
+        max_y = max(0, height - TouchscreenTest.TARGET_SIZE)
+        coordinates = []
+        for fx, fy in TouchscreenTest.TARGET_POSITIONS:
+            x = max(0, min(int(fx * width) - half, max_x))
+            y = max(0, min(int(fy * height) - half, max_y))
+            coordinates.append((x, y))
+        return coordinates
 
     def _reposition_targets(self, *args):
+        self._reposition_source_id = None
         width = self._fixed.get_width()
         height = self._fixed.get_height()
-        if width <= 1 or height <= 1:
-            return
-        half = self.TARGET_SIZE // 2
-        for i, (fx, fy) in enumerate(self.TARGET_POSITIONS):
-            x = int(fx * width) - half
-            y = int(fy * height) - half
+        coordinates = self._calculate_target_coordinates(width, height)
+        if not coordinates:
+            self._queue_reposition_targets()
+            return False
+
+        for i, (x, y) in enumerate(coordinates):
             self._fixed.move(self._targets[i], x, y)
+        return False
 
     def _on_target_clicked(self, button, index):
         if self._touched[index]:
@@ -590,3 +616,9 @@ class TouchscreenTest(Gtk.Window):
     def _on_quit(self, button):
         self._callback(False)
         self.close()
+
+    def _on_close_request(self, *args):
+        if self._reposition_source_id is not None:
+            GLib.source_remove(self._reposition_source_id)
+            self._reposition_source_id = None
+        return False
