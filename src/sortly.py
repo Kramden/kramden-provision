@@ -42,19 +42,19 @@ EXPANDED_FOLDER_IDS = (
         "102312726",
         "102312732",
         "102312850",
-        "102312733",
+        "108555013",
     ]
 )
 
 # RFT All-In-Ones: 102396716
 # RFT Desktop: 102396723
 # RFT Laptops: 102312621
-# RFT Temporary Projects: 102312733
+# RFT Temporary Projects: 108555013
 # RFT Problem Machines: # ALL OF THESE ARE EXPANDED SEARCH
 ### RFT Defective Laptop Shelf: 102312726
 ### RFT BIOS Locked Shelf: 102312732
 ### RFT Digital Asset Tag Bin: 102312850
-### RFT Temporary Projects: 102312733
+### RFT Temporary Projects: 108555013
 
 # RTA Programs (Linux) Desktop: 106345030
 ### RTA Programs (Linux) Desktop Stage 1: 106345033
