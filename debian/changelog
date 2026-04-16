@@ -1,3 +1,10 @@
+kramden-provision (0.1.99.17) noble; urgency=medium
+
+  * Sortly performance improvements and fixed race condition in touchscreen
+    test
+
+ -- Ken VanDine <ken.vandine@canonical.com>  Thu, 16 Apr 2026 17:58:12 -0400
+
 kramden-provision (0.1.99.16) noble; urgency=medium
 
   * Ensure we can't register a new record in sortly, only update
