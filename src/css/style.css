@@ -1,3 +1,9 @@
+/* Global font and color settings for readability */
+window, label, button, row {
+    font-size: 14pt;
+    color: white;
+}
+
 .button-next-last-page {
     background-color: #FF6347; /* Tomato color */
     color: white; /* Text color */
