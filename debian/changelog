@@ -1,3 +1,9 @@
+kramden-provision (0.1.99.18) noble; urgency=medium
+
+  *  Also use /opt/dell/dcc/cctk to check for BIOS password
+
+ -- Ken VanDine <ken.vandine@canonical.com>  Wed, 13 May 2026 22:29:05 -0400
+
 kramden-provision (0.1.99.17) noble; urgency=medium
 
   * Sortly performance improvements and fixed race condition in touchscreen
