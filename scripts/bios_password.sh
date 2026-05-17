@@ -30,6 +30,7 @@ if [[ $vendor =~ "HP" || $vendor =~ "Hewlett" ]]; then
         # is unreliable on this machine.
         if [ -z "$hp_admin_pass" ]; then
             for d in "$auth_dir"/*/; do
+                [ -d "$d" ] || continue
                 name=$(basename "$d")
                 if [[ "$name" != [A-Za-z0-9_]* ]] || ! cat "$d/role" >/dev/null 2>&1; then
                     hp_unreliable=1
