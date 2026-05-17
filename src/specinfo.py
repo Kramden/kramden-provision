@@ -150,7 +150,9 @@ class SpecInfo(Adw.Bin):
             self.mem_row.add_css_class("text-error")
 
         bios_password = utils.has_bios_password()
+        bios_password_warning = getattr(utils, "bios_password_warning", None)
         if bios_password and not self.bios_password_override:
+            # True: password detected – error state, blocks completion
             self.bios_password_row.set_subtitle("Has Password")
             self.bios_password_row.set_icon_name("emblem-important-symbolic")
             self.bios_password_row.add_css_class("text-error")
@@ -161,10 +163,31 @@ class SpecInfo(Adw.Bin):
                     self._on_bios_password_override_accepted,
                 )
             passed = False
-        else:
+        elif bios_password is None and not self.bios_password_override:
+            # None: indeterminate – warning state, does NOT block completion
             self.bios_password_row.set_subtitle(
-                "No Password" if not bios_password else "Has Password (Overridden)"
+                bios_password_warning or "Could not determine BIOS password state"
             )
+            self.bios_password_row.set_icon_name("dialog-warning-symbolic")
+            if not self._bios_password_override_button:
+                self._bios_password_override_button = self._add_override_button(
+                    self.bios_password_row,
+                    "BIOS Password Override",
+                    self._on_bios_password_override_accepted,
+                )
+        else:
+            # Overridden or no password
+            if bios_password is False:
+                self.bios_password_row.set_subtitle("No Password")
+            elif bios_password is None:
+                # Warning state was overridden by operator
+                self.bios_password_row.set_subtitle(
+                    f"{bios_password_warning} (Overridden)"
+                    if bios_password_warning
+                    else "BIOS Password State Unknown (Overridden)"
+                )
+            else:
+                self.bios_password_row.set_subtitle("Has Password (Overridden)")
             self.bios_password_row.set_icon_name("emblem-ok-symbolic")
             if self.bios_password_row.has_css_class("text-error"):
                 self.bios_password_row.remove_css_class("text-error")

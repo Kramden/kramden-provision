@@ -1356,5 +1356,92 @@ Memory Device
             self.assertEqual(result, {"BAT0": 87, "BAT1": 78})
 
 
+class TestHasBiosPassword(unittest.TestCase):
+    def setUp(self):
+        hostnamectl_json = {
+            "StaticHostname": "testhost",
+            "OperatingSystemPrettyName": "Test OS 1.0",
+            "HardwareVendor": "Test Vendor",
+            "HardwareModel": "Test Model",
+            "HardwareSerial": "TEST123"
+        }
+        self.mock_subproc_run = patch('subprocess.run').start()
+        mock_result = MagicMock()
+        mock_result.stdout = json.dumps(hostnamectl_json)
+        mock_result.returncode = 0
+        self.mock_subproc_run.return_value = mock_result
+        self.utils = Utils()
+
+    def tearDown(self):
+        patch.stopall()
+
+    @patch.object(Utils, 'file_exists_and_executable', return_value=False)
+    def test_has_bios_password_script_not_present(self, mock_exists):
+        """When the script is absent, return False with no warning."""
+        result = self.utils.has_bios_password()
+        self.assertFalse(result)
+        self.assertIsNone(self.utils.bios_password_warning)
+
+    @patch('subprocess.run')
+    @patch.object(Utils, 'file_exists_and_executable', return_value=True)
+    def test_has_bios_password_detected_nonzero_exit(self, mock_exists, mock_run):
+        """A nonzero exit code means a password is set; no warning expected."""
+        mock_run.return_value = MagicMock(returncode=1, stderr="")
+        result = self.utils.has_bios_password()
+        self.assertTrue(result)
+        self.assertIsNone(self.utils.bios_password_warning)
+
+    @patch('subprocess.run')
+    @patch.object(Utils, 'file_exists_and_executable', return_value=True)
+    def test_has_bios_password_not_detected(self, mock_exists, mock_run):
+        """Exit 0 with no stderr means no password and no warning."""
+        mock_run.return_value = MagicMock(returncode=0, stderr="")
+        result = self.utils.has_bios_password()
+        self.assertFalse(result)
+        self.assertIsNone(self.utils.bios_password_warning)
+
+    @patch('subprocess.run')
+    @patch.object(Utils, 'file_exists_and_executable', return_value=True)
+    def test_has_bios_password_warning_on_stderr_exit_zero(self, mock_exists, mock_run):
+        """Exit 0 with a WARNING on stderr captures the warning and returns None (indeterminate)."""
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stderr="WARNING: HP BIOS authentication entries may be unreliable; verify via F10\n"
+        )
+        result = self.utils.has_bios_password()
+        self.assertIsNone(result)
+        self.assertEqual(
+            self.utils.bios_password_warning,
+            "HP BIOS authentication entries may be unreliable; verify via F10"
+        )
+
+    @patch('subprocess.run')
+    @patch.object(Utils, 'file_exists_and_executable', return_value=True)
+    def test_has_bios_password_warning_on_stderr_nonzero_exit(self, mock_exists, mock_run):
+        """Nonzero exit with a WARNING on stderr still returns True and captures the warning."""
+        mock_run.return_value = MagicMock(
+            returncode=1,
+            stderr="WARNING: HP BIOS authentication entries may be unreliable; verify via F10\n"
+        )
+        result = self.utils.has_bios_password()
+        self.assertTrue(result)
+        self.assertEqual(
+            self.utils.bios_password_warning,
+            "HP BIOS authentication entries may be unreliable; verify via F10"
+        )
+
+    @patch('subprocess.run')
+    @patch.object(Utils, 'file_exists_and_executable', return_value=True)
+    def test_has_bios_password_only_first_warning_captured(self, mock_exists, mock_run):
+        """Only the first WARNING line on stderr is captured; result is None (indeterminate)."""
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stderr="WARNING: first warning\nWARNING: second warning\n"
+        )
+        result = self.utils.has_bios_password()
+        self.assertIsNone(result)
+        self.assertEqual(self.utils.bios_password_warning, "first warning")
+
+
 if __name__ == '__main__':
     unittest.main()
