@@ -176,12 +176,15 @@ class SpecInfo(Adw.Bin):
                     self._on_bios_password_override_accepted,
                 )
         else:
-            # False (no password) or override accepted
+            # Overridden or no password
             if bios_password is False:
                 self.bios_password_row.set_subtitle("No Password")
-            elif bios_password_warning:
+            elif bios_password is None:
+                # Warning state was overridden by operator
                 self.bios_password_row.set_subtitle(
                     f"{bios_password_warning} (Overridden)"
+                    if bios_password_warning
+                    else "BIOS Password State Unknown (Overridden)"
                 )
             else:
                 self.bios_password_row.set_subtitle("Has Password (Overridden)")

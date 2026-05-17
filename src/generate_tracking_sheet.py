@@ -72,6 +72,13 @@ def get_system_info():
     else:
         battery_health = None
 
+    if bios_password is True:
+        bios_password_str = "Yes"
+    elif bios_password is None:
+        bios_password_str = "Unverified"
+    else:
+        bios_password_str = "No"
+
     info = {
         "Brand": brand,
         "Model": model,
@@ -79,7 +86,7 @@ def get_system_info():
         "RAM": ram,  # Numeric value only
         "Storage": total_storage,
         "Serial# Scanner": serial,
-        "BIOS Password": "Yes" if bios_password is True else "Unverified" if bios_password is None else "No",
+        "BIOS Password": bios_password_str,
         "Asset Info": "Yes" if asset_info else "No",
     }
 
