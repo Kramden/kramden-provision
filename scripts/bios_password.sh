@@ -32,7 +32,7 @@ if [[ $vendor =~ "HP" || $vendor =~ "Hewlett" ]]; then
             for d in "$auth_dir"/*/; do
                 [ -d "$d" ] || continue
                 name=$(basename "$d")
-                if [[ "$name" != [A-Za-z0-9_]* ]] || ! cat "$d/role" >/dev/null 2>&1; then
+                if ! [[ "$name" =~ ^[A-Za-z0-9_]+$ ]] || ! cat "$d/role" >/dev/null 2>&1; then
                     hp_unreliable=1
                     break
                 fi
