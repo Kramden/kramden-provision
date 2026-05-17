@@ -17,7 +17,10 @@ if [[ $vendor =~ "HP" || $vendor =~ "Hewlett" ]]; then
     if [ -d "$auth_dir" ]; then
         for f in "$auth_dir"/*/is_enabled; do
             [ -r "$f" ] || continue
-            val=$(cat "$f" 2>/dev/null)
+            if ! val=$(cat "$f" 2>/dev/null); then
+                hp_unreliable=1
+                continue
+            fi
             if [ "$val" = "1" ]; then
                 hp_admin_pass="enabled"
                 break
