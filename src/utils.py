@@ -136,11 +136,21 @@ class Utils:
             return result.returncode == 0
         return False
 
-    # Check if BIOS Password is set, returns True if set
+    # Check if BIOS Password is set, returns True if set.
+    # When the script can't determine state reliably (e.g. buggy HP firmware
+    # via hp-bioscfg), it prints a WARNING line to stderr; the text of that
+    # warning is captured on self.bios_password_warning for the UI.
     def has_bios_password(self):
+        self.bios_password_warning = None
         bios_password_sh = "/usr/share/kramden-provision/scripts/bios_password.sh"
         if self.file_exists_and_executable(bios_password_sh):
-            result = subprocess.run(["sudo", bios_password_sh])
+            result = subprocess.run(
+                ["sudo", bios_password_sh], capture_output=True, text=True
+            )
+            for line in (result.stderr or "").splitlines():
+                if line.startswith("WARNING:"):
+                    self.bios_password_warning = line[len("WARNING:") :].strip()
+                    break
             return result.returncode != 0
         return False
 
