@@ -151,11 +151,9 @@ class SpecInfo(Adw.Bin):
 
         bios_password = utils.has_bios_password()
         bios_password_warning = getattr(utils, "bios_password_warning", None)
-        bios_password_failure = bios_password or bool(bios_password_warning)
-        if bios_password_failure and not self.bios_password_override:
-            self.bios_password_row.set_subtitle(
-                bios_password_warning if bios_password_warning else "Has Password"
-            )
+        if bios_password and not self.bios_password_override:
+            # True: password detected – error state, blocks completion
+            self.bios_password_row.set_subtitle("Has Password")
             self.bios_password_row.set_icon_name("emblem-important-symbolic")
             self.bios_password_row.add_css_class("text-error")
             if not self._bios_password_override_button:
@@ -165,8 +163,21 @@ class SpecInfo(Adw.Bin):
                     self._on_bios_password_override_accepted,
                 )
             passed = False
+        elif bios_password is None and not self.bios_password_override:
+            # None: indeterminate – warning state, does NOT block completion
+            self.bios_password_row.set_subtitle(
+                bios_password_warning or "Could not determine BIOS password state"
+            )
+            self.bios_password_row.set_icon_name("dialog-warning-symbolic")
+            if not self._bios_password_override_button:
+                self._bios_password_override_button = self._add_override_button(
+                    self.bios_password_row,
+                    "BIOS Password Override",
+                    self._on_bios_password_override_accepted,
+                )
         else:
-            if not bios_password_failure:
+            # False (no password) or override accepted
+            if bios_password is False:
                 self.bios_password_row.set_subtitle("No Password")
             elif bios_password_warning:
                 self.bios_password_row.set_subtitle(

@@ -79,7 +79,7 @@ def get_system_info():
         "RAM": ram,  # Numeric value only
         "Storage": total_storage,
         "Serial# Scanner": serial,
-        "BIOS Password": "Yes" if bios_password else "No",
+        "BIOS Password": "Yes" if bios_password is True else "Unverified" if bios_password is None else "No",
         "Asset Info": "Yes" if asset_info else "No",
     }
 

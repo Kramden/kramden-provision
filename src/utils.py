@@ -137,9 +137,17 @@ class Utils:
         return False
 
     # Check if BIOS Password is set, returns True if set.
-    # When the script can't determine state reliably (e.g. buggy HP firmware
-    # via hp-bioscfg), it prints a WARNING line to stderr; the text of that
-    # warning is captured on self.bios_password_warning for the UI.
+    # Detect whether a BIOS password is set.
+    #
+    # Returns:
+    #   True  – password is set (script exited non-zero)
+    #   False – no password (script exited 0, no warning)
+    #   None  – indeterminate: script exited 0 but emitted a WARNING on stderr
+    #           (e.g. buggy HP firmware via hp-bioscfg).  The warning text is
+    #           stored on self.bios_password_warning for the UI to display.
+    #
+    # Callers that only consume the boolean must treat None as unverified, not
+    # as "no password".
     def has_bios_password(self):
         self.bios_password_warning = None
         bios_password_sh = "/usr/share/kramden-provision/scripts/bios_password.sh"
@@ -151,7 +159,9 @@ class Utils:
                 if line.startswith("WARNING:"):
                     self.bios_password_warning = line[len("WARNING:") :].strip()
                     break
-            return result.returncode != 0
+            if result.returncode != 0:
+                return True
+            return None if self.bios_password_warning else False
         return False
 
     # Check if BIOS has Asset info, returns True if set

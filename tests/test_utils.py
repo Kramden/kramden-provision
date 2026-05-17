@@ -1403,13 +1403,13 @@ class TestHasBiosPassword(unittest.TestCase):
     @patch('subprocess.run')
     @patch.object(Utils, 'file_exists_and_executable', return_value=True)
     def test_has_bios_password_warning_on_stderr_exit_zero(self, mock_exists, mock_run):
-        """Exit 0 with a WARNING on stderr captures the warning but returns False."""
+        """Exit 0 with a WARNING on stderr captures the warning and returns None (indeterminate)."""
         mock_run.return_value = MagicMock(
             returncode=0,
             stderr="WARNING: HP BIOS authentication entries may be unreliable; verify via F10\n"
         )
         result = self.utils.has_bios_password()
-        self.assertFalse(result)
+        self.assertIsNone(result)
         self.assertEqual(
             self.utils.bios_password_warning,
             "HP BIOS authentication entries may be unreliable; verify via F10"
@@ -1433,12 +1433,13 @@ class TestHasBiosPassword(unittest.TestCase):
     @patch('subprocess.run')
     @patch.object(Utils, 'file_exists_and_executable', return_value=True)
     def test_has_bios_password_only_first_warning_captured(self, mock_exists, mock_run):
-        """Only the first WARNING line on stderr is captured."""
+        """Only the first WARNING line on stderr is captured; result is None (indeterminate)."""
         mock_run.return_value = MagicMock(
             returncode=0,
             stderr="WARNING: first warning\nWARNING: second warning\n"
         )
-        self.utils.has_bios_password()
+        result = self.utils.has_bios_password()
+        self.assertIsNone(result)
         self.assertEqual(self.utils.bios_password_warning, "first warning")
 
 
