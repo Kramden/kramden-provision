@@ -151,8 +151,11 @@ class SpecInfo(Adw.Bin):
 
         bios_password = utils.has_bios_password()
         bios_password_warning = getattr(utils, "bios_password_warning", None)
-        if bios_password and not self.bios_password_override:
-            self.bios_password_row.set_subtitle("Has Password")
+        bios_password_failure = bios_password or bool(bios_password_warning)
+        if bios_password_failure and not self.bios_password_override:
+            self.bios_password_row.set_subtitle(
+                bios_password_warning if bios_password_warning else "Has Password"
+            )
             self.bios_password_row.set_icon_name("emblem-important-symbolic")
             self.bios_password_row.add_css_class("text-error")
             if not self._bios_password_override_button:
@@ -162,15 +165,15 @@ class SpecInfo(Adw.Bin):
                     self._on_bios_password_override_accepted,
                 )
             passed = False
-        elif bios_password_warning and not bios_password:
-            self.bios_password_row.set_subtitle(bios_password_warning)
-            self.bios_password_row.set_icon_name("dialog-warning-symbolic")
-            if self.bios_password_row.has_css_class("text-error"):
-                self.bios_password_row.remove_css_class("text-error")
         else:
-            self.bios_password_row.set_subtitle(
-                "No Password" if not bios_password else "Has Password (Overridden)"
-            )
+            if not bios_password_failure:
+                self.bios_password_row.set_subtitle("No Password")
+            elif bios_password_warning:
+                self.bios_password_row.set_subtitle(
+                    f"{bios_password_warning} (Overridden)"
+                )
+            else:
+                self.bios_password_row.set_subtitle("Has Password (Overridden)")
             self.bios_password_row.set_icon_name("emblem-ok-symbolic")
             if self.bios_password_row.has_css_class("text-error"):
                 self.bios_password_row.remove_css_class("text-error")
