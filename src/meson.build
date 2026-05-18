@@ -67,6 +67,7 @@ sources = [
   'osloadcomplete.py',
   'osload.py',
   'sortly.py',
+  'loading_capture.py',
   'sortly_register.py',
   'sortly_lookup_by_name.py',
   'sortly_lookup_by_serial.py',

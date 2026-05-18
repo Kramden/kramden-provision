@@ -73,6 +73,8 @@ class WizardWindow(Gtk.ApplicationWindow):
         self.page1.state = self.observable_property
         self.page2.sortly_register = self.page1
         self.page2.state = self.observable_property
+        self.page2.on_loading_changed = self._on_specinfo_loading_changed
+        self._specinfo_loading = False
         self.page3.state = self.observable_property
         self.page4.sortly_register = self.page1
         self.page4.manual_test = self.page3
@@ -188,8 +190,18 @@ class WizardWindow(Gtk.ApplicationWindow):
             self.next_button.remove_css_class("button-next-last-page")
             self.next_button.set_label("Next")
 
+        # While SpecInfo is gathering data, lock Next so rapid clicks
+        # don't queue and fire after the page finishes loading.
+        if self._specinfo_loading:
+            self.next_button.set_sensitive(False)
+            self.prev_button.set_sensitive(False)
+
         # Focus the next button
         self.next_button.grab_focus()
+
+    def _on_specinfo_loading_changed(self, loading):
+        self._specinfo_loading = loading
+        self.update_buttons()
 
     def complete(self):
         print("Complete Clicked")
