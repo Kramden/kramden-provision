@@ -388,11 +388,17 @@ class ManualTest(Adw.Bin):
     def on_touchscreen_clicked(self, button):
         print("ManualTest:on_touchscreen_clicked")
         window = self.get_root()
-        test = TouchscreenTest(window, self._on_touchscreen_test_complete)
-        test.present()
+        # Hold a reference so the window can't be GC'd while live;
+        # without this, the Python wrapper can be collected between
+        # user taps and pending signals fire on freed state (SIGSEGV).
+        self._touchscreen_test = TouchscreenTest(
+            window, self._on_touchscreen_test_complete
+        )
+        self._touchscreen_test.present()
 
     def _on_touchscreen_test_complete(self, passed):
         self.touchscreen_button.set_active(passed)
+        self._touchscreen_test = None
 
     # Make battery row clickable
     def on_battery_row_activated(self, row):
@@ -506,6 +512,7 @@ class TouchscreenTest(Gtk.Window):
         super().__init__()
         self._callback = callback
         self._reposition_source_id = None
+        self._finish_source_id = None
         self.set_decorated(False)
 
         # Load CSS for target styling
@@ -616,10 +623,11 @@ class TouchscreenTest(Gtk.Window):
             return
         self._touched[index] = True
         button.add_css_class("touched")
-        if all(self._touched):
-            GLib.timeout_add(300, self._finish_passed)
+        if all(self._touched) and self._finish_source_id is None:
+            self._finish_source_id = GLib.timeout_add(300, self._finish_passed)
 
     def _finish_passed(self):
+        self._finish_source_id = None
         self._callback(True)
         self.close()
         return False
@@ -632,4 +640,7 @@ class TouchscreenTest(Gtk.Window):
         if self._reposition_source_id is not None:
             GLib.source_remove(self._reposition_source_id)
             self._reposition_source_id = None
+        if self._finish_source_id is not None:
+            GLib.source_remove(self._finish_source_id)
+            self._finish_source_id = None
         return False
