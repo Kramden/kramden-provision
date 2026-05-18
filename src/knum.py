@@ -117,16 +117,11 @@ class KramdenNumber(Adw.Bin):
             self._lookup_done = True
             return
 
-        self._set_status(f"Looking up serial '{serial}' in Sortly...")
-        self.spinner.set_visible(True)
-        self.spinner.start()
-
-        thread = threading.Thread(
-            target=self._lookup_serial_thread,
-            args=(api_key, serial),
-            daemon=True,
+        # Temporarily disable the automatic serial lookup at startup in OSLoad.
+        self._lookup_done = True
+        self._set_status(
+            "Automatic serial lookup is temporarily disabled. Enter a K-number to continue."
         )
-        thread.start()
 
     def _lookup_serial_thread(self, api_key, serial):
         try:
