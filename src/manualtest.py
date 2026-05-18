@@ -508,6 +508,10 @@ class TouchscreenTest(Gtk.Window):
     TARGET_SIZE = 60  # diameter of each touch target
     REPOSITION_DELAY_MS = 16
 
+    # Track which displays already have our CSS provider registered, so
+    # we don't accumulate one per TouchscreenTest instance.
+    _css_registered_displays = set()
+
     def __init__(self, parent, callback):
         super().__init__()
         self._callback = callback
@@ -515,19 +519,25 @@ class TouchscreenTest(Gtk.Window):
         self._finish_source_id = None
         self.set_decorated(False)
 
-        # Load CSS for target styling
-        css = Gtk.CssProvider()
-        css.load_from_string(
-            "window.touchscreen-test { background-color: white; }"
-            ".touchscreen-instructions { color: #1f1f1f; font-size: 22px; "
-            "font-weight: bold; }"
-            ".touch-target { background: #4d4d4d; border-radius: 50%; "
-            "min-width: 60px; min-height: 60px; border: none; padding: 0; }"
-            ".touch-target.touched { background: #33cc33; }"
-        )
-        Gtk.StyleContext.add_provider_for_display(
-            parent.get_display(), css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
-        )
+        # Load CSS for target styling. Register the provider on the
+        # display only once per process; re-registering on every test
+        # accumulates providers and keeps stale references alive.
+        display = parent.get_display()
+        display_id = id(display)
+        if display_id not in TouchscreenTest._css_registered_displays:
+            css = Gtk.CssProvider()
+            css.load_from_string(
+                "window.touchscreen-test { background-color: white; }"
+                ".touchscreen-instructions { color: #1f1f1f; font-size: 22px; "
+                "font-weight: bold; }"
+                ".touch-target { background: #4d4d4d; border-radius: 50%; "
+                "min-width: 60px; min-height: 60px; border: none; padding: 0; }"
+                ".touch-target.touched { background: #33cc33; }"
+            )
+            Gtk.StyleContext.add_provider_for_display(
+                display, css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+            )
+            TouchscreenTest._css_registered_displays.add(display_id)
 
         self.add_css_class("touchscreen-test")
 
@@ -575,9 +585,12 @@ class TouchscreenTest(Gtk.Window):
         self.connect("map", self._on_map)
         self.connect("close-request", self._on_close_request)
 
-        self.fullscreen()
-
     def _on_map(self, widget):
+        # Defer fullscreen until after map: if a USB input device was
+        # just removed, GDK's device list needs time to settle before a
+        # pointer grab. Calling fullscreen() from __init__ can SIGSEGV
+        # in that window.
+        self.fullscreen()
         self._queue_reposition_targets()
 
     def _on_layout_changed(self, *args):
