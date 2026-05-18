@@ -1,3 +1,9 @@
+kramden-provision (0.1.99.20) noble; urgency=medium
+
+  * Touchscreen test crash fixes and improved specinfo loading
+
+ -- Ken VanDine <ken.vandine@canonical.com>  Mon, 18 May 2026 17:40:08 -0400
+
 kramden-provision (0.1.99.19) noble; urgency=medium
 
   * fix: Detect HP BIOS password via hp-bioscfg and surface unreliable
