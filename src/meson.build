@@ -77,6 +77,7 @@ sources = [
   'speccomplete.py',
   'specinfo.py',
   'sysinfo.py',
+  'touchscreen_test_runner.py',
   'secureerase.py',
   'utils.py',
   'getlearngive.png',

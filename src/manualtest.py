@@ -387,12 +387,54 @@ class ManualTest(Adw.Bin):
     # Launch the fullscreen touchscreen test
     def on_touchscreen_clicked(self, button):
         print("ManualTest:on_touchscreen_clicked")
-        window = self.get_root()
-        test = TouchscreenTest(window, self._on_touchscreen_test_complete)
-        test.present()
+        # The touchscreen test runs in a subprocess. Touch event delivery
+        # in GTK/GDK has been observed to SIGSEGV after a USB pointer
+        # device is unplugged; isolating the test in its own process
+        # means such a crash only fails the test rather than killing the
+        # provisioning app.
+        import os
+        import subprocess
+        import sys
+        import threading
 
-    def _on_touchscreen_test_complete(self, passed):
+        button.set_sensitive(False)
+        self.touchscreen_button.set_sensitive(False)
+
+        runner = os.path.join(
+            os.path.dirname(os.path.realpath(__file__)),
+            "touchscreen_test_runner.py",
+        )
+
+        def _run():
+            try:
+                result = subprocess.run(
+                    [sys.executable, runner],
+                    capture_output=True,
+                    text=True,
+                    timeout=600,
+                )
+                if result.returncode != 0:
+                    print(
+                        f"Touchscreen test subprocess exited rc={result.returncode}"
+                    )
+                    if result.stderr:
+                        print(result.stderr)
+                    passed = False
+                else:
+                    passed = result.stdout.strip().endswith("pass")
+            except Exception as exc:
+                print(f"Touchscreen test subprocess error: {exc}")
+                passed = False
+            GLib.idle_add(self._on_touchscreen_test_complete, passed, button)
+
+        threading.Thread(target=_run, daemon=True).start()
+
+    def _on_touchscreen_test_complete(self, passed, click_button=None):
         self.touchscreen_button.set_active(passed)
+        self.touchscreen_button.set_sensitive(True)
+        if click_button is not None:
+            click_button.set_sensitive(True)
+        return False
 
     # Make battery row clickable
     def on_battery_row_activated(self, row):
@@ -483,153 +525,3 @@ class ManualTest(Adw.Bin):
         print("ManualTest:on_shown")
         self.check_status()
 
-
-class TouchscreenTest(Gtk.Window):
-    """Fullscreen white window with 8 touch targets that must all be tapped to pass."""
-
-    # Target positions as fractions of (width, height).
-    # 4 near corners, 4 closer to the middle.
-    TARGET_POSITIONS = [
-        (0.08, 0.08),  # top-left corner
-        (0.92, 0.08),  # top-right corner
-        (0.08, 0.92),  # bottom-left corner
-        (0.92, 0.92),  # bottom-right corner
-        (0.30, 0.30),  # inner top-left
-        (0.70, 0.30),  # inner top-right
-        (0.30, 0.70),  # inner bottom-left
-        (0.70, 0.70),  # inner bottom-right
-    ]
-    TARGET_SIZE = 60  # diameter of each touch target
-    REPOSITION_DELAY_MS = 16
-
-    def __init__(self, parent, callback):
-        super().__init__()
-        self._callback = callback
-        self._reposition_source_id = None
-        self.set_decorated(False)
-
-        # Load CSS for target styling
-        css = Gtk.CssProvider()
-        css.load_from_string(
-            "window.touchscreen-test { background-color: white; }"
-            ".touchscreen-instructions { color: #1f1f1f; font-size: 22px; "
-            "font-weight: bold; }"
-            ".touch-target { background: #4d4d4d; border-radius: 50%; "
-            "min-width: 60px; min-height: 60px; border: none; padding: 0; }"
-            ".touch-target.touched { background: #33cc33; }"
-        )
-        Gtk.StyleContext.add_provider_for_display(
-            parent.get_display(), css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
-        )
-
-        self.add_css_class("touchscreen-test")
-
-        self._fixed = Gtk.Fixed()
-        self._fixed.set_hexpand(True)
-        self._fixed.set_vexpand(True)
-
-        overlay = Gtk.Overlay()
-        overlay.set_child(self._fixed)
-        self.set_child(overlay)
-
-        instructions = Gtk.Label(
-            label="Touch every spot with your finger until all spots are green to pass the test."
-        )
-        instructions.add_css_class("touchscreen-instructions")
-        instructions.set_halign(Gtk.Align.CENTER)
-        instructions.set_valign(Gtk.Align.START)
-        instructions.set_margin_top(18)
-        overlay.add_overlay(instructions)
-
-        # Quit button in top-right so user can exit with mouse/touchpad
-        quit_btn = Gtk.Button(label="Quit")
-        quit_btn.add_css_class("destructive-action")
-        quit_btn.set_halign(Gtk.Align.END)
-        quit_btn.set_valign(Gtk.Align.START)
-        quit_btn.set_margin_top(12)
-        quit_btn.set_margin_end(12)
-        quit_btn.connect("clicked", self._on_quit)
-        overlay.add_overlay(quit_btn)
-
-        # Create touch target buttons
-        self._targets = []
-        for i, (_fx, _fy) in enumerate(self.TARGET_POSITIONS):
-            btn = Gtk.Button()
-            btn.add_css_class("touch-target")
-            btn.set_size_request(self.TARGET_SIZE, self.TARGET_SIZE)
-            btn.connect("clicked", self._on_target_clicked, i)
-            self._fixed.put(btn, 0, 0)
-            self._targets.append(btn)
-
-        self._touched = [False] * len(self.TARGET_POSITIONS)
-
-        self._fixed.connect("notify::width", self._on_layout_changed)
-        self._fixed.connect("notify::height", self._on_layout_changed)
-        self.connect("map", self._on_map)
-        self.connect("close-request", self._on_close_request)
-
-        self.fullscreen()
-
-    def _on_map(self, widget):
-        self._queue_reposition_targets()
-
-    def _on_layout_changed(self, *args):
-        self._queue_reposition_targets()
-
-    def _queue_reposition_targets(self):
-        if self._reposition_source_id is not None:
-            return
-        self._reposition_source_id = GLib.timeout_add(
-            self.REPOSITION_DELAY_MS, self._reposition_targets
-        )
-
-    @staticmethod
-    def _calculate_target_coordinates(width, height):
-        if width <= 1 or height <= 1:
-            return []
-
-        half = TouchscreenTest.TARGET_SIZE // 2
-        max_x = max(0, width - TouchscreenTest.TARGET_SIZE)
-        max_y = max(0, height - TouchscreenTest.TARGET_SIZE)
-        coordinates = []
-        for fx, fy in TouchscreenTest.TARGET_POSITIONS:
-            x = max(0, min(int(fx * width) - half, max_x))
-            y = max(0, min(int(fy * height) - half, max_y))
-            coordinates.append((x, y))
-        return coordinates
-
-    def _reposition_targets(self, *args):
-        self._reposition_source_id = None
-        width = self._fixed.get_width()
-        height = self._fixed.get_height()
-        coordinates = self._calculate_target_coordinates(width, height)
-        if not coordinates:
-            self._queue_reposition_targets()
-            return False
-
-        for i, (x, y) in enumerate(coordinates):
-            self._fixed.move(self._targets[i], x, y)
-        return False
-
-    def _on_target_clicked(self, button, index):
-        if self._touched[index]:
-            return
-        self._touched[index] = True
-        button.add_css_class("touched")
-        if all(self._touched):
-            GLib.timeout_add(300, self._finish_passed)
-
-    def _finish_passed(self):
-        self._callback(True)
-        self.close()
-        return False
-
-    def _on_quit(self, button):
-        self._callback(False)
-        self.close()
-
-    def _on_close_request(self, *args):
-        if self._reposition_source_id is not None:
-            GLib.source_remove(self._reposition_source_id)
-            self._reposition_source_id = None
-        return False
