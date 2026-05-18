@@ -576,15 +576,28 @@ class TouchscreenTest(Gtk.Window):
         quit_btn.connect("clicked", self._on_quit)
         overlay.add_overlay(quit_btn)
 
-        # Create touch target buttons
+        # Create touch target widgets. We use Gtk.Box + an explicit
+        # Gtk.GestureClick rather than Gtk.Button+"clicked" because
+        # Gtk.Button has internal pointer-tracking gestures that have
+        # been observed to SIGSEGV when a touch event arrives after a
+        # USB pointer device was unplugged (stale device pointer in the
+        # button's internal click controller).
         self._targets = []
         for i, (_fx, _fy) in enumerate(self.TARGET_POSITIONS):
-            btn = Gtk.Button()
-            btn.add_css_class("touch-target")
-            btn.set_size_request(self.TARGET_SIZE, self.TARGET_SIZE)
-            btn.connect("clicked", self._on_target_clicked, i)
-            self._fixed.put(btn, 0, 0)
-            self._targets.append(btn)
+            target = Gtk.Box()
+            target.add_css_class("touch-target")
+            target.set_size_request(self.TARGET_SIZE, self.TARGET_SIZE)
+            gesture = Gtk.GestureClick()
+            gesture.set_touch_only(False)
+            gesture.connect(
+                "pressed",
+                lambda g, n, x, y, idx=i, t=target: self._on_target_clicked(
+                    t, idx
+                ),
+            )
+            target.add_controller(gesture)
+            self._fixed.put(target, 0, 0)
+            self._targets.append(target)
 
         self._touched = [False] * len(self.TARGET_POSITIONS)
 
