@@ -2,10 +2,17 @@
 
 echo "Checking for BIOS Password"
 admin_pass=$(lshw -c system|grep configuration|grep administrator_password=enabled)
+dell_admin_pass=""
 if [ -x "/opt/dell/dcc/cctk" ]; then
-    dell_admin_pass=$(/opt/dell/dcc/cctk --PasswordLock | grep Enabled)
-else
-    dell_admin_pass=""
+    # cctk has no read-only password query (--PasswordLock is a
+    # different feature; --setuppwd/--syspwd are setters that
+    # require a value). Probing with a write reveals whether an
+    # admin password is required: exit 65 means a password is set;
+    # exit 0 or 43 means no password is set.
+    /opt/dell/dcc/cctk --tpmppiclearoverride=enable >/dev/null 2>&1
+    if [ $? -eq 65 ]; then
+        dell_admin_pass="enabled"
+    fi
 fi
 
 hp_admin_pass=""
