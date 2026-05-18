@@ -388,6 +388,14 @@ class ManualTest(Adw.Bin):
     def on_touchscreen_clicked(self, button):
         print("ManualTest:on_touchscreen_clicked")
         window = self.get_root()
+        # Force GDK to drain any pending input-device events (e.g. a USB
+        # mouse that was just unplugged) before we create a new window
+        # whose touch events will be delivered against GDK's device
+        # list. Skipping this caused a reproducible SIGSEGV after USB
+        # unplug + first tap on a target.
+        display = window.get_display()
+        if display is not None:
+            display.sync()
         # Hold a reference so the window can't be GC'd while live;
         # without this, the Python wrapper can be collected between
         # user taps and pending signals fire on freed state (SIGSEGV).
