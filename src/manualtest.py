@@ -576,28 +576,27 @@ class TouchscreenTest(Gtk.Window):
         quit_btn.connect("clicked", self._on_quit)
         overlay.add_overlay(quit_btn)
 
-        # Create touch target widgets. We use Gtk.Box + an explicit
-        # Gtk.GestureClick rather than Gtk.Button+"clicked" because
-        # Gtk.Button has internal pointer-tracking gestures that have
-        # been observed to SIGSEGV when a touch event arrives after a
-        # USB pointer device was unplugged (stale device pointer in the
-        # button's internal click controller).
+        # Create touch target widgets. They are passive Gtk.Box widgets
+        # with no gesture controllers of their own. Touch events on
+        # per-child gestures inside a Gtk.Fixed have been observed to
+        # SIGSEGV after a USB pointer device is unplugged (GDK's touch
+        # event routing hits stale state). Instead, install ONE gesture
+        # on the Fixed container and do our own hit-testing — this
+        # mirrors how Gtk.Overlay handles events for its children, and
+        # Overlay-hosted widgets (the Quit button) never crashed under
+        # the same conditions.
         self._targets = []
         for i, (_fx, _fy) in enumerate(self.TARGET_POSITIONS):
             target = Gtk.Box()
             target.add_css_class("touch-target")
             target.set_size_request(self.TARGET_SIZE, self.TARGET_SIZE)
-            gesture = Gtk.GestureClick()
-            gesture.set_touch_only(False)
-            gesture.connect(
-                "pressed",
-                lambda g, n, x, y, idx=i, t=target: self._on_target_clicked(
-                    t, idx
-                ),
-            )
-            target.add_controller(gesture)
             self._fixed.put(target, 0, 0)
             self._targets.append(target)
+
+        fixed_gesture = Gtk.GestureClick()
+        fixed_gesture.set_touch_only(False)
+        fixed_gesture.connect("pressed", self._on_fixed_pressed)
+        self._fixed.add_controller(fixed_gesture)
 
         self._touched = [False] * len(self.TARGET_POSITIONS)
 
@@ -651,6 +650,19 @@ class TouchscreenTest(Gtk.Window):
         for i, (x, y) in enumerate(coordinates):
             self._fixed.move(self._targets[i], x, y)
         return False
+
+    def _on_fixed_pressed(self, gesture, n_press, x, y):
+        # Manual hit-test against target rectangles. We use the stored
+        # coordinates rather than the live widget bounds because the
+        # latter requires a render pass that may not have happened yet.
+        width = self._fixed.get_width()
+        height = self._fixed.get_height()
+        coordinates = self._calculate_target_coordinates(width, height)
+        size = TouchscreenTest.TARGET_SIZE
+        for i, (tx, ty) in enumerate(coordinates):
+            if tx <= x < tx + size and ty <= y < ty + size:
+                self._on_target_clicked(self._targets[i], i)
+                return
 
     def _on_target_clicked(self, button, index):
         if self._touched[index]:
