@@ -212,9 +212,13 @@ class SysInfo(Adw.Bin):
         self._loading_spinner.stop()
         self._loading_box.set_visible(False)
         self._list_box.set_visible(True)
-        self._render()
-        if self.on_loading_changed:
-            self.on_loading_changed(False)
+        try:
+            self._render()
+        except Exception as exc:
+            print(f"SysInfo._render failed: {exc}")
+        finally:
+            if self.on_loading_changed:
+                self.on_loading_changed(False)
         return False
 
     def _render(self):
