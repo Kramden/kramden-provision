@@ -73,6 +73,8 @@ class WizardWindow(Gtk.ApplicationWindow):
         self.page1.state = self.observable_property
         self.page2.state = self.observable_property
         self.page3.state = self.observable_property
+        self.page3.on_loading_changed = self._on_sysinfo_loading_changed
+        self._sysinfo_loading = False
         self.page4.state = self.observable_property
 
         # Expose next button function
@@ -163,8 +165,18 @@ class WizardWindow(Gtk.ApplicationWindow):
             self.next_button.remove_css_class("button-next-last-page")
             self.next_button.set_label("Next")
 
+        # While SysInfo is gathering, lock Next/Prev so rapid clicks
+        # don't queue and fire after the page finishes loading.
+        if self._sysinfo_loading:
+            self.next_button.set_sensitive(False)
+            self.prev_button.set_sensitive(False)
+
         if self.current_page == 2:
             self.next_button.grab_focus()
+
+    def _on_sysinfo_loading_changed(self, loading):
+        self._sysinfo_loading = loading
+        self.update_buttons()
 
     def complete(self):
         print("Complete Clicked")
