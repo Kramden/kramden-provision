@@ -1,7 +1,11 @@
 #!/bin/bash
 
 echo "Checking for BIOS Password"
-admin_pass=$(lshw -c system|grep configuration|grep administrator_password=enabled)
+lshw_admin_state=$(lshw -c system 2>/dev/null | grep configuration | grep -oE 'administrator_password=(enabled|disabled)' | head -n1 | cut -d= -f2)
+admin_pass=""
+if [ "$lshw_admin_state" = "enabled" ]; then
+    admin_pass="enabled"
+fi
 dell_admin_pass=""
 if [ -x "/opt/dell/dcc/cctk" ]; then
     # cctk has no read-only password query (--PasswordLock is a
@@ -56,7 +60,11 @@ then
     echo "BIOS Password enabled"
     exit 1
 else
-    if [ -n "$hp_unreliable" ]; then
+    # If lshw could read the SMBIOS Hardware Security table and saw
+    # administrator_password=disabled, trust that — it's an
+    # authoritative "no password set" signal from firmware and should
+    # override the hp-bioscfg malformed-entries heuristic.
+    if [ -n "$hp_unreliable" ] && [ "$lshw_admin_state" != "disabled" ]; then
         echo "WARNING: HP BIOS password state could not be determined reliably on this firmware (hp-bioscfg exposed malformed authentication entries). Verify manually via F10 Setup." >&2
     fi
     echo "BIOS Password disabled"
