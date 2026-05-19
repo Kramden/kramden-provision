@@ -1,3 +1,9 @@
+kramden-provision (0.1.99.21) noble; urgency=medium
+
+  * Don't fail bios password if lshw says it was disabled
+
+ -- Ken VanDine <ken.vandine@canonical.com>  Mon, 18 May 2026 21:23:43 -0400
+
 kramden-provision (0.1.99.20) noble; urgency=medium
 
   * Touchscreen test crash fixes and improved specinfo loading
