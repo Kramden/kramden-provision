@@ -534,6 +534,7 @@ class Utils:
         has_discrete = False
         has_nvidia = False
         discrete_pci_slot = None
+        lspci_name = None
         try:
             result = subprocess.run(
                 ["lspci", "-nn"],
@@ -541,24 +542,30 @@ class Utils:
                 text=True,
                 check=True,
             )
-            # Treat "discrete GPU present" as "more than one VGA/3D controller detected"
-            controllers = []
+            # Treat "discrete GPU present" as "more than one VGA/3D controller detected".
+            # The first VGA controller is typically the iGPU; the second VGA or any
+            # 3D controller is the dGPU.
+            vga_count = 0
             for line in result.stdout.splitlines():
                 line_lower = line.lower()
-                if (
-                    "vga compatible controller" in line_lower
-                    or "3d controller" in line_lower
-                ):
-                    controllers.append(line)
-                    # Check if this is an NVIDIA GPU (for PRIME offload settings)
-                    # Extract PCI slot (e.g., "01:00.0" from start of line) for all GPUs
-                    pci_match = re.match(r"([0-9a-f:.]+)", line)
-                    if pci_match:
-                        discrete_pci_slot = pci_match.group(1)
-                    # Check if this is an NVIDIA GPU (for PRIME offload settings)
-                    if "nvidia" in line_lower:
-                        has_nvidia = True
-            has_discrete = len(controllers) > 1
+                is_vga = "vga compatible controller" in line_lower
+                is_3d = "3d controller" in line_lower
+                if not (is_vga or is_3d):
+                    continue
+                if is_vga:
+                    vga_count += 1
+                    if vga_count == 1:
+                        # First VGA is the iGPU — skip it unless a 3D controller
+                        # takes the discrete slot instead.
+                        continue
+                pci_match = re.match(r"([0-9a-f:.]+)", line)
+                name_match = re.search(r"\[[0-9a-f]{4}\]:\s*(.+?)\s*\[[0-9a-f]{4}:[0-9a-f]{4}\]", line)
+                if pci_match and discrete_pci_slot is None:
+                    discrete_pci_slot = pci_match.group(1)
+                    lspci_name = name_match.group(1).strip() if name_match else None
+                if "nvidia" in line_lower:
+                    has_nvidia = True
+            has_discrete = vga_count > 1 or discrete_pci_slot is not None
         except (subprocess.CalledProcessError, OSError):
             pass
 
@@ -594,11 +601,13 @@ class Utils:
         except (subprocess.CalledProcessError, OSError):
             pass
 
-        # Fall back to udev if glxinfo failed
+        # Fall back to udev, then the name parsed directly from lspci output
         if discrete_pci_slot:
             udev_name = self._get_gpu_name_from_udev(discrete_pci_slot)
             if udev_name:
                 return udev_name
+        if lspci_name:
+            return lspci_name
 
         return "Discrete GPU detected"
 
