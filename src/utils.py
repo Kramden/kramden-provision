@@ -471,7 +471,9 @@ class Utils:
         # Find the first VGA or Display controller from lspci (typically the iGPU).
         # Newer Intel/AMD iGPUs are often listed as "Display controller" rather
         # than "VGA compatible controller", so fall back to that if needed.
+        # Also extract the device name directly from the lspci line as a last resort.
         integrated_pci_slot = None
+        lspci_name = None
         try:
             result = subprocess.run(
                 ["lspci", "-nn"],
@@ -480,18 +482,25 @@ class Utils:
                 check=True,
             )
             display_controller_slot = None
+            display_controller_name = None
             for line in result.stdout.splitlines():
                 line_lower = line.lower()
                 pci_match = re.match(r"([0-9a-f:.]+)", line)
                 if not pci_match:
                     continue
+                # lspci -nn format: "slot Class [class_id]: Vendor Device [vendor:device] (rev XX)"
+                name_match = re.search(r":\s*(.+?)\s*\[[0-9a-f]{4}:[0-9a-f]{4}\]", line)
+                name = name_match.group(1).strip() if name_match else None
                 if "vga compatible controller" in line_lower:
                     integrated_pci_slot = pci_match.group(1)
+                    lspci_name = name
                     break
                 if "display controller" in line_lower and display_controller_slot is None:
                     display_controller_slot = pci_match.group(1)
+                    display_controller_name = name
             if integrated_pci_slot is None:
                 integrated_pci_slot = display_controller_slot
+                lspci_name = display_controller_name
         except (subprocess.CalledProcessError, OSError):
             pass
 
@@ -509,11 +518,13 @@ class Utils:
         except (subprocess.CalledProcessError, OSError):
             pass
 
-        # Fall back to udev
+        # Fall back to udev, then the name parsed directly from lspci output
         if integrated_pci_slot:
             udev_name = self._get_gpu_name_from_udev(integrated_pci_slot)
             if udev_name:
                 return udev_name
+        if lspci_name:
+            return lspci_name
 
         return None
 
