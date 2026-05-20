@@ -20,14 +20,7 @@ class WizardWindow(Gtk.ApplicationWindow):
         super().__init__(application=app, title="Kramden - Spec")
 
         self.set_icon_name("kramden")
-        self.set_default_size(800, 800)
-        display = Gdk.Display.get_default()
-        if display:
-            monitors = display.get_monitors()
-            if monitors.get_n_items() > 0:
-                self._apply_monitor_size(monitors.get_item(0))
-            else:
-                monitors.connect("items-changed", self._on_monitors_changed)
+        self.set_default_size(800, -1)
 
         # Initialize the observable property for tracking state
         self.observable_property = ObservableProperty(
@@ -85,7 +78,7 @@ class WizardWindow(Gtk.ApplicationWindow):
         self.stack.add_named(self.page3, "page3")
         self.stack.add_named(self.page4, "page4")
 
-        self.stack.set_vexpand(True)  # Ensure the stack expands vertically
+        self.stack.set_vhomogeneous(False)
 
         # Content Box
         content_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
@@ -114,22 +107,13 @@ class WizardWindow(Gtk.ApplicationWindow):
         # Fake visible change to set state info
         self.page1.on_shown()
 
-    def _apply_monitor_size(self, monitor):
-        geo = monitor.get_geometry()
-        self.set_default_size(
-            min(800, int(geo.width * 0.8)),
-            min(800, int(geo.height * 0.8)),
-        )
-
-    def _on_monitors_changed(self, monitors, position, removed, added):
-        if monitors.get_n_items() > 0:
-            self._apply_monitor_size(monitors.get_item(0))
 
     def on_visible_page_changed(self, stack, params):
         print("on_visible_page_changed")
         current = stack.get_visible_child()
         self.title_widget.set_label(current.title)
         current.on_shown()
+        self.set_default_size(800, 500)
 
     def on_prev_clicked(self, button=None):
         if self.current_page > 0:

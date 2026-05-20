@@ -44,10 +44,6 @@ class SpecInfo(Adw.Bin):
         # Create a box to hold the content
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
 
-        # Create scrollable window
-        scrolled_window = Gtk.ScrolledWindow()
-        scrolled_window.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
-
         # Create a list box to hold the rows
         list_box = Gtk.ListBox()
         list_box.set_selection_mode(Gtk.SelectionMode.NONE)
@@ -159,8 +155,7 @@ class SpecInfo(Adw.Bin):
 
         vbox.append(self._loading_box)
         vbox.append(list_box)
-        scrolled_window.set_child(vbox)
-        self.set_child(scrolled_window)
+        self.set_child(vbox)
 
     def on_shown(self):
         if self._gather_in_progress:
