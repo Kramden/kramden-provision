@@ -489,7 +489,7 @@ class Utils:
                 if not pci_match:
                     continue
                 # lspci -nn format: "slot Class [class_id]: Vendor Device [vendor:device] (rev XX)"
-                name_match = re.search(r":\s*(.+?)\s*\[[0-9a-f]{4}:[0-9a-f]{4}\]", line)
+                name_match = re.search(r"\[[0-9a-f]{4}\]:\s*(.+?)\s*\[[0-9a-f]{4}:[0-9a-f]{4}\]", line)
                 name = name_match.group(1).strip() if name_match else None
                 if "vga compatible controller" in line_lower:
                     integrated_pci_slot = pci_match.group(1)
