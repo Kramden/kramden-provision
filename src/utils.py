@@ -468,7 +468,9 @@ class Utils:
 
     def get_integrated_gpu(self):
         """Return a friendly name for the integrated GPU, or None."""
-        # Find the first VGA controller from lspci (typically the iGPU)
+        # Find the first VGA or Display controller from lspci (typically the iGPU).
+        # Newer Intel/AMD iGPUs are often listed as "Display controller" rather
+        # than "VGA compatible controller", so fall back to that if needed.
         integrated_pci_slot = None
         try:
             result = subprocess.run(
@@ -477,13 +479,19 @@ class Utils:
                 text=True,
                 check=True,
             )
+            display_controller_slot = None
             for line in result.stdout.splitlines():
                 line_lower = line.lower()
+                pci_match = re.match(r"([0-9a-f:.]+)", line)
+                if not pci_match:
+                    continue
                 if "vga compatible controller" in line_lower:
-                    pci_match = re.match(r"([0-9a-f:.]+)", line)
-                    if pci_match:
-                        integrated_pci_slot = pci_match.group(1)
-                    break  # first VGA controller is typically the iGPU
+                    integrated_pci_slot = pci_match.group(1)
+                    break
+                if "display controller" in line_lower and display_controller_slot is None:
+                    display_controller_slot = pci_match.group(1)
+            if integrated_pci_slot is None:
+                integrated_pci_slot = display_controller_slot
         except (subprocess.CalledProcessError, OSError):
             pass
 
