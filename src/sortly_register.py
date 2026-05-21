@@ -79,9 +79,15 @@ class SortlyRegister(Adw.Bin):
         self.status_label.set_xalign(0)
         self.status_label.set_wrap(True)
 
-        # System info list box
+        # System info list box inside a scrolled window so the Update button
+        # stays visible even when the list grows on smaller displays
         self.info_list_box = Gtk.ListBox()
         self.info_list_box.set_selection_mode(Gtk.SelectionMode.NONE)
+
+        info_scroll = Gtk.ScrolledWindow()
+        info_scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        info_scroll.set_vexpand(True)
+        info_scroll.set_child(self.info_list_box)
 
         # Register button
         self.register_button = Gtk.Button(label="Update")
@@ -92,7 +98,7 @@ class SortlyRegister(Adw.Bin):
 
         vbox.append(knumber_box)
         vbox.append(self.status_label)
-        vbox.append(self.info_list_box)
+        vbox.append(info_scroll)
         vbox.append(self.register_button)
 
         self.set_child(vbox)

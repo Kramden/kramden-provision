@@ -545,8 +545,14 @@ class Utils:
             # Treat "discrete GPU present" as "more than one VGA/3D controller detected".
             # The first VGA controller is typically the iGPU; the second VGA or any
             # 3D controller is the dGPU.
+            # Exception: if the iGPU is listed as a "Display controller" instead of
+            # "VGA compatible controller", the first VGA entry is the dGPU, not the iGPU.
+            lines = result.stdout.splitlines()
+            igpu_is_display_controller = any(
+                "display controller" in l.lower() for l in lines
+            )
             vga_count = 0
-            for line in result.stdout.splitlines():
+            for line in lines:
                 line_lower = line.lower()
                 is_vga = "vga compatible controller" in line_lower
                 is_3d = "3d controller" in line_lower
@@ -554,9 +560,9 @@ class Utils:
                     continue
                 if is_vga:
                     vga_count += 1
-                    if vga_count == 1:
-                        # First VGA is the iGPU — skip it unless a 3D controller
-                        # takes the discrete slot instead.
+                    if vga_count == 1 and not igpu_is_display_controller:
+                        # First VGA is the iGPU — skip it only when no Display
+                        # controller was found that already accounts for the iGPU.
                         continue
                 pci_match = re.match(r"([0-9a-f:.]+)", line)
                 name_match = re.search(r"\[[0-9a-f]{4}\]:\s*(.+?)\s*\[[0-9a-f]{4}:[0-9a-f]{4}\]", line)

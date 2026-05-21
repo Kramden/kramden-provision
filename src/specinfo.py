@@ -177,9 +177,14 @@ class SpecInfo(Adw.Bin):
 
         self._list_box = columns_box
 
+        scroll = Gtk.ScrolledWindow()
+        scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        scroll.set_propagate_natural_height(True)
+
         vbox.append(self._loading_box)
         vbox.append(columns_box)
-        self.set_child(vbox)
+        scroll.set_child(vbox)
+        self.set_child(scroll)
 
     def on_shown(self):
         if self._gather_in_progress:
