@@ -21,16 +21,18 @@ class WizardWindow(Gtk.ApplicationWindow):
 
         self.set_icon_name("kramden")
         self.set_default_size(800, 800)
+        self._monitors_model = None
         self._monitor_signal_handler = None
         display = Gdk.Display.get_default()
         if display:
-            monitors = display.get_monitors()
-            if monitors.get_n_items() > 0:
-                self._apply_monitor_size(monitors.get_item(0))
+            self._monitors_model = display.get_monitors()
+            if self._monitors_model.get_n_items() > 0:
+                self._apply_monitor_size(self._monitors_model.get_item(0))
             else:
-                self._monitor_signal_handler = monitors.connect(
+                self._monitor_signal_handler = self._monitors_model.connect(
                     "items-changed", self._on_monitors_changed
                 )
+        self.connect("close-request", self._on_close_request)
 
         # Initialize the observable property for tracking state
         self.observable_property = ObservableProperty(
@@ -130,6 +132,15 @@ class WizardWindow(Gtk.ApplicationWindow):
             if self._monitor_signal_handler is not None:
                 monitors.disconnect(self._monitor_signal_handler)
                 self._monitor_signal_handler = None
+
+    def _on_close_request(self, window):
+        if (
+            self._monitors_model is not None
+            and self._monitor_signal_handler is not None
+        ):
+            self._monitors_model.disconnect(self._monitor_signal_handler)
+            self._monitor_signal_handler = None
+        return False
 
 
     def on_visible_page_changed(self, stack, params):
