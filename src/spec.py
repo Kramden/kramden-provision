@@ -135,11 +135,12 @@ class WizardWindow(Gtk.ApplicationWindow):
         return False
 
     def _cleanup_monitor_signal(self):
-        if self._monitors_model is None or self._monitor_signal_handler is None:
+        if self._monitors_model is None:
             return
-        self._monitors_model.disconnect(self._monitor_signal_handler)
+        if self._monitor_signal_handler is not None:
+            self._monitors_model.disconnect(self._monitor_signal_handler)
         self._monitor_signal_handler = None
-
+        self._monitors_model = None
 
     def on_visible_page_changed(self, stack, params):
         print("on_visible_page_changed")
