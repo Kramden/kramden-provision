@@ -79,14 +79,16 @@ class SortlyRegister(Adw.Bin):
         self.status_label.set_xalign(0)
         self.status_label.set_wrap(True)
 
-        # System info list box
-        scrolled_window = Gtk.ScrolledWindow()
-        scrolled_window.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
-        scrolled_window.set_vexpand(True)
+        # System info collapsible section
+        self._info_rows = []
+        info_outer_list = Gtk.ListBox()
+        info_outer_list.set_selection_mode(Gtk.SelectionMode.NONE)
+        info_outer_list.add_css_class("boxed-list")
 
-        self.info_list_box = Gtk.ListBox()
-        self.info_list_box.set_selection_mode(Gtk.SelectionMode.NONE)
-        scrolled_window.set_child(self.info_list_box)
+        self.info_expander = Adw.ExpanderRow()
+        self.info_expander.set_title("Details")
+        self.info_expander.set_expanded(False)
+        info_outer_list.append(self.info_expander)
 
         # Register button
         self.register_button = Gtk.Button(label="Update")
@@ -97,7 +99,7 @@ class SortlyRegister(Adw.Bin):
 
         vbox.append(knumber_box)
         vbox.append(self.status_label)
-        vbox.append(scrolled_window)
+        vbox.append(info_outer_list)
         vbox.append(self.register_button)
 
         self.set_child(vbox)
@@ -293,9 +295,7 @@ class SortlyRegister(Adw.Bin):
             self.search_button.set_visible(True)
         else:
             self._existing_item = None
-            self._set_status(
-                f"No record found for {knumber}."
-            )
+            self._set_status(f"No record found for {knumber}.")
             self.register_button.set_visible(False)
             self.register_button.set_sensitive(False)
             if EXPANDED_FOLDER_IDS:
@@ -437,8 +437,9 @@ class SortlyRegister(Adw.Bin):
     def _populate_system_info(self):
         if not self._system_info:
             return
-        while (row := self.info_list_box.get_row_at_index(0)) is not None:
-            self.info_list_box.remove(row)
+        for row in self._info_rows:
+            self.info_expander.remove(row)
+        self._info_rows.clear()
 
         # Display order
         field_order = [
@@ -465,7 +466,8 @@ class SortlyRegister(Adw.Bin):
                 row.set_subtitle(f"{value} GB")
             else:
                 row.set_subtitle(str(value))
-            self.info_list_box.append(row)
+            self.info_expander.add_row(row)
+            self._info_rows.append(row)
 
     def _set_status(self, message, error=False):
         self.status_label.set_label(message)
