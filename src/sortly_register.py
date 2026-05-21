@@ -121,6 +121,7 @@ class SortlyRegister(Adw.Bin):
             api_key = get_api_key()
         except EnvironmentError as e:
             self._set_status(str(e), error=True)
+            self._lookup_done = True
             return
 
         serial = self._system_info.get("Serial# Scanner")
@@ -436,6 +437,8 @@ class SortlyRegister(Adw.Bin):
     def _populate_system_info(self):
         if not self._system_info:
             return
+        while (row := self.info_list_box.get_row_at_index(0)) is not None:
+            self.info_list_box.remove(row)
 
         # Display order
         field_order = [
