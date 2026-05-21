@@ -20,7 +20,7 @@ class WizardWindow(Gtk.ApplicationWindow):
         super().__init__(application=app, title="Kramden - Spec")
 
         self.set_icon_name("kramden")
-        self.set_default_size(800, -1)
+        self.set_default_size(800, 800)
 
         # Initialize the observable property for tracking state
         self.observable_property = ObservableProperty(
@@ -113,7 +113,6 @@ class WizardWindow(Gtk.ApplicationWindow):
         current = stack.get_visible_child()
         self.title_widget.set_label(current.title)
         current.on_shown()
-        self.set_default_size(800, 500)
 
     def on_prev_clicked(self, button=None):
         if self.current_page > 0:
