@@ -12,10 +12,10 @@ from generate_tracking_sheet import generate_tracking_sheet
 class SpecComplete(Adw.Bin):
     def __init__(self):
         super().__init__()
-        self.set_margin_top(20)
-        self.set_margin_bottom(20)
-        self.set_margin_start(20)
-        self.set_margin_end(20)
+        self.set_margin_top(24)
+        self.set_margin_bottom(24)
+        self.set_margin_start(24)
+        self.set_margin_end(24)
         self.title = "Kramden Spec Complete"
         self.skip = False
         self.sortly_register = None
@@ -24,18 +24,19 @@ class SpecComplete(Adw.Bin):
         # Create a box to hold the content
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
 
+        page_header = Gtk.Label(label="Spec Complete")
+        page_header.add_css_class("title-3")
+        page_header.set_halign(Gtk.Align.START)
+
         # Create a list box to hold the rows
         list_box = Gtk.ListBox()
         list_box.set_selection_mode(Gtk.SelectionMode.NONE)
-
-        # Create Adwaita rows
-        self.title_row = Adw.ActionRow()
-        self.title_row.set_title("<b>Kramden Spec Complete</b>")
+        list_box.add_css_class("boxed-list")
+        list_box.set_valign(Gtk.Align.START)
 
         self.complete_row = Adw.ActionRow()
         self.complete_row.set_title("")
 
-        list_box.append(self.title_row)
         list_box.append(self.complete_row)
 
         # Status label for tracking sheet feedback
@@ -48,6 +49,7 @@ class SpecComplete(Adw.Bin):
         self.tracking_button.add_css_class("button-green")
         self.tracking_button.connect("clicked", self._on_tracking_clicked)
 
+        vbox.append(page_header)
         vbox.append(list_box)
         vbox.append(self.tracking_status)
         vbox.append(self.tracking_button)

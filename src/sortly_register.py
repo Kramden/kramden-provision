@@ -24,10 +24,10 @@ from sortly import (
 class SortlyRegister(Adw.Bin):
     def __init__(self):
         super().__init__()
-        self.set_margin_top(20)
-        self.set_margin_bottom(20)
-        self.set_margin_start(20)
-        self.set_margin_end(20)
+        self.set_margin_top(24)
+        self.set_margin_bottom(24)
+        self.set_margin_start(24)
+        self.set_margin_end(24)
         self.title = "Sortly Registration"
         self.next = None
         self.skip = False

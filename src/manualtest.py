@@ -27,10 +27,10 @@ LAPTOP_PROMOTED = {"WiFi", "WebCam", "Keyboard", "Touchpad", "ScreenTest"}
 class ManualTest(Adw.Bin):
     def __init__(self, show_battery_test=False):
         super().__init__()
-        self.set_margin_top(20)
-        self.set_margin_bottom(20)
-        self.set_margin_start(20)
-        self.set_margin_end(20)
+        self.set_margin_top(24)
+        self.set_margin_bottom(24)
+        self.set_margin_start(24)
+        self.set_margin_end(24)
         self.title = "Perform the following manual tests:"
         self.utils = Utils()
         self.show_battery_test = show_battery_test
@@ -63,18 +63,24 @@ class ManualTest(Adw.Bin):
         # Create a box to hold the content
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
 
-        # Create window titles for required and optional list boxes
-        required_windowtitle = Adw.WindowTitle()
-        required_windowtitle.set_title("Required Tests")
+        # Section headers
+        required_header = Gtk.Label(label="Required Tests")
+        required_header.add_css_class("title-3")
+        required_header.set_halign(Gtk.Align.START)
 
-        self.optional_windowtitle = Adw.WindowTitle()
-        self.optional_windowtitle.set_title("Optional Tests")
+        self.optional_header = Gtk.Label(label="Optional Tests")
+        self.optional_header.add_css_class("title-3")
+        self.optional_header.set_halign(Gtk.Align.START)
 
         # Create required and optional list boxes to hold the rows
         required_list_box = Gtk.ListBox()
         required_list_box.set_selection_mode(Gtk.SelectionMode.NONE)
+        required_list_box.add_css_class("boxed-list")
+        required_list_box.set_valign(Gtk.Align.START)
         self.optional_list_box = Gtk.ListBox()
         self.optional_list_box.set_selection_mode(Gtk.SelectionMode.NONE)
+        self.optional_list_box.add_css_class("boxed-list")
+        self.optional_list_box.set_valign(Gtk.Align.START)
 
         # --- Build all test rows ---
 
@@ -260,12 +266,12 @@ class ManualTest(Adw.Bin):
                 self.optional_list_box.append(row)
 
         # Add list boxes to the vertical box
-        vbox.append(required_windowtitle)
+        vbox.append(required_header)
         vbox.append(required_list_box)
 
         # Hide optional section when all tests have been promoted to required
         if self.optional_tests:
-            vbox.append(self.optional_windowtitle)
+            vbox.append(self.optional_header)
             vbox.append(self.optional_list_box)
 
         self.set_child(vbox)
