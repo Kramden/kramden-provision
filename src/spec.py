@@ -21,13 +21,18 @@ class WizardWindow(Gtk.ApplicationWindow):
 
         self.set_icon_name("kramden")
         self.set_default_size(800, 800)
+        self._monitors_model = None
+        self._monitor_signal_handler = None
         display = Gdk.Display.get_default()
         if display:
-            monitors = display.get_monitors()
-            if monitors.get_n_items() > 0:
-                self._apply_monitor_size(monitors.get_item(0))
-            else:
-                monitors.connect("items-changed", self._on_monitors_changed)
+            self._monitors_model = display.get_monitors()
+            if self._monitors_model is not None:
+                self._monitor_signal_handler = self._monitors_model.connect(
+                    "items-changed", self._on_monitors_changed
+                )
+                if self._monitors_model.get_n_items() > 0:
+                    self._apply_monitor_size(self._monitors_model.get_item(0))
+        self.connect("close-request", self._on_close_request)
 
         # Initialize the observable property for tracking state
         self.observable_property = ObservableProperty(
@@ -77,6 +82,7 @@ class WizardWindow(Gtk.ApplicationWindow):
         self._specinfo_loading = False
         self.page3.state = self.observable_property
         self.page4.sortly_register = self.page1
+        self.page4.specinfo = self.page2
         self.page4.manual_test = self.page3
         self.page4.state = self.observable_property
 
@@ -85,7 +91,7 @@ class WizardWindow(Gtk.ApplicationWindow):
         self.stack.add_named(self.page3, "page3")
         self.stack.add_named(self.page4, "page4")
 
-        self.stack.set_vexpand(True)  # Ensure the stack expands vertically
+        self.stack.set_vhomogeneous(False)
 
         # Content Box
         content_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
@@ -124,6 +130,18 @@ class WizardWindow(Gtk.ApplicationWindow):
     def _on_monitors_changed(self, monitors, position, removed, added):
         if monitors.get_n_items() > 0:
             self._apply_monitor_size(monitors.get_item(0))
+
+    def _on_close_request(self, window):
+        self._cleanup_monitor_signal()
+        return False
+
+    def _cleanup_monitor_signal(self):
+        if self._monitors_model is None:
+            return
+        if self._monitor_signal_handler is not None:
+            self._monitors_model.disconnect(self._monitor_signal_handler)
+        self._monitor_signal_handler = None
+        self._monitors_model = None
 
     def on_visible_page_changed(self, stack, params):
         print("on_visible_page_changed")

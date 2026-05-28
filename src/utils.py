@@ -468,8 +468,12 @@ class Utils:
 
     def get_integrated_gpu(self):
         """Return a friendly name for the integrated GPU, or None."""
-        # Find the first VGA controller from lspci (typically the iGPU)
+        # Find the first VGA or Display controller from lspci (typically the iGPU).
+        # Newer Intel/AMD iGPUs are often listed as "Display controller" rather
+        # than "VGA compatible controller", so fall back to that if needed.
+        # Also extract the device name directly from the lspci line as a last resort.
         integrated_pci_slot = None
+        lspci_name = None
         try:
             result = subprocess.run(
                 ["lspci", "-nn"],
@@ -477,13 +481,26 @@ class Utils:
                 text=True,
                 check=True,
             )
+            display_controller_slot = None
+            display_controller_name = None
             for line in result.stdout.splitlines():
                 line_lower = line.lower()
+                pci_match = re.match(r"([0-9a-f:.]+)", line)
+                if not pci_match:
+                    continue
+                # lspci -nn format: "slot Class [class_id]: Vendor Device [vendor:device] (rev XX)"
+                name_match = re.search(r"\[[0-9a-f]{4}\]:\s*(.+?)\s*\[[0-9a-f]{4}:[0-9a-f]{4}\]", line)
+                name = name_match.group(1).strip() if name_match else None
                 if "vga compatible controller" in line_lower:
-                    pci_match = re.match(r"([0-9a-f:.]+)", line)
-                    if pci_match:
-                        integrated_pci_slot = pci_match.group(1)
-                    break  # first VGA controller is typically the iGPU
+                    integrated_pci_slot = pci_match.group(1)
+                    lspci_name = name
+                    break
+                if "display controller" in line_lower and display_controller_slot is None:
+                    display_controller_slot = pci_match.group(1)
+                    display_controller_name = name
+            if integrated_pci_slot is None:
+                integrated_pci_slot = display_controller_slot
+                lspci_name = display_controller_name
         except (subprocess.CalledProcessError, OSError):
             pass
 
@@ -501,11 +518,13 @@ class Utils:
         except (subprocess.CalledProcessError, OSError):
             pass
 
-        # Fall back to udev
+        # Fall back to udev, then the name parsed directly from lspci output
         if integrated_pci_slot:
             udev_name = self._get_gpu_name_from_udev(integrated_pci_slot)
             if udev_name:
                 return udev_name
+        if lspci_name:
+            return lspci_name
 
         return None
 
@@ -515,6 +534,7 @@ class Utils:
         has_discrete = False
         has_nvidia = False
         discrete_pci_slot = None
+        lspci_name = None
         try:
             result = subprocess.run(
                 ["lspci", "-nn"],
@@ -522,24 +542,36 @@ class Utils:
                 text=True,
                 check=True,
             )
-            # Treat "discrete GPU present" as "more than one VGA/3D controller detected"
-            controllers = []
-            for line in result.stdout.splitlines():
+            # Treat "discrete GPU present" as "more than one VGA/3D controller detected".
+            # The first VGA controller is typically the iGPU; the second VGA or any
+            # 3D controller is the dGPU.
+            # Exception: if the iGPU is listed as a "Display controller" instead of
+            # "VGA compatible controller", the first VGA entry is the dGPU, not the iGPU.
+            lines = result.stdout.splitlines()
+            igpu_is_display_controller = any(
+                "display controller" in l.lower() for l in lines
+            )
+            vga_count = 0
+            for line in lines:
                 line_lower = line.lower()
-                if (
-                    "vga compatible controller" in line_lower
-                    or "3d controller" in line_lower
-                ):
-                    controllers.append(line)
-                    # Check if this is an NVIDIA GPU (for PRIME offload settings)
-                    # Extract PCI slot (e.g., "01:00.0" from start of line) for all GPUs
-                    pci_match = re.match(r"([0-9a-f:.]+)", line)
-                    if pci_match:
-                        discrete_pci_slot = pci_match.group(1)
-                    # Check if this is an NVIDIA GPU (for PRIME offload settings)
-                    if "nvidia" in line_lower:
-                        has_nvidia = True
-            has_discrete = len(controllers) > 1
+                is_vga = "vga compatible controller" in line_lower
+                is_3d = "3d controller" in line_lower
+                if not (is_vga or is_3d):
+                    continue
+                if is_vga:
+                    vga_count += 1
+                    if vga_count == 1 and not igpu_is_display_controller:
+                        # First VGA is the iGPU — skip it only when no Display
+                        # controller was found that already accounts for the iGPU.
+                        continue
+                pci_match = re.match(r"([0-9a-f:.]+)", line)
+                name_match = re.search(r"\[[0-9a-f]{4}\]:\s*(.+?)\s*\[[0-9a-f]{4}:[0-9a-f]{4}\]", line)
+                if pci_match and discrete_pci_slot is None:
+                    discrete_pci_slot = pci_match.group(1)
+                    lspci_name = name_match.group(1).strip() if name_match else None
+                if "nvidia" in line_lower:
+                    has_nvidia = True
+            has_discrete = vga_count > 1 or discrete_pci_slot is not None
         except (subprocess.CalledProcessError, OSError):
             pass
 
@@ -575,11 +607,13 @@ class Utils:
         except (subprocess.CalledProcessError, OSError):
             pass
 
-        # Fall back to udev if glxinfo failed
+        # Fall back to udev, then the name parsed directly from lspci output
         if discrete_pci_slot:
             udev_name = self._get_gpu_name_from_udev(discrete_pci_slot)
             if udev_name:
                 return udev_name
+        if lspci_name:
+            return lspci_name
 
         return "Discrete GPU detected"
 

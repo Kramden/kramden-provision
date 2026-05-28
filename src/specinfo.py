@@ -12,11 +12,11 @@ from utils import Utils
 class SpecInfo(Adw.Bin):
     def __init__(self):
         super().__init__()
-        self.set_margin_top(20)
-        self.set_margin_bottom(20)
-        self.set_margin_start(20)
-        self.set_margin_end(20)
-        self.title = "System Information"
+        self.set_margin_top(24)
+        self.set_margin_bottom(24)
+        self.set_margin_start(24)
+        self.set_margin_end(24)
+        self.title = ""
         self.skip = False
         self.batteries_populated = False
         self.disks_populated = False
@@ -44,13 +44,12 @@ class SpecInfo(Adw.Bin):
         # Create a box to hold the content
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
 
-        # Create scrollable window
-        scrolled_window = Gtk.ScrolledWindow()
-        scrolled_window.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
-
-        # Create a list box to hold the rows
-        list_box = Gtk.ListBox()
-        list_box.set_selection_mode(Gtk.SelectionMode.NONE)
+        # Left column: identification / compliance rows
+        left_list_box = Gtk.ListBox()
+        left_list_box.set_selection_mode(Gtk.SelectionMode.NONE)
+        left_list_box.set_hexpand(True)
+        left_list_box.set_valign(Gtk.Align.START)
+        left_list_box.add_css_class("boxed-list")
 
         self.knumber_row = Adw.ActionRow()
         self.knumber_row.set_title("K-Number")
@@ -58,48 +57,12 @@ class SpecInfo(Adw.Bin):
         vendor_row = Adw.ActionRow()
         vendor_row.set_title("Manufacturer")
         vendor_row.set_subtitle(utils.get_vendor())
-        # Set Vender row to emblem-ok-symbolic
         vendor_row.set_icon_name("emblem-ok-symbolic")
 
         model_row = Adw.ActionRow()
         model_row.set_title("Model")
         model_row.set_subtitle(utils.get_model())
-        # Set Model row to emblem-ok-symbolic
         model_row.set_icon_name("emblem-ok-symbolic")
-
-        cpu_row = Adw.ActionRow()
-        cpu_row.set_title("CPU")
-        cpu_row.set_subtitle(utils.get_cpu_info())
-        # Set CPU row to emblem-ok-symbolic
-        cpu_row.set_icon_name("emblem-ok-symbolic")
-
-        self.mem_row = Adw.ActionRow()
-        self.mem_row.set_title("Memory")
-        self.mem_row.set_subtitle(utils.get_mem() + " GB")
-
-        igpu_row = Adw.ActionRow()
-        igpu_row.set_title("Integrated Graphics")
-        igpu = utils.get_integrated_gpu()
-        if igpu:
-            igpu_row.set_subtitle(igpu)
-        else:
-            igpu_row.set_subtitle("Unknown")
-        igpu_row.set_icon_name("emblem-ok-symbolic")
-
-        dgpu_row = Adw.ActionRow()
-        dgpu_row.set_title("Discrete Graphics")
-        discrete_gpu = utils.get_discrete_gpu()
-        if discrete_gpu:
-            dgpu_row.set_subtitle(discrete_gpu)
-        else:
-            dgpu_row.set_subtitle("None")
-        dgpu_row.set_icon_name("emblem-ok-symbolic")
-
-        self.disks_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-
-        self.battery_row = Adw.ExpanderRow(title="Batteries")
-        self.battery_row.set_visible(False)
-        self.battery_row.set_expanded(True)
 
         self.bios_password_row = Adw.ActionRow()
         self.bios_password_row.set_title("BIOS Password")
@@ -110,19 +73,76 @@ class SpecInfo(Adw.Bin):
         self.computrace_row = Adw.ActionRow()
         self.computrace_row.set_title("Computrace/Absolute")
 
-        # Add rows to the list box
-        list_box.append(self.knumber_row)
-        list_box.append(vendor_row)
-        list_box.append(model_row)
-        list_box.append(self.bios_password_row)
-        list_box.append(self.asset_info_row)
-        list_box.append(self.computrace_row)
-        list_box.append(cpu_row)
-        list_box.append(self.mem_row)
-        list_box.append(igpu_row)
-        list_box.append(dgpu_row)
-        list_box.append(self.disks_box)
-        list_box.append(self.battery_row)
+        left_list_box.append(self.knumber_row)
+        left_list_box.append(vendor_row)
+        left_list_box.append(model_row)
+        left_list_box.append(self.bios_password_row)
+        left_list_box.append(self.asset_info_row)
+        left_list_box.append(self.computrace_row)
+
+        # Right column: hardware spec rows
+        right_list_box = Gtk.ListBox()
+        right_list_box.set_selection_mode(Gtk.SelectionMode.NONE)
+        right_list_box.set_hexpand(True)
+        right_list_box.set_valign(Gtk.Align.START)
+        right_list_box.add_css_class("boxed-list")
+
+        cpu_row = Adw.ActionRow()
+        cpu_row.set_title("CPU")
+        cpu_row.set_subtitle(utils.get_cpu_info())
+        cpu_row.set_icon_name("emblem-ok-symbolic")
+
+        self.mem_row = Adw.ActionRow()
+        self.mem_row.set_title("Memory")
+        self.mem_row.set_subtitle(utils.get_mem() + " GB")
+
+        igpu_row = Adw.ActionRow()
+        igpu_row.set_title("Integrated Graphics")
+        igpu = utils.get_integrated_gpu()
+        igpu_row.set_subtitle(igpu if igpu else "Unknown")
+        igpu_row.set_icon_name("emblem-ok-symbolic")
+
+        dgpu_row = Adw.ActionRow()
+        dgpu_row.set_title("Discrete Graphics")
+        discrete_gpu = utils.get_discrete_gpu()
+        dgpu_row.set_subtitle(discrete_gpu if discrete_gpu else "None")
+        dgpu_row.set_icon_name("emblem-ok-symbolic")
+
+        self.disks_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+
+        self.battery_row = Adw.ExpanderRow(title="Batteries")
+        self.battery_row.set_visible(False)
+        self.battery_row.set_expanded(True)
+
+        right_list_box.append(cpu_row)
+        right_list_box.append(self.mem_row)
+        right_list_box.append(igpu_row)
+        right_list_box.append(dgpu_row)
+        right_list_box.append(self.disks_box)
+        right_list_box.append(self.battery_row)
+
+        left_header = Gtk.Label(label="System Info")
+        left_header.add_css_class("title-3")
+        left_header.set_halign(Gtk.Align.START)
+
+        left_col = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        left_col.set_hexpand(True)
+        left_col.append(left_header)
+        left_col.append(left_list_box)
+
+        right_header = Gtk.Label(label="Technical Specs")
+        right_header.add_css_class("title-3")
+        right_header.set_halign(Gtk.Align.START)
+
+        right_col = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        right_col.set_hexpand(True)
+        right_col.append(right_header)
+        right_col.append(right_list_box)
+
+        # HBox holding both columns side by side
+        columns_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=20)
+        columns_box.append(left_col)
+        columns_box.append(right_col)
 
         # Nested loading view: spinner + live stdout TextView. Visible
         # while gather() runs in a background thread; hidden once data
@@ -155,12 +175,16 @@ class SpecInfo(Adw.Bin):
         self._loading_box.append(loading_scroll)
         self._loading_box.set_visible(False)
 
-        self._list_box = list_box
+        self._list_box = columns_box
+
+        scroll = Gtk.ScrolledWindow()
+        scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        scroll.set_propagate_natural_height(True)
 
         vbox.append(self._loading_box)
-        vbox.append(list_box)
-        scrolled_window.set_child(vbox)
-        self.set_child(scrolled_window)
+        vbox.append(columns_box)
+        scroll.set_child(vbox)
+        self.set_child(scroll)
 
     def on_shown(self):
         if self._gather_in_progress:
@@ -441,6 +465,20 @@ class SpecInfo(Adw.Bin):
         state = self.state.get_value()
         state["SpecInfo"] = passed
         print("specinfo:_render " + str(self.state.get_value()))
+
+    def get_failure_reasons(self):
+        if not self._data_ready:
+            return ["System info not yet gathered"]
+        reasons = []
+        if self._gathered.get("bios_password") and not self.bios_password_override:
+            reasons.append("BIOS password is set")
+        if self._gathered.get("asset_info") and not self.asset_info_override:
+            reasons.append("Asset info present on device")
+        if self._gathered.get("computrace") is True:
+            reasons.append("Computrace/Absolute is active")
+        if self.has_disks and not self.disk_override:
+            reasons.append("Disk configuration needs review")
+        return reasons
 
     def _add_override_button(self, parent_row, dialog_title, on_accepted):
         """Add an Override button to the given row. Returns the button."""

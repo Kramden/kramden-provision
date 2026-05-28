@@ -24,10 +24,10 @@ from sortly import (
 class SortlyRegister(Adw.Bin):
     def __init__(self):
         super().__init__()
-        self.set_margin_top(20)
-        self.set_margin_bottom(20)
-        self.set_margin_start(20)
-        self.set_margin_end(20)
+        self.set_margin_top(24)
+        self.set_margin_bottom(24)
+        self.set_margin_start(24)
+        self.set_margin_end(24)
         self.title = "Sortly Registration"
         self.next = None
         self.skip = False
@@ -79,14 +79,16 @@ class SortlyRegister(Adw.Bin):
         self.status_label.set_xalign(0)
         self.status_label.set_wrap(True)
 
-        # System info list box
-        scrolled_window = Gtk.ScrolledWindow()
-        scrolled_window.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
-        scrolled_window.set_vexpand(True)
+        # System info collapsible section
+        self._info_rows = []
+        info_outer_list = Gtk.ListBox()
+        info_outer_list.set_selection_mode(Gtk.SelectionMode.NONE)
+        info_outer_list.add_css_class("boxed-list")
 
-        self.info_list_box = Gtk.ListBox()
-        self.info_list_box.set_selection_mode(Gtk.SelectionMode.NONE)
-        scrolled_window.set_child(self.info_list_box)
+        self.info_expander = Adw.ExpanderRow()
+        self.info_expander.set_title("Details")
+        self.info_expander.set_expanded(False)
+        info_outer_list.append(self.info_expander)
 
         # Register button
         self.register_button = Gtk.Button(label="Update")
@@ -97,7 +99,7 @@ class SortlyRegister(Adw.Bin):
 
         vbox.append(knumber_box)
         vbox.append(self.status_label)
-        vbox.append(scrolled_window)
+        vbox.append(info_outer_list)
         vbox.append(self.register_button)
 
         self.set_child(vbox)
@@ -121,6 +123,7 @@ class SortlyRegister(Adw.Bin):
             api_key = get_api_key()
         except EnvironmentError as e:
             self._set_status(str(e), error=True)
+            self._lookup_done = True
             return
 
         serial = self._system_info.get("Serial# Scanner")
@@ -292,9 +295,7 @@ class SortlyRegister(Adw.Bin):
             self.search_button.set_visible(True)
         else:
             self._existing_item = None
-            self._set_status(
-                f"No record found for {knumber}."
-            )
+            self._set_status(f"No record found for {knumber}.")
             self.register_button.set_visible(False)
             self.register_button.set_sensitive(False)
             if EXPANDED_FOLDER_IDS:
@@ -436,6 +437,9 @@ class SortlyRegister(Adw.Bin):
     def _populate_system_info(self):
         if not self._system_info:
             return
+        for row in self._info_rows:
+            self.info_expander.remove(row)
+        self._info_rows.clear()
 
         # Display order
         field_order = [
@@ -462,7 +466,8 @@ class SortlyRegister(Adw.Bin):
                 row.set_subtitle(f"{value} GB")
             else:
                 row.set_subtitle(str(value))
-            self.info_list_box.append(row)
+            self.info_expander.add_row(row)
+            self._info_rows.append(row)
 
     def _set_status(self, message, error=False):
         self.status_label.set_label(message)
