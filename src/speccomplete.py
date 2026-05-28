@@ -107,7 +107,7 @@ class SpecComplete(Adw.Bin):
 
     def _failure_row(self, reason):
         row = Adw.ActionRow()
-        row.set_title(reason)
+        row.set_title(GLib.markup_escape_text(reason))
         row.set_icon_name("emblem-important-symbolic")
         row.add_css_class("text-error")
         return row
