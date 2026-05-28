@@ -1,3 +1,9 @@
+kramden-provision (0.1.99.22) noble; urgency=medium
+
+  * QOL improvements to the spec UI
+
+ -- Ken VanDine <ken.vandine@canonical.com>  Thu, 28 May 2026 02:43:02 -0400
+
 kramden-provision (0.1.99.21) noble; urgency=medium
 
   * Don't fail bios password if lshw says it was disabled
