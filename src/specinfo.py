@@ -466,6 +466,20 @@ class SpecInfo(Adw.Bin):
         state["SpecInfo"] = passed
         print("specinfo:_render " + str(self.state.get_value()))
 
+    def get_failure_reasons(self):
+        if not self._data_ready:
+            return ["System info not yet gathered"]
+        reasons = []
+        if self._gathered.get("bios_password") and not self.bios_password_override:
+            reasons.append("BIOS password is set")
+        if self._gathered.get("asset_info") and not self.asset_info_override:
+            reasons.append("Asset info present on device")
+        if self._gathered.get("computrace") is True:
+            reasons.append("Computrace/Absolute is active")
+        if self.has_disks and not self.disk_override:
+            reasons.append("Disk configuration needs review")
+        return reasons
+
     def _add_override_button(self, parent_row, dialog_title, on_accepted):
         """Add an Override button to the given row. Returns the button."""
         override_button = Gtk.Button(label="Override")

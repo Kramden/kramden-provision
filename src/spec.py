@@ -82,6 +82,7 @@ class WizardWindow(Gtk.ApplicationWindow):
         self._specinfo_loading = False
         self.page3.state = self.observable_property
         self.page4.sortly_register = self.page1
+        self.page4.specinfo = self.page2
         self.page4.manual_test = self.page3
         self.page4.state = self.observable_property
 

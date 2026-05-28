@@ -1,7 +1,8 @@
 import gi
 
 gi.require_version("Adw", "1")
-from gi.repository import Adw, GLib, Gtk
+gi.require_version("Gdk", "4.0")
+from gi.repository import Adw, Gdk, GLib, GObject, Gtk
 from utils import Utils
 
 # Fixed display order for all tests
@@ -23,14 +24,26 @@ ALWAYS_REQUIRED = {"USB", "Browser"}
 # Tests that become required on laptops
 LAPTOP_PROMOTED = {"WiFi", "WebCam", "Keyboard", "Touchpad", "ScreenTest"}
 
+_TEST_LABELS = {
+    "USB": "USB port test",
+    "Browser": "Browser test",
+    "WiFi": "WiFi test",
+    "WebCam": "Webcam test",
+    "Keyboard": "Keyboard test",
+    "Touchpad": "Touchpad test",
+    "Touchscreen": "Touchscreen test",
+    "ScreenTest": "Screen test",
+    "Battery": "Battery test",
+}
+
 
 class ManualTest(Adw.Bin):
     def __init__(self, show_battery_test=False):
         super().__init__()
-        self.set_margin_top(20)
-        self.set_margin_bottom(20)
-        self.set_margin_start(20)
-        self.set_margin_end(20)
+        self.set_margin_top(24)
+        self.set_margin_bottom(24)
+        self.set_margin_start(24)
+        self.set_margin_end(24)
         self.title = "Perform the following manual tests:"
         self.utils = Utils()
         self.show_battery_test = show_battery_test
@@ -63,18 +76,24 @@ class ManualTest(Adw.Bin):
         # Create a box to hold the content
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
 
-        # Create window titles for required and optional list boxes
-        required_windowtitle = Adw.WindowTitle()
-        required_windowtitle.set_title("Required Tests")
+        # Section headers
+        required_header = Gtk.Label(label="Required Tests")
+        required_header.add_css_class("title-3")
+        required_header.set_halign(Gtk.Align.START)
 
-        self.optional_windowtitle = Adw.WindowTitle()
-        self.optional_windowtitle.set_title("Optional Tests")
+        self.optional_header = Gtk.Label(label="Optional Tests")
+        self.optional_header.add_css_class("title-3")
+        self.optional_header.set_halign(Gtk.Align.START)
 
         # Create required and optional list boxes to hold the rows
         required_list_box = Gtk.ListBox()
         required_list_box.set_selection_mode(Gtk.SelectionMode.NONE)
+        required_list_box.add_css_class("boxed-list")
+        required_list_box.set_valign(Gtk.Align.START)
         self.optional_list_box = Gtk.ListBox()
         self.optional_list_box.set_selection_mode(Gtk.SelectionMode.NONE)
+        self.optional_list_box.add_css_class("boxed-list")
+        self.optional_list_box.set_valign(Gtk.Align.START)
 
         # --- Build all test rows ---
 
@@ -139,53 +158,54 @@ class ManualTest(Adw.Bin):
 
         self.original_text = "The quick brown fox jumps over the lazy dog 1234567890"
 
-        keyboard_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
-        keyboard_box.set_margin_top(10)
-        keyboard_box.set_margin_bottom(10)
-        keyboard_box.set_margin_start(10)
-        keyboard_box.set_margin_end(10)
-        keyboard_box.set_vexpand(False)
-        keyboard_box.set_valign(Gtk.Align.START)
-        keyboard_row.add_row(keyboard_box)
-
+        # Template — added directly as a row so it spans the full width
         self.keyboard_template_buffer = Gtk.TextBuffer()
         self.keyboard_template_buffer.set_text(self.original_text)
         self.keyboard_template = Gtk.TextView(buffer=self.keyboard_template_buffer)
         self.keyboard_template.set_editable(False)
         self.keyboard_template.set_cursor_visible(False)
         self.keyboard_template.set_wrap_mode(Gtk.WrapMode.NONE)
-        self.keyboard_template.set_vexpand(False)
-        self.keyboard_template.set_valign(Gtk.Align.START)
-        self.keyboard_template.set_size_request(-1, 30)
+        self.keyboard_template.set_hexpand(True)
+        self.keyboard_template.set_margin_top(12)
+        self.keyboard_template.set_margin_bottom(12)
+        self.keyboard_template.set_margin_start(12)
+        self.keyboard_template.set_margin_end(12)
+        self.keyboard_template.add_css_class("transparent-textview")
 
         self.green_tag = self.keyboard_template_buffer.create_tag(
             "green", foreground="green", weight=700
         )
         self.gray_tag = self.keyboard_template_buffer.create_tag(
-            "gray", foreground="gray"
+            "gray", foreground="#c0c0c0"
         )
 
         self.update_text_highlighting("")
-        keyboard_box.append(self.keyboard_template)
 
-        keyboard_text_buffer = Gtk.TextBuffer()
-        keyboard_text_buffer.set_text("")
-        self.keyboard_text_view = Gtk.TextView(buffer=keyboard_text_buffer)
-        self.keyboard_text_view.set_sensitive(True)
-        self.keyboard_text_view.set_wrap_mode(Gtk.WrapMode.NONE)
-        self.keyboard_text_view.set_vexpand(False)
-        self.keyboard_text_view.set_valign(Gtk.Align.START)
-        self.keyboard_text_view.set_size_request(-1, 30)
+        self.backspace_label = Gtk.Label(label="Backspace")
+        self.backspace_label.add_css_class("keyboard-key")
+        self.backspace_label.set_valign(Gtk.Align.CENTER)
+        self.backspace_label.set_margin_end(12)
 
-        self.keyboard_text_buffer = keyboard_text_buffer
+        template_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        template_row.append(self.keyboard_template)
+        template_row.append(self.backspace_label)
+        keyboard_row.add_row(template_row)
 
-        key_controller = Gtk.EventControllerKey()
-        key_controller.connect("key-released", self.on_key_release)
-        self.keyboard_text_view.add_controller(key_controller)
-
-        self.keyboard_text_view.connect("paste-clipboard", self.on_paste_clipboard)
-
-        keyboard_box.append(self.keyboard_text_view)
+        # Input row — native Adwaita entry row
+        self.keyboard_entry_row = Adw.EntryRow()
+        self.keyboard_entry_row.set_title("Type here:")
+        self.keyboard_entry_row.connect("changed", self._on_keyboard_changed)
+        _text = self.keyboard_entry_row.get_delegate()
+        if _text is not None:
+            _text.connect(
+                "paste-clipboard",
+                lambda w: GObject.signal_stop_emission_by_name(w, "paste-clipboard"),
+            )
+        _key_ctrl = Gtk.EventControllerKey()
+        _key_ctrl.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        _key_ctrl.connect("key-pressed", self._on_keyboard_key_pressed)
+        self.keyboard_entry_row.add_controller(_key_ctrl)
+        keyboard_row.add_row(self.keyboard_entry_row)
 
         # Touchpad row
         touchpad_row = Adw.ActionRow()
@@ -260,15 +280,20 @@ class ManualTest(Adw.Bin):
                 self.optional_list_box.append(row)
 
         # Add list boxes to the vertical box
-        vbox.append(required_windowtitle)
+        vbox.append(required_header)
         vbox.append(required_list_box)
 
         # Hide optional section when all tests have been promoted to required
         if self.optional_tests:
-            vbox.append(self.optional_windowtitle)
+            vbox.append(self.optional_header)
             vbox.append(self.optional_list_box)
 
-        self.set_child(vbox)
+        scrolled = Gtk.ScrolledWindow()
+        scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        scrolled.set_min_content_height(400)
+        scrolled.set_vexpand(True)
+        scrolled.set_child(vbox)
+        self.set_child(scrolled)
 
     def _test_dict_for(self, name):
         """Return the dict (required or optional) that contains this test."""
@@ -276,18 +301,20 @@ class ManualTest(Adw.Bin):
             return self.required_tests
         return self.optional_tests
 
-    # When key is released, do something
-    def on_key_release(self, controller, keyval, keycode, state):
-        typed_text = self.keyboard_text_buffer.get_text(
-            self.keyboard_text_buffer.get_start_iter(),
-            self.keyboard_text_buffer.get_end_iter(),
-            False,
-        )
-        self.update_text_highlighting(typed_text)
+    def get_failure_reasons(self):
+        return [
+            f"{_TEST_LABELS.get(name, name)} not completed"
+            for name, passed in self.required_tests.items()
+            if not passed
+        ]
 
-    # Prevent paste operations in the keyboard test text view
-    def on_paste_clipboard(self, _text_view):
-        return True
+    def _on_keyboard_key_pressed(self, controller, keyval, keycode, state):
+        if keyval == Gdk.KEY_BackSpace:
+            self.backspace_label.add_css_class("keyboard-key-passed")
+        return False
+
+    def _on_keyboard_changed(self, entry_row):
+        self.update_text_highlighting(entry_row.get_text())
 
     def update_text_highlighting(self, typed_text):
         start = self.keyboard_template_buffer.get_start_iter()
@@ -300,7 +327,12 @@ class ManualTest(Adw.Bin):
             start_iter = self.keyboard_template_buffer.get_iter_at_offset(index)
             end_iter = self.keyboard_template_buffer.get_iter_at_offset(index + 1)
 
-            if char in typed_text:
+            if index == 0:
+                matched = char in typed_text
+            else:
+                matched = char.lower() in typed_text.lower()
+
+            if matched:
                 self.keyboard_template_buffer.apply_tag(
                     self.green_tag, start_iter, end_iter
                 )
