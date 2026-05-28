@@ -1,7 +1,7 @@
 import gi
 
 gi.require_version("Adw", "1")
-from gi.repository import Adw, GLib, Gtk
+from gi.repository import Adw, GLib, GObject, Gtk
 from utils import Utils
 
 # Fixed display order for all tests
@@ -185,6 +185,12 @@ class ManualTest(Adw.Bin):
         self.keyboard_entry_row = Adw.EntryRow()
         self.keyboard_entry_row.set_title("Type here:")
         self.keyboard_entry_row.connect("changed", self._on_keyboard_changed)
+        _text = self.keyboard_entry_row.get_delegate()
+        if _text is not None:
+            _text.connect(
+                "paste-clipboard",
+                lambda w: GObject.signal_stop_emission_by_name(w, "paste-clipboard"),
+            )
         keyboard_row.add_row(self.keyboard_entry_row)
 
         # Touchpad row
