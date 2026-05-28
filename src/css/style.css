@@ -36,3 +36,11 @@
 .success-text {
     color: #3fe35a;
 }
+
+.transparent-textview,
+.transparent-textview text {
+    background: transparent;
+    color: inherit;
+    font-family: monospace;
+    font-size: 1.05em;
+}

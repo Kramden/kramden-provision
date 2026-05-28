@@ -145,53 +145,35 @@ class ManualTest(Adw.Bin):
 
         self.original_text = "The quick brown fox jumps over the lazy dog 1234567890"
 
-        keyboard_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
-        keyboard_box.set_margin_top(10)
-        keyboard_box.set_margin_bottom(10)
-        keyboard_box.set_margin_start(10)
-        keyboard_box.set_margin_end(10)
-        keyboard_box.set_vexpand(False)
-        keyboard_box.set_valign(Gtk.Align.START)
-        keyboard_row.add_row(keyboard_box)
-
+        # Template — added directly as a row so it spans the full width
         self.keyboard_template_buffer = Gtk.TextBuffer()
         self.keyboard_template_buffer.set_text(self.original_text)
         self.keyboard_template = Gtk.TextView(buffer=self.keyboard_template_buffer)
         self.keyboard_template.set_editable(False)
         self.keyboard_template.set_cursor_visible(False)
         self.keyboard_template.set_wrap_mode(Gtk.WrapMode.NONE)
-        self.keyboard_template.set_vexpand(False)
-        self.keyboard_template.set_valign(Gtk.Align.START)
-        self.keyboard_template.set_size_request(-1, 30)
+        self.keyboard_template.set_hexpand(True)
+        self.keyboard_template.set_margin_top(12)
+        self.keyboard_template.set_margin_bottom(12)
+        self.keyboard_template.set_margin_start(12)
+        self.keyboard_template.set_margin_end(12)
+        self.keyboard_template.add_css_class("transparent-textview")
 
         self.green_tag = self.keyboard_template_buffer.create_tag(
             "green", foreground="green", weight=700
         )
         self.gray_tag = self.keyboard_template_buffer.create_tag(
-            "gray", foreground="gray"
+            "gray", foreground="#c0c0c0"
         )
 
         self.update_text_highlighting("")
-        keyboard_box.append(self.keyboard_template)
+        keyboard_row.add_row(self.keyboard_template)
 
-        keyboard_text_buffer = Gtk.TextBuffer()
-        keyboard_text_buffer.set_text("")
-        self.keyboard_text_view = Gtk.TextView(buffer=keyboard_text_buffer)
-        self.keyboard_text_view.set_sensitive(True)
-        self.keyboard_text_view.set_wrap_mode(Gtk.WrapMode.NONE)
-        self.keyboard_text_view.set_vexpand(False)
-        self.keyboard_text_view.set_valign(Gtk.Align.START)
-        self.keyboard_text_view.set_size_request(-1, 30)
-
-        self.keyboard_text_buffer = keyboard_text_buffer
-
-        key_controller = Gtk.EventControllerKey()
-        key_controller.connect("key-released", self.on_key_release)
-        self.keyboard_text_view.add_controller(key_controller)
-
-        self.keyboard_text_view.connect("paste-clipboard", self.on_paste_clipboard)
-
-        keyboard_box.append(self.keyboard_text_view)
+        # Input row — native Adwaita entry row
+        self.keyboard_entry_row = Adw.EntryRow()
+        self.keyboard_entry_row.set_title("Type here:")
+        self.keyboard_entry_row.connect("changed", self._on_keyboard_changed)
+        keyboard_row.add_row(self.keyboard_entry_row)
 
         # Touchpad row
         touchpad_row = Adw.ActionRow()
@@ -274,7 +256,12 @@ class ManualTest(Adw.Bin):
             vbox.append(self.optional_header)
             vbox.append(self.optional_list_box)
 
-        self.set_child(vbox)
+        scrolled = Gtk.ScrolledWindow()
+        scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        scrolled.set_min_content_height(400)
+        scrolled.set_vexpand(True)
+        scrolled.set_child(vbox)
+        self.set_child(scrolled)
 
     def _test_dict_for(self, name):
         """Return the dict (required or optional) that contains this test."""
@@ -283,17 +270,8 @@ class ManualTest(Adw.Bin):
         return self.optional_tests
 
     # When key is released, do something
-    def on_key_release(self, controller, keyval, keycode, state):
-        typed_text = self.keyboard_text_buffer.get_text(
-            self.keyboard_text_buffer.get_start_iter(),
-            self.keyboard_text_buffer.get_end_iter(),
-            False,
-        )
-        self.update_text_highlighting(typed_text)
-
-    # Prevent paste operations in the keyboard test text view
-    def on_paste_clipboard(self, _text_view):
-        return True
+    def _on_keyboard_changed(self, entry_row):
+        self.update_text_highlighting(entry_row.get_text())
 
     def update_text_highlighting(self, typed_text):
         start = self.keyboard_template_buffer.get_start_iter()
@@ -306,7 +284,12 @@ class ManualTest(Adw.Bin):
             start_iter = self.keyboard_template_buffer.get_iter_at_offset(index)
             end_iter = self.keyboard_template_buffer.get_iter_at_offset(index + 1)
 
-            if char in typed_text:
+            if index == 0:
+                matched = char in typed_text
+            else:
+                matched = char.lower() in typed_text.lower()
+
+            if matched:
                 self.keyboard_template_buffer.apply_tag(
                     self.green_tag, start_iter, end_iter
                 )
