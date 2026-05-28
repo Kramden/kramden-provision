@@ -185,7 +185,6 @@ class ManualTest(Adw.Bin):
         self.keyboard_entry_row = Adw.EntryRow()
         self.keyboard_entry_row.set_title("Type here:")
         self.keyboard_entry_row.connect("changed", self._on_keyboard_changed)
-        self.keyboard_entry_row.connect("paste-clipboard", lambda *args: True)
         keyboard_row.add_row(self.keyboard_entry_row)
 
         # Touchpad row
