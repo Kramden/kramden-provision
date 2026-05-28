@@ -20,6 +20,8 @@ class SpecComplete(Adw.Bin):
         self.skip = False
         self.sortly_register = None
         self.manual_test = None
+        self.specinfo = None
+        self._failure_rows = []
 
         # Create a box to hold the content
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
@@ -29,10 +31,11 @@ class SpecComplete(Adw.Bin):
         page_header.set_halign(Gtk.Align.START)
 
         # Create a list box to hold the rows
-        list_box = Gtk.ListBox()
-        list_box.set_selection_mode(Gtk.SelectionMode.NONE)
-        list_box.add_css_class("boxed-list")
-        list_box.set_valign(Gtk.Align.START)
+        self.list_box = Gtk.ListBox()
+        self.list_box.set_selection_mode(Gtk.SelectionMode.NONE)
+        self.list_box.add_css_class("boxed-list")
+        self.list_box.set_valign(Gtk.Align.START)
+        list_box = self.list_box
 
         self.complete_row = Adw.ActionRow()
         self.complete_row.set_title("")
@@ -133,11 +136,30 @@ class SpecComplete(Adw.Bin):
     def on_shown(self):
         print("SpecComplete: on_shown")
         state = self.state.get_value()
+
+        for row in self._failure_rows:
+            self.list_box.remove(row)
+        self._failure_rows.clear()
+
         if all(state.values()):
             print("SpecComplete: All passed")
             self.complete_row.set_title("Kramden Spec Complete: <b>PASSED</b>!")
-            self.complete_row.set_subtitle(str(state))
+            self.complete_row.set_subtitle("")
         else:
             print("SpecComplete: Failed")
+            failure_reasons = []
+            if not state.get("SpecInfo", True) and self.specinfo:
+                failure_reasons.extend(self.specinfo.get_failure_reasons())
+            if not state.get("ManualTest", True) and self.manual_test:
+                failure_reasons.extend(self.manual_test.get_failure_reasons())
+
             self.complete_row.set_title("Kramden Spec Complete: <b>FAILED</b>!")
-            self.complete_row.set_subtitle(str(state))
+            self.complete_row.set_subtitle("")
+
+            for reason in failure_reasons:
+                row = Adw.ActionRow()
+                row.set_title(reason)
+                row.set_icon_name("emblem-important-symbolic")
+                row.add_css_class("text-error")
+                self.list_box.append(row)
+                self._failure_rows.append(row)

@@ -23,6 +23,18 @@ ALWAYS_REQUIRED = {"USB", "Browser"}
 # Tests that become required on laptops
 LAPTOP_PROMOTED = {"WiFi", "WebCam", "Keyboard", "Touchpad", "ScreenTest"}
 
+_TEST_LABELS = {
+    "USB": "USB port test",
+    "Browser": "Browser test",
+    "WiFi": "WiFi test",
+    "WebCam": "Webcam test",
+    "Keyboard": "Keyboard test",
+    "Touchpad": "Touchpad test",
+    "Touchscreen": "Touchscreen test",
+    "ScreenTest": "Screen test",
+    "Battery": "Battery test",
+}
+
 
 class ManualTest(Adw.Bin):
     def __init__(self, show_battery_test=False):
@@ -268,6 +280,13 @@ class ManualTest(Adw.Bin):
         if name in self.required_tests:
             return self.required_tests
         return self.optional_tests
+
+    def get_failure_reasons(self):
+        return [
+            f"{_TEST_LABELS.get(name, name)} not completed"
+            for name, passed in self.required_tests.items()
+            if not passed
+        ]
 
     # When key is released, do something
     def _on_keyboard_changed(self, entry_row):
