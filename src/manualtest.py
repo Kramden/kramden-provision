@@ -1,7 +1,8 @@
 import gi
 
 gi.require_version("Adw", "1")
-from gi.repository import Adw, GLib, GObject, Gtk
+gi.require_version("Gdk", "4.0")
+from gi.repository import Adw, Gdk, GLib, GObject, Gtk
 from utils import Utils
 
 # Fixed display order for all tests
@@ -179,7 +180,16 @@ class ManualTest(Adw.Bin):
         )
 
         self.update_text_highlighting("")
-        keyboard_row.add_row(self.keyboard_template)
+
+        self.backspace_label = Gtk.Label(label="Backspace")
+        self.backspace_label.add_css_class("keyboard-key")
+        self.backspace_label.set_valign(Gtk.Align.CENTER)
+        self.backspace_label.set_margin_end(12)
+
+        template_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        template_row.append(self.keyboard_template)
+        template_row.append(self.backspace_label)
+        keyboard_row.add_row(template_row)
 
         # Input row — native Adwaita entry row
         self.keyboard_entry_row = Adw.EntryRow()
@@ -191,6 +201,10 @@ class ManualTest(Adw.Bin):
                 "paste-clipboard",
                 lambda w: GObject.signal_stop_emission_by_name(w, "paste-clipboard"),
             )
+        _key_ctrl = Gtk.EventControllerKey()
+        _key_ctrl.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        _key_ctrl.connect("key-pressed", self._on_keyboard_key_pressed)
+        self.keyboard_entry_row.add_controller(_key_ctrl)
         keyboard_row.add_row(self.keyboard_entry_row)
 
         # Touchpad row
@@ -294,7 +308,11 @@ class ManualTest(Adw.Bin):
             if not passed
         ]
 
-    # When key is released, do something
+    def _on_keyboard_key_pressed(self, controller, keyval, keycode, state):
+        if keyval == Gdk.KEY_BackSpace:
+            self.backspace_label.add_css_class("keyboard-key-passed")
+        return False
+
     def _on_keyboard_changed(self, entry_row):
         self.update_text_highlighting(entry_row.get_text())
 
