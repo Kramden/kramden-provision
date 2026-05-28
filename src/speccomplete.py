@@ -21,26 +21,58 @@ class SpecComplete(Adw.Bin):
         self.sortly_register = None
         self.manual_test = None
         self.specinfo = None
-        self._failure_rows = []
 
-        # Create a box to hold the content
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
 
         page_header = Gtk.Label(label="Spec Complete")
         page_header.add_css_class("title-3")
         page_header.set_halign(Gtk.Align.START)
 
-        # Create a list box to hold the rows
-        self.list_box = Gtk.ListBox()
-        self.list_box.set_selection_mode(Gtk.SelectionMode.NONE)
-        self.list_box.add_css_class("boxed-list")
-        self.list_box.set_valign(Gtk.Align.START)
-        list_box = self.list_box
+        # Overall pass/fail row
+        complete_list = Gtk.ListBox()
+        complete_list.set_selection_mode(Gtk.SelectionMode.NONE)
+        complete_list.add_css_class("boxed-list")
+        complete_list.set_valign(Gtk.Align.START)
 
         self.complete_row = Adw.ActionRow()
         self.complete_row.set_title("")
+        complete_list.append(self.complete_row)
 
-        list_box.append(self.complete_row)
+        # Left column: System Info
+        specinfo_header = Gtk.Label(label="System Info")
+        specinfo_header.add_css_class("title-3")
+        specinfo_header.set_halign(Gtk.Align.START)
+
+        self.specinfo_list = Gtk.ListBox()
+        self.specinfo_list.set_selection_mode(Gtk.SelectionMode.NONE)
+        self.specinfo_list.add_css_class("boxed-list")
+        self.specinfo_list.set_valign(Gtk.Align.START)
+        self.specinfo_list.set_hexpand(True)
+
+        left_col = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        left_col.set_hexpand(True)
+        left_col.append(specinfo_header)
+        left_col.append(self.specinfo_list)
+
+        # Right column: Manual Tests
+        manualtest_header = Gtk.Label(label="Manual Tests")
+        manualtest_header.add_css_class("title-3")
+        manualtest_header.set_halign(Gtk.Align.START)
+
+        self.manualtest_list = Gtk.ListBox()
+        self.manualtest_list.set_selection_mode(Gtk.SelectionMode.NONE)
+        self.manualtest_list.add_css_class("boxed-list")
+        self.manualtest_list.set_valign(Gtk.Align.START)
+        self.manualtest_list.set_hexpand(True)
+
+        right_col = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        right_col.set_hexpand(True)
+        right_col.append(manualtest_header)
+        right_col.append(self.manualtest_list)
+
+        columns_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=20)
+        columns_box.append(left_col)
+        columns_box.append(right_col)
 
         # Status label for tracking sheet feedback
         self.tracking_status = Gtk.Label(label="")
@@ -53,11 +85,32 @@ class SpecComplete(Adw.Bin):
         self.tracking_button.connect("clicked", self._on_tracking_clicked)
 
         vbox.append(page_header)
-        vbox.append(list_box)
+        vbox.append(complete_list)
+        vbox.append(columns_box)
         vbox.append(self.tracking_status)
         vbox.append(self.tracking_button)
 
         self.set_child(vbox)
+
+    def _clear_list(self, list_box):
+        while True:
+            child = list_box.get_first_child()
+            if child is None:
+                break
+            list_box.remove(child)
+
+    def _passed_row(self):
+        row = Adw.ActionRow()
+        row.set_title("<span foreground='#3fe35a'><b>Passed</b></span>")
+        row.set_icon_name("emblem-ok-symbolic")
+        return row
+
+    def _failure_row(self, reason):
+        row = Adw.ActionRow()
+        row.set_title(reason)
+        row.set_icon_name("emblem-important-symbolic")
+        row.add_css_class("text-error")
+        return row
 
     def complete(self):
         print("SpecComplete: complete")
@@ -65,7 +118,6 @@ class SpecComplete(Adw.Bin):
         utils.complete_reset("spec")
 
     def _on_tracking_clicked(self, button):
-        # Get K-number from Sortly registration page
         knumber = ""
         if self.sortly_register:
             raw = self.sortly_register.knumber_entry.get_text().strip()
@@ -137,29 +189,26 @@ class SpecComplete(Adw.Bin):
         print("SpecComplete: on_shown")
         state = self.state.get_value()
 
-        for row in self._failure_rows:
-            self.list_box.remove(row)
-        self._failure_rows.clear()
+        self._clear_list(self.specinfo_list)
+        self._clear_list(self.manualtest_list)
 
         if all(state.values()):
             print("SpecComplete: All passed")
             self.complete_row.set_title("Kramden Spec Complete: <b>PASSED</b>!")
-            self.complete_row.set_subtitle("")
         else:
             print("SpecComplete: Failed")
-            failure_reasons = []
-            if not state.get("SpecInfo", True) and self.specinfo:
-                failure_reasons.extend(self.specinfo.get_failure_reasons())
-            if not state.get("ManualTest", True) and self.manual_test:
-                failure_reasons.extend(self.manual_test.get_failure_reasons())
-
             self.complete_row.set_title("Kramden Spec Complete: <b>FAILED</b>!")
-            self.complete_row.set_subtitle("")
 
-            for reason in failure_reasons:
-                row = Adw.ActionRow()
-                row.set_title(reason)
-                row.set_icon_name("emblem-important-symbolic")
-                row.add_css_class("text-error")
-                self.list_box.append(row)
-                self._failure_rows.append(row)
+        # System Info column
+        if not state.get("SpecInfo", True) and self.specinfo:
+            for reason in self.specinfo.get_failure_reasons():
+                self.specinfo_list.append(self._failure_row(reason))
+        else:
+            self.specinfo_list.append(self._passed_row())
+
+        # Manual Tests column
+        if not state.get("ManualTest", True) and self.manual_test:
+            for reason in self.manual_test.get_failure_reasons():
+                self.manualtest_list.append(self._failure_row(reason))
+        else:
+            self.manualtest_list.append(self._passed_row())
