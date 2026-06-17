@@ -224,6 +224,8 @@ class SpecInfo(Adw.Bin):
         utils = Utils()
         print("Syncing system clock...")
         utils.sync_clock()
+        print("Waiting for snap seed to complete (this may take a moment)...")
+        utils.wait_for_snap_seed()
         print("Applying hardware-specific fixes...")
         utils.apply_hardware_fixes()
         print("Reading memory size...")

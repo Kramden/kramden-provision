@@ -136,6 +136,31 @@ class Utils:
             return result.returncode == 0
         return False
 
+    def wait_for_snap_seed(self):
+        """Block until snapd has finished its initial seed.
+
+        On first boot after OS deployment the snap seed (one-time package
+        initialisation) runs in the background. If provisioning completes
+        before the seed finishes, snapd boots into a half-initialised state on
+        the next reboot: snapd.hold.service fails, then snapd.service hangs
+        silently, freezing the boot at the Plymouth splash indefinitely.
+        """
+        try:
+            result = subprocess.run(
+                ["snap", "wait", "system", "seed.loaded"],
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+            if result.returncode == 0:
+                print("Snap seed complete.")
+            else:
+                print(f"snap wait returned {result.returncode}: {result.stderr.strip()}")
+        except subprocess.TimeoutExpired:
+            print("Warning: snap seed did not complete within 5 minutes.")
+        except FileNotFoundError:
+            pass  # snapd not present in this environment
+
     def apply_hardware_fixes(self):
         """Write model-specific GRUB kernel parameter overrides for this machine.
 
