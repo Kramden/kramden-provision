@@ -16,15 +16,20 @@ rm -f "$FIXES_FILE"
 
 EXTRA_PARAMS=""
 
-# Dell Latitude 7390: NVMe drives (Samsung PM981, Toshiba KBG30) use
-# Autonomous Power State Transition (APST). During boot the drive enters a
-# deep low-power state the kernel cannot wake quickly enough, freezing the
-# Plymouth spinner indefinitely. Keeping drives in PS0 throughout boot fixes
-# the hang without meaningful power cost (APST is re-enabled once the
-# desktop session starts and the driver re-arms it).
+# Dell Latitude 7390: two independent boot hangs affect this model.
+#
+# 1. nvme_core.default_ps_state=0 — NVMe drives (Samsung PM981, Toshiba KBG30)
+#    use APST (Autonomous Power State Transition). During boot the drive enters
+#    a deep low-power state the kernel cannot wake quickly enough, stalling the
+#    Plymouth spinner indefinitely.
+#
+# 2. i915.enable_psr=0 — Intel UHD 620 Panel Self Refresh (PSR) causes the
+#    i915 KMS driver to freeze waiting on a display handshake that never
+#    completes. Symptom: Dell firmware logo persists in the centre, static
+#    Ubuntu logo appears at the bottom, no animation, indefinite hang.
 if echo "$VENDOR" | grep -qi "dell" && echo "$MODEL" | grep -qi "Latitude 7390"; then
-    echo "Detected Dell Latitude 7390 — applying NVMe APST fix"
-    EXTRA_PARAMS="nvme_core.default_ps_state=0"
+    echo "Detected Dell Latitude 7390 — applying NVMe APST and i915 PSR fixes"
+    EXTRA_PARAMS="nvme_core.default_ps_state=0 i915.enable_psr=0"
 fi
 
 if [ -n "$EXTRA_PARAMS" ]; then
