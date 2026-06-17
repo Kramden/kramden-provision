@@ -224,6 +224,8 @@ class SpecInfo(Adw.Bin):
         utils = Utils()
         print("Syncing system clock...")
         utils.sync_clock()
+        print("Applying hardware-specific fixes...")
+        utils.apply_hardware_fixes()
         print("Reading memory size...")
         mem = utils.get_mem()
         print("Checking BIOS password (this can be slow)...")

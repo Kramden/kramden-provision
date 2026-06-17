@@ -136,6 +136,23 @@ class Utils:
             return result.returncode == 0
         return False
 
+    def apply_hardware_fixes(self):
+        """Write model-specific GRUB kernel parameter overrides for this machine.
+
+        Silently no-ops when the script is absent (dev environments) or when
+        the detected model requires no special handling.
+        """
+        fix_sh = "/usr/share/kramden-provision/scripts/apply-hardware-fixes.sh"
+        if not self.file_exists_and_executable(fix_sh):
+            return
+        try:
+            result = subprocess.run(
+                ["sudo", fix_sh], capture_output=True, text=True, check=True
+            )
+            print(result.stdout.strip())
+        except subprocess.CalledProcessError as e:
+            print(f"Hardware fix script failed: {e.stderr.strip()}")
+
     # Check if BIOS Password is set, returns True if set.
     # Detect whether a BIOS password is set.
     #
