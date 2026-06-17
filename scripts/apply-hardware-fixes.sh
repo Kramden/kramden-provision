@@ -16,7 +16,7 @@ rm -f "$FIXES_FILE"
 
 EXTRA_PARAMS=""
 
-# Dell Latitude 7390: two independent boot hangs affect this model.
+# Dell Latitude 7390: multiple boot hang sources affect this model.
 #
 # 1. nvme_core.default_ps_state=0 — NVMe drives (Samsung PM981, Toshiba KBG30)
 #    use APST (Autonomous Power State Transition). During boot the drive enters
@@ -27,9 +27,13 @@ EXTRA_PARAMS=""
 #    i915 KMS driver to freeze waiting on a display handshake that never
 #    completes. Symptom: Dell firmware logo persists in the centre, static
 #    Ubuntu logo appears at the bottom, no animation, indefinite hang.
+#
+# 3. pcie_aspm=off — PCIe Active State Power Management can leave the NVMe,
+#    Thunderbolt, or WiFi PCIe link in a low-power state the driver cannot
+#    recover from, causing a hang after the Plymouth splash appears.
 if echo "$VENDOR" | grep -qi "dell" && echo "$MODEL" | grep -qi "Latitude 7390"; then
-    echo "Detected Dell Latitude 7390 — applying NVMe APST and i915 PSR fixes"
-    EXTRA_PARAMS="nvme_core.default_ps_state=0 i915.enable_psr=0"
+    echo "Detected Dell Latitude 7390 — applying NVMe APST, i915 PSR, and PCIe ASPM fixes"
+    EXTRA_PARAMS="nvme_core.default_ps_state=0 i915.enable_psr=0 pcie_aspm=off"
 fi
 
 if [ -n "$EXTRA_PARAMS" ]; then
