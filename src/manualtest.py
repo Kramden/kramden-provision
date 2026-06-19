@@ -429,12 +429,13 @@ class ManualTest(Adw.Bin):
                 proc = subprocess.Popen(
                     command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
                 )
-                proc.wait()
-            except Exception:
-                pass
+                proc.communicate()
+            except Exception as e:
+                print(f"_launch_app_with_spinner: failed to launch '{command}': {e}")
             GLib.idle_add(_restore)
 
         def _restore():
+            spinner.stop()
             button.set_label("Click Here")
             button.set_sensitive(True)
             return False
@@ -491,6 +492,9 @@ class ManualTest(Adw.Bin):
         self.touchscreen_button.set_active(passed)
         self.touchscreen_button.set_sensitive(True)
         if click_button is not None:
+            child = click_button.get_child()
+            if isinstance(child, Gtk.Spinner):
+                child.stop()
             click_button.set_label("Click Here")
             click_button.set_sensitive(True)
         return False
