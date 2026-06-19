@@ -135,6 +135,13 @@ def _sortly_request(method, url, **kwargs):
     return response
 
 
+def sortly_error_message(exc):
+    """Return a user-friendly error message for a Sortly-related exception."""
+    if isinstance(exc, requests.ConnectionError):
+        return "No internet connection. Cannot access Sortly."
+    return str(exc)
+
+
 def get_stage_folder_ids(stage):
     """Return folder IDs for the given stage, or TEST_FOLDER_IDS if KRAMDEN_TEST is set."""
     if os.environ.get("KRAMDEN_TEST"):
@@ -204,6 +211,8 @@ def search_by_serial(api_key, folder_ids, serial_number):
                     more_pages = False
 
         except Exception as e:
+            if isinstance(e, requests.ConnectionError):
+                raise
             print(f"Error: {e}")
             break
 
@@ -272,6 +281,8 @@ def search_item_by_name(api_key, folder_ids, item_name):
         return exact_matches
 
     except (requests.RequestException, ValueError) as e:
+        if isinstance(e, requests.ConnectionError):
+            raise
         print(f"Error searching for item: {e}")
         return []
 
@@ -449,6 +460,8 @@ def list_subfolders(api_key, parent_id, depth=0):
                 break
 
             except (requests.RequestException, ValueError) as e:
+                if isinstance(e, requests.ConnectionError):
+                    raise
                 print(f"{indent}Error listing subfolders: {e}")
                 more_pages = False
                 break
