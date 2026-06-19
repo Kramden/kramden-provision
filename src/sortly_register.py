@@ -18,6 +18,7 @@ from sortly import (
     create_item,
     update_item,
     get_system_info,
+    sortly_error_message,
 )
 
 
@@ -155,7 +156,7 @@ class SortlyRegister(Adw.Bin):
             )
             results = search_by_serial(api_key, folder_ids, serial)
         except Exception as e:
-            GLib.idle_add(self._on_lookup_complete, None, str(e))
+            GLib.idle_add(self._on_lookup_complete, None, sortly_error_message(e))
             return
         GLib.idle_add(self._on_lookup_complete, results, None)
 
@@ -272,7 +273,7 @@ class SortlyRegister(Adw.Bin):
                 self._folder_ids = folder_ids
             results = search_item_by_name(api_key, folder_ids, knumber)
         except Exception as e:
-            GLib.idle_add(self._on_search_complete, None, knumber, str(e))
+            GLib.idle_add(self._on_search_complete, None, knumber, sortly_error_message(e))
             return
         GLib.idle_add(self._on_search_complete, results, knumber, None)
 
@@ -343,7 +344,7 @@ class SortlyRegister(Adw.Bin):
             )
             results = search_item_by_name(api_key, folder_ids, knumber)
         except Exception as e:
-            GLib.idle_add(self._on_search_complete, None, knumber, str(e))
+            GLib.idle_add(self._on_search_complete, None, knumber, sortly_error_message(e))
             return
         GLib.idle_add(self._on_search_complete, results, knumber, None)
 
@@ -413,7 +414,7 @@ class SortlyRegister(Adw.Bin):
 
             GLib.idle_add(self._on_register_complete, True, None)
         except Exception as e:
-            GLib.idle_add(self._on_register_complete, False, str(e))
+            GLib.idle_add(self._on_register_complete, False, sortly_error_message(e))
 
     def _on_register_complete(self, success, error):
         self.spinner.stop()

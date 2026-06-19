@@ -14,6 +14,7 @@ from sortly import (
     search_item_by_name,
     update_item,
     get_system_info,
+    sortly_error_message,
 )
 
 
@@ -135,7 +136,7 @@ class KramdenNumber(Adw.Bin):
             )
             results = search_by_serial(api_key, folder_ids, serial)
         except Exception as e:
-            GLib.idle_add(self._on_lookup_complete, None, str(e))
+            GLib.idle_add(self._on_lookup_complete, None, sortly_error_message(e))
             return
         GLib.idle_add(self._on_lookup_complete, results, None)
 
@@ -262,7 +263,7 @@ class KramdenNumber(Adw.Bin):
 
             GLib.idle_add(self._on_register_complete, True, knumber)
         except Exception as e:
-            GLib.idle_add(self._on_register_complete, False, str(e))
+            GLib.idle_add(self._on_register_complete, False, sortly_error_message(e))
 
     def _on_register_complete(self, success, result):
         self.spinner.stop()
