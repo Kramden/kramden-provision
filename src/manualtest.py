@@ -179,7 +179,15 @@ class ManualTest(Adw.Bin):
             "gray", foreground="#c0c0c0"
         )
 
+        self.ever_typed_chars = set()
+        self.ever_typed_chars_lower = set()
+
         self.update_text_highlighting("")
+
+        self.period_label = Gtk.Label(label="Period")
+        self.period_label.add_css_class("keyboard-key")
+        self.period_label.set_valign(Gtk.Align.CENTER)
+        self.period_label.set_margin_end(6)
 
         self.backspace_label = Gtk.Label(label="Backspace")
         self.backspace_label.add_css_class("keyboard-key")
@@ -188,6 +196,7 @@ class ManualTest(Adw.Bin):
 
         template_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         template_row.append(self.keyboard_template)
+        template_row.append(self.period_label)
         template_row.append(self.backspace_label)
         keyboard_row.add_row(template_row)
 
@@ -311,12 +320,17 @@ class ManualTest(Adw.Bin):
     def _on_keyboard_key_pressed(self, controller, keyval, keycode, state):
         if keyval == Gdk.KEY_BackSpace:
             self.backspace_label.add_css_class("keyboard-key-passed")
+        elif keyval == Gdk.KEY_period:
+            self.period_label.add_css_class("keyboard-key-passed")
         return False
 
     def _on_keyboard_changed(self, entry_row):
         self.update_text_highlighting(entry_row.get_text())
 
     def update_text_highlighting(self, typed_text):
+        self.ever_typed_chars.update(typed_text)
+        self.ever_typed_chars_lower.update(c.lower() for c in typed_text)
+
         start = self.keyboard_template_buffer.get_start_iter()
         end = self.keyboard_template_buffer.get_end_iter()
         self.keyboard_template_buffer.remove_all_tags(start, end)
@@ -328,9 +342,9 @@ class ManualTest(Adw.Bin):
             end_iter = self.keyboard_template_buffer.get_iter_at_offset(index + 1)
 
             if index == 0:
-                matched = char in typed_text
+                matched = char in self.ever_typed_chars
             else:
-                matched = char.lower() in typed_text.lower()
+                matched = char.lower() in self.ever_typed_chars_lower
 
             if matched:
                 self.keyboard_template_buffer.apply_tag(
