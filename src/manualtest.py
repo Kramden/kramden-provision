@@ -1,4 +1,6 @@
 import gi
+import subprocess
+import threading
 
 gi.require_version("Adw", "1")
 gi.require_version("Gdk", "4.0")
@@ -430,6 +432,30 @@ class ManualTest(Adw.Bin):
         print(d)
         self.check_status()
 
+    def _launch_app_with_spinner(self, button, command):
+        spinner = Gtk.Spinner()
+        spinner.start()
+        button.set_child(spinner)
+        button.set_sensitive(False)
+
+        def _run():
+            try:
+                proc = subprocess.Popen(
+                    command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+                )
+                proc.communicate()
+            except Exception as e:
+                print(f"_launch_app_with_spinner: failed to launch '{command}': {e}")
+            GLib.idle_add(_restore)
+
+        def _restore():
+            spinner.stop()
+            button.set_label("Click Here")
+            button.set_sensitive(True)
+            return False
+
+        threading.Thread(target=_run, daemon=True).start()
+
     # Launch the fullscreen touchscreen test
     def on_touchscreen_clicked(self, button):
         print("ManualTest:on_touchscreen_clicked")
@@ -439,10 +465,11 @@ class ManualTest(Adw.Bin):
         # means such a crash only fails the test rather than killing the
         # provisioning app.
         import os
-        import subprocess
         import sys
-        import threading
 
+        spinner = Gtk.Spinner()
+        spinner.start()
+        button.set_child(spinner)
         button.set_sensitive(False)
         self.touchscreen_button.set_sensitive(False)
 
@@ -479,6 +506,10 @@ class ManualTest(Adw.Bin):
         self.touchscreen_button.set_active(passed)
         self.touchscreen_button.set_sensitive(True)
         if click_button is not None:
+            child = click_button.get_child()
+            if isinstance(child, Gtk.Spinner):
+                child.stop()
+            click_button.set_label("Click Here")
             click_button.set_sensitive(True)
         return False
 
@@ -506,7 +537,7 @@ class ManualTest(Adw.Bin):
     # Launch the screen-test app when clicked
     def on_screentest_clicked(self, button):
         print("ManualTest:on_screentest_clicked")
-        self.utils.launch_app("screen-test")
+        self._launch_app_with_spinner(button, "screen-test")
 
     # Launch the gnome-text-editor app when clicked
     def on_keyboard_clicked(self, button):
@@ -517,11 +548,14 @@ class ManualTest(Adw.Bin):
     def on_webcam_clicked(self, button):
         print("ManualTest:on_webcam_clicked")
         if self.utils.file_exists_and_executable("/usr/bin/guvcview"):
-            self.utils.launch_app("guvcview")
+            cmd = "guvcview"
         elif self.utils.file_exists_and_executable("/usr/bin/cheese"):
-            self.utils.launch_app("cheese")
+            cmd = "cheese"
         elif self.utils.file_exists_and_executable("/usr/bin/snapshot"):
-            self.utils.launch_app("snapshot")
+            cmd = "snapshot"
+        else:
+            return
+        self._launch_app_with_spinner(button, cmd)
 
     # Handle toggled event for the browser button
     def on_browser_toggled(self, button):
@@ -533,7 +567,7 @@ class ManualTest(Adw.Bin):
     # Launch the xdg-open app to open https://vimeo.com/116979416 in browser
     def on_browser_clicked(self, button):
         print("Manual:on_browser_clicked")
-        self.utils.launch_app("xdg-open https://vimeo.com/116979416")
+        self._launch_app_with_spinner(button, "xdg-open https://vimeo.com/116979416")
 
     def check_status(self):
         print("ManualTest:check_status")
