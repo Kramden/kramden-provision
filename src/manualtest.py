@@ -1,4 +1,6 @@
 import gi
+import glob
+import os
 
 gi.require_version("Adw", "1")
 gi.require_version("Gdk", "4.0")
@@ -499,11 +501,26 @@ class ManualTest(Adw.Bin):
         print("ManualTest:on_keyboard_clicked")
         self.utils.launch_app("gnome-text-editor")
 
-    # Launch the cheese app when clicked
+    def _find_non_ir_video_device(self):
+        ir_keywords = ["infrared", "ir camera", "windows hello", "ir sensor"]
+        for video_path in sorted(glob.glob("/dev/video*")):
+            name_file = f"/sys/class/video4linux/{os.path.basename(video_path)}/name"
+            try:
+                with open(name_file) as f:
+                    name = f.read().strip().lower()
+                if not any(kw in name for kw in ir_keywords):
+                    return video_path
+            except OSError:
+                pass
+        return None
+
+    # Launch the guvcview app when clicked
     def on_webcam_clicked(self, button):
         print("ManualTest:on_webcam_clicked")
         if self.utils.file_exists_and_executable("/usr/bin/guvcview"):
-            self.utils.launch_app("guvcview")
+            device = self._find_non_ir_video_device()
+            cmd = f"guvcview --device={device}" if device else "guvcview"
+            self.utils.launch_app(cmd)
         elif self.utils.file_exists_and_executable("/usr/bin/cheese"):
             self.utils.launch_app("cheese")
         elif self.utils.file_exists_and_executable("/usr/bin/snapshot"):
