@@ -11,6 +11,7 @@ import time
 
 import requests
 
+from constants import Brand
 from utils import Utils
 
 SORTLY_API_BASE_URL = "https://api.sortly.co/api/v1"
@@ -321,8 +322,61 @@ def create_item(api_key, folder_id, item_name):
         return None
 
 
+def _summarize_error_response(response):
+    """Extract a human-readable error summary from a Sortly error response."""
+    try:
+        data = response.json()
+    except ValueError:
+        text = (response.text or "").strip()
+        return text[:200]
+
+    if not isinstance(data, dict):
+        return ""
+
+    messages = []
+    for key in ("error", "errors", "message"):
+        value = data.get(key)
+        if not value:
+            continue
+        if isinstance(value, str):
+            messages.append(value)
+        elif isinstance(value, list):
+            messages.extend(str(v) for v in value)
+        elif isinstance(value, dict):
+            for field, msgs in value.items():
+                if isinstance(msgs, list):
+                    msgs = ", ".join(str(m) for m in msgs)
+                messages.append(f"{field}: {msgs}")
+    return "; ".join(messages)
+
+
+def _describe_update_failure(response, updates_dict):
+    """Build a user-facing reason for a rejected Sortly update."""
+    reasons = []
+
+    brand = updates_dict.get("Brand")
+    if brand and str(brand) not in {b.value for b in Brand}:
+        reasons.append(
+            f"Brand '{brand}' is not one of the Sortly brand options — "
+            "the record may need its Brand set manually"
+        )
+
+    summary = _summarize_error_response(response)
+    if summary:
+        reasons.append(f"Sortly said: {summary}")
+
+    if not reasons:
+        reasons.append(f"Sortly returned HTTP {response.status_code}")
+
+    return "; ".join(reasons)
+
+
 def update_item(api_key, item_id, updates_dict):
-    """Update custom attributes on a Sortly item."""
+    """Update custom attributes on a Sortly item.
+
+    Returns a (success, error) tuple where error describes why the update
+    failed, or None on success.
+    """
     base_url = f"{SORTLY_API_BASE_URL}/items/{item_id}"
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -339,7 +393,7 @@ def update_item(api_key, item_id, updates_dict):
         raw_json = response.json()
     except (requests.RequestException, ValueError) as e:
         print(f"Error fetching item: {e}")
-        return False
+        return False, f"Could not fetch the record from Sortly: {sortly_error_message(e)}"
 
     item_data = raw_json.get("data", raw_json)
     current_attrs = item_data.get("custom_attribute_values", [])
@@ -356,6 +410,7 @@ def update_item(api_key, item_id, updates_dict):
 
     # Build payload
     payload_list = []
+    skipped_fields = []
     print("Mapping updates...")
     for key, val in updates_dict.items():
         if key in name_to_id:
@@ -368,11 +423,15 @@ def update_item(api_key, item_id, updates_dict):
             payload_list.append(obj)
             print(f"  [OK] '{key}' -> {val}")
         else:
+            skipped_fields.append(key)
             print(f"  [!] '{key}' skipped (attribute not found on item)")
 
     if not payload_list:
         print("No valid updates to send.")
-        return False
+        return False, (
+            "None of the hardware fields exist on the Sortly record "
+            f"(missing: {', '.join(skipped_fields)})"
+        )
 
     final_body = {
         "custom_attribute_values": payload_list,
@@ -387,12 +446,12 @@ def update_item(api_key, item_id, updates_dict):
         if not put_resp.ok:
             print(f"Update failed: {put_resp.status_code}")
             print(f"Server response: {put_resp.text}")
-            return False
+            return False, _describe_update_failure(put_resp, updates_dict)
         print("SUCCESS: Item updated.")
-        return True
+        return True, None
     except (requests.RequestException, ValueError) as e:
         print(f"Update failed: {e}")
-        return False
+        return False, f"Update request failed: {sortly_error_message(e)}"
 
 
 def list_subfolders(api_key, parent_id, depth=0):

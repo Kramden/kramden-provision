@@ -77,3 +77,128 @@ class TestSortlyDebugOutput(unittest.TestCase):
         self.assertIn("'page': 2", second_call)
         self.assertIn("'folder_ids': ['folder-1']", second_call)
         self.assertIn("'query': 'ABC123'", second_call)
+
+
+class TestUpdateItem(unittest.TestCase):
+    def tearDown(self):
+        sortly.reset_api_call_count()
+
+    @staticmethod
+    def _item_response(attr_names):
+        response = MagicMock()
+        response.status_code = 200
+        response.ok = True
+        response.json.return_value = {
+            "data": {
+                "custom_attribute_values": [
+                    {"custom_attribute_name": name, "custom_attribute_id": i + 1}
+                    for i, name in enumerate(attr_names)
+                ]
+            }
+        }
+        return response
+
+    @patch("sortly.requests.request")
+    @patch("builtins.print")
+    def test_update_success_returns_no_error(self, mock_print, mock_request):
+        put_response = MagicMock(status_code=200, ok=True)
+        mock_request.side_effect = [
+            self._item_response(["Brand", "CPU"]),
+            put_response,
+        ]
+
+        success, error = sortly.update_item(
+            "api-key", "item-1", {"Brand": "Asus", "CPU": "i5"}
+        )
+
+        self.assertTrue(success)
+        self.assertIsNone(error)
+
+    @patch("sortly.requests.request")
+    @patch("builtins.print")
+    def test_rejected_update_reports_invalid_brand(self, mock_print, mock_request):
+        put_response = MagicMock(status_code=422, ok=False, text="")
+        put_response.json.return_value = {
+            "errors": {"Brand": ["is not included in the list"]}
+        }
+        mock_request.side_effect = [
+            self._item_response(["Brand"]),
+            put_response,
+        ]
+
+        success, error = sortly.update_item(
+            "api-key", "item-1", {"Brand": "ASUSTek International"}
+        )
+
+        self.assertFalse(success)
+        self.assertIn(
+            "Brand 'ASUSTek International' is not one of the Sortly brand options",
+            error,
+        )
+        self.assertIn("Brand: is not included in the list", error)
+
+    @patch("sortly.requests.request")
+    @patch("builtins.print")
+    def test_rejected_update_with_valid_brand_reports_server_message(
+        self, mock_print, mock_request
+    ):
+        put_response = MagicMock(status_code=422, ok=False, text="")
+        put_response.json.return_value = {"error": "Something went wrong"}
+        mock_request.side_effect = [
+            self._item_response(["Brand"]),
+            put_response,
+        ]
+
+        success, error = sortly.update_item("api-key", "item-1", {"Brand": "Asus"})
+
+        self.assertFalse(success)
+        self.assertNotIn("brand options", error)
+        self.assertIn("Sortly said: Something went wrong", error)
+
+    @patch("sortly.requests.request")
+    @patch("builtins.print")
+    def test_rejected_update_without_details_reports_status(
+        self, mock_print, mock_request
+    ):
+        put_response = MagicMock(status_code=500, ok=False, text="")
+        put_response.json.side_effect = ValueError("no json")
+        mock_request.side_effect = [
+            self._item_response(["Brand"]),
+            put_response,
+        ]
+
+        success, error = sortly.update_item("api-key", "item-1", {"Brand": "Asus"})
+
+        self.assertFalse(success)
+        self.assertIn("Sortly returned HTTP 500", error)
+
+    @patch("sortly.requests.request")
+    @patch("builtins.print")
+    def test_no_matching_attributes_lists_missing_fields(
+        self, mock_print, mock_request
+    ):
+        mock_request.side_effect = [self._item_response(["Unrelated Field"])]
+
+        success, error = sortly.update_item(
+            "api-key", "item-1", {"Brand": "Asus", "CPU": "i5"}
+        )
+
+        self.assertFalse(success)
+        self.assertIn("None of the hardware fields exist", error)
+        self.assertIn("Brand", error)
+        self.assertIn("CPU", error)
+
+    @patch("sortly.requests.request")
+    @patch("builtins.print")
+    def test_fetch_failure_reports_reason(self, mock_print, mock_request):
+        get_response = MagicMock(status_code=404, ok=False)
+        get_response.raise_for_status.side_effect = sortly.requests.HTTPError(
+            "404 Client Error: Not Found"
+        )
+        mock_request.side_effect = [get_response]
+
+        success, error = sortly.update_item("api-key", "item-1", {"Brand": "Asus"})
+
+        self.assertFalse(success)
+        self.assertIn("Could not fetch the record from Sortly", error)
+        self.assertIn("404", error)

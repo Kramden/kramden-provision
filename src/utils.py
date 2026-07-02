@@ -3,7 +3,7 @@ import subprocess
 import threading
 import os
 import tempfile
-from constants import snap_packages, deb_packages, CHASSIS_TYPE_MAP
+from constants import snap_packages, deb_packages, CHASSIS_TYPE_MAP, Brand
 import gi
 
 gi.require_version("Snapd", "2")
@@ -342,18 +342,11 @@ class Utils:
     def _normalize_vendor(vendor):
         if not vendor:
             return ""
-        # Ensure vendor is a string before calling .lower()
-        vendor_str = str(vendor)
-        v = vendor_str.lower()
-        if v.startswith("dell"):
-            return "Dell"
-        if v.startswith("hp") or v.startswith("hewlett"):
-            return "HP"
-        if v.startswith("lenovo"):
-            return "Lenovo"
-        if v.startswith("microsoft"):
-            return "Microsoft"
-        return vendor_str
+        brand = Brand.from_vendor(vendor)
+        if brand:
+            return brand.value
+        # Keep the raw vendor string so Sortly errors can report what was seen
+        return str(vendor)
 
     # Get vendor
     def get_vendor(self):
