@@ -69,6 +69,42 @@ class TestUtils(unittest.TestCase):
     def test_get_vendor(self):
         self.assertEqual(self.utils.get_vendor(), "Test Vendor")
 
+    def test_normalize_vendor_known_brands(self):
+        cases = {
+            "ASUSTeK COMPUTER INC.": "Asus",
+            "ASUSTek": "Asus",
+            "ASUS": "Asus",
+            "HP Inc.": "HP",
+            "HP": "HP",
+            "Hewlett-Packard": "HP",
+            "Dell Inc.": "Dell",
+            "LENOVO": "Lenovo",
+            "Microsoft Corporation": "Microsoft",
+            "Micro-Star International Co., Ltd.": "MSI",
+            "Alienware": "Alienware",
+            "SAMSUNG ELECTRONICS CO., LTD.": "Samsung",
+            "Acer": "Acer",
+            "Apple Inc.": "Apple",
+            "Framework": "Framework",
+            "FUJITSU CLIENT COMPUTING LIMITED": "Fujitsu",
+            "Gateway": "Gateway",
+            "Getac": "Getac",
+            "GOOGLE": "Google",
+            "LG Electronics": "LG",
+            "Panasonic Corporation": "Panasonic",
+            "Razer": "Razer",
+            "Sony Corporation": "Sony",
+            "TOSHIBA": "Toshiba",
+        }
+        for raw, expected in cases.items():
+            self.assertEqual(Utils._normalize_vendor(raw), expected)
+
+    def test_normalize_vendor_unknown_keeps_raw_string(self):
+        self.assertEqual(
+            Utils._normalize_vendor("Some Unknown Vendor"), "Some Unknown Vendor"
+        )
+        self.assertEqual(Utils._normalize_vendor(""), "")
+
     def test_get_model(self):
         self.assertEqual(self.utils.get_model(), "Test Model")
 
