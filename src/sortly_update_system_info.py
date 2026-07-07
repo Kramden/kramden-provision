@@ -74,11 +74,13 @@ def main():
 
     # Update the Sortly record
     print(f"\nUpdating Sortly record...")
-    success = update_item(api_key, item_id, system_info)
+    success, error = update_item(api_key, item_id, system_info)
 
     if success:
         print("\nDone!")
     else:
+        if error:
+            print(f"\nUpdate failed: {error}")
         sys.exit(1)
 
 

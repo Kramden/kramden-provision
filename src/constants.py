@@ -1,3 +1,75 @@
+from enum import Enum
+
+
+class Brand(Enum):
+    """Brand options available in the Sortly Brand dropdown."""
+
+    GATEWAY = "Gateway"
+    PANASONIC = "Panasonic"
+    MICROSOFT = "Microsoft"
+    REPUBLIC_OF_GAMERS = "Republic of Gamers"
+    ALIENWARE = "Alienware"
+    TOSHIBA = "Toshiba"
+    RAZER = "Razer"
+    GOOGLE = "Google"
+    LG = "LG"
+    APPLE = "Apple"
+    DELL = "Dell"
+    LENOVO = "Lenovo"
+    HP = "HP"
+    ASUS = "Asus"
+    MSI = "MSI"
+    SAMSUNG = "Samsung"
+    ACER = "Acer"
+    FRAMEWORK = "Framework"
+    KRAMDEN_CUSTOM_BUILDS = "Kramden Custom Builds"
+    OTHER = "Other"
+    FUJITSU = "Fujitsu"
+    SONY = "Sony"
+    GETAC = "Getac"
+
+    @classmethod
+    def from_vendor(cls, vendor):
+        """Map a raw hardware vendor string to a Brand, or None if unrecognized."""
+        if not vendor:
+            return None
+        v = str(vendor).strip().lower()
+        for prefixes, brand in _VENDOR_PREFIX_MAP:
+            if v.startswith(prefixes):
+                return brand
+        return None
+
+
+# Vendor string prefixes (lowercase) mapped to their Sortly brand. Sub-brands
+# that ship their own DMI vendor (e.g. Alienware) are listed independently of
+# their parent company.
+_VENDOR_PREFIX_MAP = [
+    (("republic of gamers",), Brand.REPUBLIC_OF_GAMERS),
+    (("alienware",), Brand.ALIENWARE),
+    # ASUSTeK COMPUTER INC., ASUSTek, ASUS
+    (("asus",), Brand.ASUS),
+    # HP Inc., Hewlett-Packard
+    (("hp", "hewlett"), Brand.HP),
+    (("dell",), Brand.DELL),
+    (("lenovo",), Brand.LENOVO),
+    (("microsoft",), Brand.MICROSOFT),
+    # Micro-Star International, MSI
+    (("msi", "micro-star"), Brand.MSI),
+    (("acer",), Brand.ACER),
+    (("apple",), Brand.APPLE),
+    (("framework",), Brand.FRAMEWORK),
+    (("fujitsu",), Brand.FUJITSU),
+    (("gateway",), Brand.GATEWAY),
+    (("getac",), Brand.GETAC),
+    (("google",), Brand.GOOGLE),
+    (("lg",), Brand.LG),
+    (("panasonic",), Brand.PANASONIC),
+    (("razer",), Brand.RAZER),
+    (("samsung",), Brand.SAMSUNG),
+    (("sony",), Brand.SONY),
+    (("toshiba",), Brand.TOSHIBA),
+]
+
 deb_packages = [
     "kramden-overrides",
     "kramden-desktop",

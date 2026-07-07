@@ -254,10 +254,12 @@ class KramdenNumber(Adw.Bin):
             item_id = item["id"]
             info = self._system_info or {}
             if info:
-                success = update_item(api_key, item_id, info)
+                success, error = update_item(api_key, item_id, info)
                 if not success:
                     GLib.idle_add(
-                        self._on_register_complete, False, "Failed to update item."
+                        self._on_register_complete,
+                        False,
+                        error or "Failed to update item.",
                     )
                     return
 
