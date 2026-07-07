@@ -1,3 +1,9 @@
+kramden-provision (0.1.99.24) noble; urgency=medium
+
+  * fix: transform brand into sorty friendly ENUM
+
+ -- Ken VanDine <ken.vandine@canonical.com>  Tue, 07 Jul 2026 09:40:42 -0400
+
 kramden-provision (0.1.99.23) noble; urgency=medium
 
   * fix: show no internet message when Sortly is unreachable
