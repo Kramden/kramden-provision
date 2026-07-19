@@ -1,0 +1,88 @@
+name: Publish to PPA
+on:
+  workflow_dispatch:
+    inputs:
+      repository:
+        description: 'PPA repository (ppa:owner/archive)'
+        required: false
+        default: 'ppa:kramden-team/kramden-test'
+      series:
+        description: 'Ubuntu series to publish for, space separated'
+        required: false
+        default: 'noble resolute'
+      revision:
+        description: 'Local revision appended per series, e.g. 1 -> +noble1'
+        required: false
+        default: '1'
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Install packaging tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y devscripts debhelper equivs dput
+
+      - name: Install package build dependencies
+        run: |
+          sudo mk-build-deps --install --remove \
+            --tool="apt-get -o Debug::pkgProblemResolver=yes --no-install-recommends --yes" \
+            debian/control
+
+      - name: Import GPG key
+        id: gpg
+        uses: crazy-max/ghaction-import-gpg@v7
+        with:
+          gpg_private_key: ${{ secrets.PPA_GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.PPA_GPG_PASSPHRASE }}
+
+      - name: Configure dput
+        env:
+          REPOSITORY: ${{ inputs.repository }}
+        run: |
+          repository_name="${REPOSITORY#ppa:}"
+          ppa_owner="${repository_name%%/*}"
+          ppa_archive="${repository_name#*/}"
+          cat > ~/.dput.cf <<EOF
+          [kramden-ppa]
+          fqdn = upload.ppa.launchpad.net
+          method = ftp
+          incoming = ~${ppa_owner}/ubuntu/${ppa_archive}/
+          login = anonymous
+          allow_unsigned_uploads = 0
+          passive_ftp = True
+          EOF
+
+      - name: Build and publish native package per series
+        env:
+          SERIES: ${{ inputs.series }}
+          REVISION: ${{ inputs.revision }}
+          KEYID: ${{ steps.gpg.outputs.keyid }}
+        run: |
+          set -e
+          for series in $SERIES; do
+            echo "::group::Building for $series"
+
+            builddir="/tmp/build-$series"
+            rm -rf "$builddir"
+            mkdir -p "$builddir"
+            git archive HEAD | tar -x -C "$builddir"
+            cd "$builddir"
+
+            # Version suffix is added here, at upload time, and never
+            # committed back to the repo (per PR #126 discussion).
+            dch --local "+${series}${REVISION}" \
+              --distribution "$series" --force-distribution \
+              "Rebuild for $series."
+
+            debuild -S -k"$KEYID"
+
+            dput kramden-ppa ../*_source.changes
+
+            cd "$GITHUB_WORKSPACE"
+            echo "::endgroup::"
+          done
