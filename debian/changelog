@@ -1,4 +1,4 @@
-kramden-provision (0.1.99.24-1) noble; urgency=medium
+kramden-provision (0.1.99.24) noble; urgency=medium
 
   * fix: transform brand into sorty friendly ENUM
 
