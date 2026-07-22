@@ -30,6 +30,7 @@ try:
     from reportlab.lib.enums import TA_LEFT, TA_RIGHT, TA_CENTER
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.ttfonts import TTFont
+    from reportlab.graphics.shapes import Drawing, Circle, Line
 except ImportError:
     print(
         "Error: reportlab is required. Install with: sudo apt install python3-reportlab"
@@ -114,9 +115,7 @@ def _static_bold_stream(path):
 
     axes = {axis.axisTag: axis.defaultValue for axis in font["fvar"].axes}
     axes["wght"] = 700.0
-    instancer.instantiateVariableFont(
-        font, axes, updateFontNames=True, inplace=True
-    )
+    instancer.instantiateVariableFont(font, axes, updateFontNames=True, inplace=True)
 
     buf = io.BytesIO()
     font.save(buf)
@@ -150,13 +149,44 @@ def _register_fonts():
     pdfmetrics.registerFontFamily("Ubuntu", normal="Ubuntu", bold="Ubuntu-Bold")
 
 
-LABEL_BG = colors.HexColor("#e6e6e6")
+LABEL_BG = colors.HexColor("#f0f0f0")
+
+# Matches the "text-error" red libadwaita applies to emblem-important-symbolic
+# elsewhere in the app (specinfo.py, sysinfo.py, etc).
+IMPORTANT_RED = colors.HexColor("#e01b24")
 
 
 def _bool_result(value):
     if value is None:
         return ""
     return "GOOD" if value else "BAD"
+
+
+def _important_symbol(size=9):
+    """A small circle-with-exclamation-mark Drawing, standing in for the
+    emblem-important-symbolic icon used elsewhere in the app (that icon is
+    an SVG from the system icon theme, which reportlab can't embed directly)."""
+    d = Drawing(size, size)
+    r = size / 2.0
+    d.add(Circle(r, r, r, fillColor=IMPORTANT_RED, strokeColor=None))
+    bar_width = max(1, size * 0.14)
+    d.add(
+        Line(
+            r,
+            size * 0.72,
+            r,
+            size * 0.4,
+            strokeColor=colors.white,
+            strokeWidth=bar_width,
+            strokeLineCap=1,
+        )
+    )
+    d.add(
+        Circle(
+            r, size * 0.24, bar_width / 2.0, fillColor=colors.white, strokeColor=None
+        )
+    )
+    return d
 
 
 def _grid_table(data, col_widths, row_heights=None, extra_cmds=None):
@@ -233,7 +263,7 @@ def generate_tracking_sheet(
         "Label",
         parent=styles["Normal"],
         fontSize=10,
-        fontName="Ubuntu-Bold",
+        fontName="Ubuntu",
     )
 
     value_style = ParagraphStyle(
@@ -241,6 +271,12 @@ def generate_tracking_sheet(
         parent=styles["Normal"],
         fontSize=10,
         fontName="Ubuntu",
+    )
+
+    bad_value_style = ParagraphStyle(
+        "BadValue",
+        parent=value_style,
+        fontName="Ubuntu-Bold",
     )
 
     notes_label_style = ParagraphStyle(
@@ -339,57 +375,93 @@ def generate_tracking_sheet(
     bat1_label, bat1_value = battery_cell(1)
 
     ram_value = f"{system_info.get('RAM', '')}GB"
-    spec_grid_data = [
-        [
-            Paragraph("RAM", label_style),
-            Paragraph(ram_value, value_style),
-            Paragraph("Storage", label_style),
-            Paragraph(system_info.get("Storage", ""), value_style),
-            Paragraph("CPU", label_style),
-            Paragraph(system_info.get("CPU", ""), value_style),
-        ],
-        [
-            Paragraph("Model", label_style),
-            Paragraph(system_info.get("Model", ""), value_style),
-            "",
-            "",
-            Paragraph(bat0_label, label_style),
-            Paragraph(bat0_value, value_style),
-        ],
-        [
-            Paragraph("Graphics", label_style),
-            Paragraph(system_info.get("Graphics", "N/A"), value_style),
-            "",
-            "",
-            Paragraph(bat1_label, label_style),
-            Paragraph(bat1_value, value_style),
-        ],
-    ]
-    spec_label_col0 = 62
-    spec_label_col2 = 58
-    spec_label_col4 = 42
-    spec_flex = usable_width - spec_label_col0 - spec_label_col2 - spec_label_col4
-    spec_col_widths = [
-        spec_label_col0,
-        spec_flex * 0.22,
-        spec_label_col2,
-        spec_flex * 0.40,
+
+    # RAM, Storage, and Battery values have a known maximum length ("128GB",
+    # "1000GB NVMe", "100%"), so their columns are sized to just fit that text
+    # instead of splitting the row proportionally. The width saved is handed
+    # to CPU (row 0) and to Model/Graphics (rows 1-2), which need much more
+    # room. RAM/Storage and Model/Graphics/Battery are split into two separate
+    # tables below so their column widths can be sized independently instead
+    # of sharing one grid of columns.
+    CELL_HPAD = 12  # matches LEFTPADDING + RIGHTPADDING in _grid_table
+    WIDTH_BUFFER = 4
+
+    def _fit_width(text, buffer=WIDTH_BUFFER):
+        return pdfmetrics.stringWidth(text, "Ubuntu", 10) + CELL_HPAD + buffer
+
+    ram_val_width = _fit_width("128GB")
+    storage_val_width = _fit_width("1000GB NVMe", buffer=1)
+    bat_val_width = _fit_width("100%")
+
+    # RAM/Storage labels are their own row-0-only columns (sized to just fit
+    # their text), decoupled from the wider Model/Graphics label column below.
+    ram_label_width = _fit_width("RAM")
+    storage_label_width = _fit_width("Storage")
+
+    spec_label_col0 = 62  # Model / Graphics label
+    spec_label_col4 = 42  # CPU / Bat0 / Bat1 label
+
+    row0_col_widths = [
+        ram_label_width,
+        ram_val_width,
+        storage_label_width,
+        storage_val_width,
         spec_label_col4,
-        spec_flex * 0.38,
+        usable_width
+        - ram_label_width
+        - ram_val_width
+        - storage_label_width
+        - storage_val_width
+        - spec_label_col4,
     ]
-    spec_grid = _grid_table(
-        spec_grid_data,
-        spec_col_widths,
+    row0_table = _grid_table(
+        [
+            [
+                Paragraph("RAM", label_style),
+                Paragraph(ram_value, value_style),
+                Paragraph("Storage", label_style),
+                Paragraph(system_info.get("Storage", ""), value_style),
+                Paragraph("CPU", label_style),
+                Paragraph(system_info.get("CPU", ""), value_style),
+            ]
+        ],
+        row0_col_widths,
         extra_cmds=[
-            ("SPAN", (1, 1), (3, 1)),
-            ("SPAN", (1, 2), (3, 2)),
-            # Label columns: RAM/Model/Graphics, Storage (row 0 only), CPU/Bat0/Bat1
-            ("BACKGROUND", (0, 0), (0, -1), LABEL_BG),
+            ("BACKGROUND", (0, 0), (0, 0), LABEL_BG),
             ("BACKGROUND", (2, 0), (2, 0), LABEL_BG),
-            ("BACKGROUND", (4, 0), (4, -1), LABEL_BG),
+            ("BACKGROUND", (4, 0), (4, 0), LABEL_BG),
         ],
     )
-    elements.append(spec_grid)
+
+    row12_col_widths = [
+        spec_label_col0,
+        usable_width - spec_label_col0 - spec_label_col4 - bat_val_width,
+        spec_label_col4,
+        bat_val_width,
+    ]
+    row12_table = _grid_table(
+        [
+            [
+                Paragraph("Model", label_style),
+                Paragraph(system_info.get("Model", ""), value_style),
+                Paragraph(bat0_label, label_style),
+                Paragraph(bat0_value, value_style),
+            ],
+            [
+                Paragraph("Graphics", label_style),
+                Paragraph(system_info.get("Graphics", "N/A"), value_style),
+                Paragraph(bat1_label, label_style),
+                Paragraph(bat1_value, value_style),
+            ],
+        ],
+        row12_col_widths,
+        extra_cmds=[
+            ("BACKGROUND", (0, 0), (0, -1), LABEL_BG),
+            ("BACKGROUND", (2, 0), (2, -1), LABEL_BG),
+        ],
+    )
+    elements.append(row0_table)
+    elements.append(row12_table)
     elements.append(Spacer(1, 4))
 
     # ===== Hardware test grid (3x3) =====
@@ -404,26 +476,43 @@ def generate_tracking_sheet(
     webcam_value = webcam_map.get(mt.get("WebCam"), "")
     touchscreen_value = "YES" if Utils.has_touchscreen() else "NO"
 
+    def test_result_cell(value):
+        if value != "BAD":
+            return Paragraph(value, value_style)
+        return Table(
+            [[Paragraph("BAD", bad_value_style), _important_symbol()]],
+            colWidths=[None, 12],
+            style=TableStyle(
+                [
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("TOPPADDING", (0, 0), (-1, -1), 0),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                ]
+            ),
+        )
+
     test_grid_data = [
         [
             Paragraph("Keyboard:", label_style),
-            Paragraph(test_value("Keyboard"), value_style),
+            test_result_cell(test_value("Keyboard")),
             Paragraph("USB:", label_style),
-            Paragraph(test_value("USB"), value_style),
+            test_result_cell(test_value("USB")),
             Paragraph("Screen:", label_style),
-            Paragraph(test_value("ScreenTest"), value_style),
+            test_result_cell(test_value("ScreenTest")),
         ],
         [
             Paragraph("Wi-Fi:", label_style),
-            Paragraph(test_value("WiFi"), value_style),
+            test_result_cell(test_value("WiFi")),
             Paragraph("Sound:", label_style),
             Paragraph("", value_style),
             Paragraph("Touchpad:", label_style),
-            Paragraph(test_value("Touchpad"), value_style),
+            test_result_cell(test_value("Touchpad")),
         ],
         [
             Paragraph("Webcam:", label_style),
-            Paragraph(webcam_value, value_style),
+            test_result_cell(webcam_value),
             Paragraph("Touchscreen?", label_style),
             Paragraph(touchscreen_value, value_style),
             Paragraph("Physical:", label_style),
@@ -458,7 +547,7 @@ def generate_tracking_sheet(
     elements.append(Spacer(1, 4))
 
     # ===== Notes & Cosmetics =====
-    note_line_count = 11
+    note_line_count = 13
     notes_rows = [[Paragraph("Notes &amp; Cosmetics:", notes_label_style)]]
     for _ in range(note_line_count):
         notes_rows.append([""])
@@ -520,7 +609,7 @@ def generate_tracking_sheet(
     os_qc_table = Table(
         os_qc_data,
         colWidths=qc_col_widths,
-        rowHeights=[None, 0.42 * inch, 0.8 * inch, None],
+        rowHeights=[None, 0.42 * inch, 0.5 * inch, None],
     )
     os_qc_table.setStyle(
         TableStyle(
