@@ -124,13 +124,6 @@ class SpecComplete(Adw.Bin):
             formatted = Utils.format_knumber(raw)
             knumber = formatted or raw
 
-        if not knumber:
-            self.tracking_status.set_label(
-                "No K-Number set. Go back to the registration page."
-            )
-            self.tracking_status.add_css_class("text-error")
-            return
-
         state = self.state.get_value()
         spec_passed = all(state.values())
 
@@ -139,7 +132,15 @@ class SpecComplete(Adw.Bin):
             manual_test_results = self.manual_test.get_all_test_results()
 
         self.tracking_button.set_sensitive(False)
-        self.tracking_status.set_label("Generating tracking sheet...")
+        if not knumber:
+            # TODO: remove this fallback once Sortly registration is required
+            # before reaching this page. For now, allow printing a blank-K-number
+            # sheet so techs aren't blocked when Sortly is unavailable.
+            self.tracking_status.set_label(
+                "No K-Number set — generating a sheet with a blank K-Number field..."
+            )
+        else:
+            self.tracking_status.set_label("Generating tracking sheet...")
         if self.tracking_status.has_css_class("text-error"):
             self.tracking_status.remove_css_class("text-error")
 
