@@ -89,6 +89,10 @@ def get_system_info():
         info["Item Type"] = device_type
     if gpu:
         info["Graphics"] = gpu
+    else:
+        igpu = utils.get_integrated_gpu()
+        if igpu:
+            info["Graphics"] = igpu
 
     return info
 

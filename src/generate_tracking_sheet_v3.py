@@ -133,6 +133,10 @@ def _gather_system_info():
         info["Item Type"] = device_type
     if gpu:
         info["Graphics"] = gpu
+    else:
+        igpu = utils.get_integrated_gpu()
+        if igpu:
+            info["Graphics"] = igpu
 
     return info
 
@@ -207,10 +211,9 @@ def _do_register_fonts():
     pdfmetrics.registerFont(TTFont("Ubuntu", ubuntu_regular))
 
     bold_font_source = ubuntu_bold
-    if (
-        os.path.exists(BOLD_FONT_CACHE_PATH)
-        and os.path.getmtime(BOLD_FONT_CACHE_PATH) >= os.path.getmtime(ubuntu_bold)
-    ):
+    if os.path.exists(BOLD_FONT_CACHE_PATH) and os.path.getmtime(
+        BOLD_FONT_CACHE_PATH
+    ) >= os.path.getmtime(ubuntu_bold):
         bold_font_source = BOLD_FONT_CACHE_PATH
     else:
         try:
@@ -371,7 +374,9 @@ def _notes_table_rows(notes_entries, notes_label_style, value_style, content_wid
         text = entry.get("text")
         if text:
             para = Paragraph(text, wrapped_value_style)
-            _, wrapped_height = para.wrap(content_width, NOTE_LINE_BUDGET * NOTE_LINE_HEIGHT)
+            _, wrapped_height = para.wrap(
+                content_width, NOTE_LINE_BUDGET * NOTE_LINE_HEIGHT
+            )
             line_count = max(1, round(wrapped_height / NOTE_LINE_HEIGHT))
             rows.append([para])
             heights.append(line_count * NOTE_LINE_HEIGHT)
@@ -569,6 +574,11 @@ def generate_tracking_sheet(
     bat0_label, bat0_value = battery_cell(0)
     bat1_label, bat1_value = battery_cell(1)
 
+    # No batteries at all (e.g. a desktop) is worth calling out explicitly
+    # rather than leaving the Bat0 field blank.
+    if not battery_names:
+        bat0_label, bat0_value = "Bat0:", "NONE"
+
     ram_value = f"{system_info.get('RAM', '')}GB"
 
     # RAM, Storage, and Battery values have a known maximum length ("128GB",
@@ -651,27 +661,47 @@ def generate_tracking_sheet(
         ],
     )
 
-    graphics_row_widths = [
-        spec_label_col0,
-        usable_width - spec_label_col0 - spec_label_col4 - bat_val_width,
-        spec_label_col4,
-        bat_val_width,
-    ]
-    graphics_row_table = _grid_table(
-        [
+    # When there's no second battery, drop the Bat1 label/value columns and
+    # hand the freed width to the Graphics value column instead.
+    if len(battery_names) < 2:
+        graphics_row_widths = [
+            spec_label_col0,
+            usable_width - spec_label_col0,
+        ]
+        graphics_row_table = _grid_table(
             [
-                Paragraph("Graphics", label_style),
-                Paragraph(system_info.get("Graphics", "N/A"), value_style),
-                Paragraph(bat1_label, label_style),
-                Paragraph(bat1_value, value_style),
+                [
+                    Paragraph("Graphics", label_style),
+                    Paragraph(system_info.get("Graphics", "N/A"), value_style),
+                ],
             ],
-        ],
-        graphics_row_widths,
-        extra_cmds=[
-            ("BACKGROUND", (0, 0), (0, -1), LABEL_BG),
-            ("BACKGROUND", (2, 0), (2, -1), LABEL_BG),
-        ],
-    )
+            graphics_row_widths,
+            extra_cmds=[
+                ("BACKGROUND", (0, 0), (0, -1), LABEL_BG),
+            ],
+        )
+    else:
+        graphics_row_widths = [
+            spec_label_col0,
+            usable_width - spec_label_col0 - spec_label_col4 - bat_val_width,
+            spec_label_col4,
+            bat_val_width,
+        ]
+        graphics_row_table = _grid_table(
+            [
+                [
+                    Paragraph("Graphics", label_style),
+                    Paragraph(system_info.get("Graphics", "N/A"), value_style),
+                    Paragraph(bat1_label, label_style),
+                    Paragraph(bat1_value, value_style),
+                ],
+            ],
+            graphics_row_widths,
+            extra_cmds=[
+                ("BACKGROUND", (0, 0), (0, -1), LABEL_BG),
+                ("BACKGROUND", (2, 0), (2, -1), LABEL_BG),
+            ],
+        )
     elements.append(row0_table)
     elements.append(model_row_table)
     elements.append(graphics_row_table)
@@ -921,9 +951,7 @@ def generate_tracking_sheet(
     # doesn't fit (e.g. an unusually large number of failure notes) -- shrink
     # the whole page to fit instead, same as it would if hand-tuned to fit.
     frame_padding = 12  # default SimpleDocTemplate frame padding (6 top + 6 bottom)
-    available_height = (
-        page_size[1] - doc.topMargin - doc.bottomMargin - frame_padding
-    )
+    available_height = page_size[1] - doc.topMargin - doc.bottomMargin - frame_padding
     elements = [KeepInFrame(usable_width, available_height, elements, mode="shrink")]
 
     # Build PDF
