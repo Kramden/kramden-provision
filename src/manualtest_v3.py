@@ -1181,8 +1181,7 @@ class ScreenPage(DrawableLocationMixin, TogglePage):
         _set_status(self.launch_status, "Launching screen test...", auto_clear_ms=4000)
         try:
             process = subprocess.Popen(
-                "screen-test",
-                shell=True,
+                ["screen-test"],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
             )
