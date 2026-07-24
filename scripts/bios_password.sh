@@ -11,12 +11,15 @@ if [ -x "/opt/dell/dcc/cctk" ]; then
     # cctk has no read-only password query (--PasswordLock is a
     # different feature; --setuppwd/--syspwd are setters that
     # require a value). Probing with a write reveals whether an
-    # admin password is required: exit 65 means a password is set;
-    # exit 0 or 43 means no password is set.
+    # admin password is required: per Dell's CCTK error code
+    # reference, codes 149/152/180/191 all mean "setup/admin
+    # password required to change this setting". Exit 65 ("command
+    # sub-function disabled or unavailable") is unrelated to
+    # password state and must not be treated as a password signal.
     /opt/dell/dcc/cctk --tpmppiclearoverride=enable >/dev/null 2>&1
-    if [ $? -eq 65 ]; then
-        dell_admin_pass="enabled"
-    fi
+    case $? in
+        149|152|180|191) dell_admin_pass="enabled" ;;
+    esac
 fi
 
 hp_admin_pass=""
