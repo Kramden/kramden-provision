@@ -13,6 +13,10 @@ from generate_tracking_sheet_v3 import generate_tracking_sheet, prefetch_trackin
 # screen.
 MANUALTEST_ROWS_PER_COLUMN = 5
 
+# The tracking sheet printer at every station is a Brother MFC-L2710DW
+# series; used to pick its CUPS queue out of whatever else is configured.
+TRACKING_SHEET_PRINTER_MODEL = "mfc-l2710dw"
+
 
 class SpecCompleteV3(Adw.Bin):
     def __init__(self):
@@ -269,35 +273,46 @@ class SpecCompleteV3(Adw.Bin):
             )
 
     def _resolve_printer_name(self):
-        """Pick which CUPS destination to print to. Every one of these
-        machines is a fresh boot, so there's no guarantee a system default
-        destination is set -- fall back to the sole enabled printer if
-        there's exactly one, since that's the common case (one printer
-        wired up at the station)."""
+        """Pick which CUPS destination to print to: the tracking sheet
+        printer is always a Brother MFC-L2710DW series, so match any queue
+        whose name or description identifies it as one -- rather than
+        requiring a system default or exactly one printer to be connected,
+        since CUPS can end up with more than one queue for the same
+        physical printer (e.g. a USB path and a network path at once). If
+        more than one matches, prefer whichever currently has the fewest
+        jobs queued, since that one's most likely to actually be free."""
         try:
             result = subprocess.run(
-                ["lpstat", "-d"], capture_output=True, text=True, timeout=5
+                ["lpstat", "-l", "-p"], capture_output=True, text=True, timeout=5
             )
-            prefix = "system default destination:"
-            line = result.stdout.strip()
-            if line.lower().startswith(prefix):
-                name = line[len(prefix):].strip()
-                if name:
-                    return name
         except Exception:
-            pass
+            return None
 
+        candidates = []
+        current_name = None
+        for line in result.stdout.splitlines():
+            if line.startswith("printer "):
+                current_name = line.split()[1]
+            elif current_name and line.strip().startswith("Description:"):
+                description = line.split(":", 1)[1].strip()
+                haystack = f"{current_name} {description}".lower().replace("_", "-")
+                if TRACKING_SHEET_PRINTER_MODEL in haystack:
+                    candidates.append(current_name)
+
+        if not candidates:
+            return None
+        if len(candidates) == 1:
+            return candidates[0]
+        return min(candidates, key=self._queued_job_count)
+
+    def _queued_job_count(self, printer_name):
         try:
             result = subprocess.run(
-                ["lpstat", "-e"], capture_output=True, text=True, timeout=5
+                ["lpstat", "-o", printer_name], capture_output=True, text=True, timeout=5
             )
-            names = [line.strip() for line in result.stdout.splitlines() if line.strip()]
-            if len(names) == 1:
-                return names[0]
+            return len([line for line in result.stdout.splitlines() if line.strip()])
         except Exception:
-            pass
-
-        return None
+            return 0
 
     def _print_tracking_sheet(self):
         output_path = self._tracking_output_path
@@ -319,8 +334,8 @@ class SpecCompleteV3(Adw.Bin):
         if not printer:
             GLib.idle_add(
                 self._on_print_complete,
-                "No printer found. Set a CUPS default destination or make "
-                "sure exactly one printer is connected.",
+                "No Brother MFC-L2710DW printer found. Check the USB cable "
+                "and that the printer is powered on.",
             )
             return
         try:
