@@ -366,6 +366,8 @@ def _notes_table_rows(notes_entries, notes_label_style, value_style, content_wid
     heights = [0.28 * inch]
     used_lines = 0
 
+    from math import ceil
+
     wrapped_value_style = ParagraphStyle(
         "NotesValueWrapped", parent=value_style, leading=NOTE_LINE_HEIGHT
     )
@@ -377,7 +379,7 @@ def _notes_table_rows(notes_entries, notes_label_style, value_style, content_wid
             _, wrapped_height = para.wrap(
                 content_width, NOTE_LINE_BUDGET * NOTE_LINE_HEIGHT
             )
-            line_count = max(1, round(wrapped_height / NOTE_LINE_HEIGHT))
+            line_count = max(1, ceil(wrapped_height / NOTE_LINE_HEIGHT))
             rows.append([para])
             heights.append(line_count * NOTE_LINE_HEIGHT)
             used_lines += line_count
