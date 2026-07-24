@@ -1,5 +1,6 @@
 import gi
 import os
+import re
 import subprocess
 import threading
 
@@ -273,20 +274,96 @@ class SpecCompleteV3(Adw.Bin):
             )
 
     def _resolve_printer_name(self):
-        """Pick which CUPS destination to print to: the tracking sheet
-        printer is always a Brother MFC-L2710DW series, so match any queue
-        whose name or description identifies it as one -- rather than
-        requiring a system default or exactly one printer to be connected,
-        since CUPS can end up with more than one queue for the same
-        physical printer (e.g. a USB path and a network path at once). If
-        more than one matches, prefer whichever currently has the fewest
-        jobs queued, since that one's most likely to actually be free."""
+        """Pick which CUPS destination to print to.
+
+        The reliable path, when the printer is plugged in via USB, is to
+        talk straight to the local loopback IPP service that Ubuntu's
+        ipp-usb daemon already runs for it, via our own dedicated queue --
+        bypassing cups-browsed's auto-discovered queues entirely, since
+        those have repeatedly proven unreliable: an "implicitclass" queue
+        hangs/fails whenever cups-browsed sees the same printer over more
+        than one path (USB and network at once) and can't resolve a
+        destination, and a "dnssd" (network) queue fails outright if the
+        printer isn't actually reachable on the network at that moment
+        (e.g. it's only really connected via USB right now, even though a
+        stale mDNS record for it is still floating around).
+
+        Falls back to matching an existing cups-browsed queue by name only
+        if ipp-usb doesn't see a matching device at all (e.g. the printer
+        really is network-only at this station).
+        """
+        port = self._find_ipp_usb_port()
+        if port:
+            queue = self._ensure_direct_usb_queue(port)
+            if queue:
+                return queue
+        return self._resolve_browsed_printer_name()
+
+    def _find_ipp_usb_port(self):
+        """Return the local loopback port ipp-usb is serving the tracking
+        sheet printer on, if it's currently plugged in via USB."""
+        try:
+            result = subprocess.run(
+                ["ipp-usb", "status"], capture_output=True, text=True, timeout=5
+            )
+        except Exception:
+            return None
+
+        lines = result.stdout.splitlines()
+        for i, line in enumerate(lines):
+            match = re.match(r"\s*\d+\.\s+.*\s(\d+)\s+\"(.+)\"\s*$", line)
+            if not match:
+                continue
+            port, model = match.group(1), match.group(2)
+            if TRACKING_SHEET_PRINTER_MODEL not in model.lower().replace("_", "-"):
+                continue
+            status_line = lines[i + 1].strip().lower() if i + 1 < len(lines) else ""
+            if "status: ok" in status_line:
+                return port
+        return None
+
+    def _ensure_direct_usb_queue(self, port):
+        """Create (or update, harmlessly, if it already exists) a queue
+        pointed straight at ipp-usb's loopback service for this printer."""
+        queue_name = "KramdenTrackingSheetPrinter"
+        try:
+            subprocess.run(
+                [
+                    "lpadmin",
+                    "-p", queue_name,
+                    "-E",
+                    "-v", f"ipp://localhost:{port}/ipp/print",
+                    "-m", "everywhere",
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            return queue_name
+        except Exception:
+            return None
+
+    def _resolve_browsed_printer_name(self):
+        """Match an existing cups-browsed-discovered queue by name/
+        description, preferring a non-implicitclass one, least-busy first.
+        See _resolve_printer_name() for why this is only a fallback."""
         try:
             result = subprocess.run(
                 ["lpstat", "-l", "-p"], capture_output=True, text=True, timeout=5
             )
+            device_result = subprocess.run(
+                ["lpstat", "-v"], capture_output=True, text=True, timeout=5
+            )
         except Exception:
             return None
+
+        device_uris = {}
+        for line in device_result.stdout.splitlines():
+            # "device for <name>: <uri>"
+            if line.startswith("device for "):
+                name, _, uri = line[len("device for "):].partition(":")
+                device_uris[name.strip()] = uri.strip()
 
         candidates = []
         current_name = None
@@ -301,9 +378,15 @@ class SpecCompleteV3(Adw.Bin):
 
         if not candidates:
             return None
-        if len(candidates) == 1:
-            return candidates[0]
-        return min(candidates, key=self._queued_job_count)
+
+        direct = [
+            c for c in candidates
+            if not device_uris.get(c, "").startswith("implicitclass://")
+        ]
+        pool = direct or candidates
+        if len(pool) == 1:
+            return pool[0]
+        return min(pool, key=self._queued_job_count)
 
     def _queued_job_count(self, printer_name):
         try:
