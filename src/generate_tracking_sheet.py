@@ -378,6 +378,11 @@ def generate_tracking_sheet(
     bat0_label, bat0_value = battery_cell(0)
     bat1_label, bat1_value = battery_cell(1)
 
+    # No batteries at all (e.g. a desktop) is worth calling out explicitly
+    # rather than leaving the Bat0 field blank.
+    if not battery_names:
+        bat0_label, bat0_value = "Bat0:", "NONE"
+
     ram_value = f"{system_info.get('RAM', '')}GB"
 
     # RAM, Storage, and Battery values have a known maximum length ("128GB",
