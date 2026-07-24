@@ -1,0 +1,304 @@
+import gi
+import os
+import subprocess
+import threading
+
+gi.require_version("Adw", "1")
+from gi.repository import Adw, Gtk, GLib
+from utils import Utils
+from generate_tracking_sheet_v3 import generate_tracking_sheet, prefetch_tracking_sheet_data
+
+# Once the Manual Tests failure/incomplete list exceeds this many rows, the
+# remainder spills into a second column instead of growing the page past the
+# screen.
+MANUALTEST_ROWS_PER_COLUMN = 5
+
+
+class SpecCompleteV3(Adw.Bin):
+    def __init__(self):
+        super().__init__()
+        self.set_margin_top(24)
+        self.set_margin_bottom(24)
+        self.set_margin_start(24)
+        self.set_margin_end(24)
+        self.title = "Kramden Spec Complete"
+        self.skip = False
+        self.sortly_register = None
+        self.manual_test_pages = []
+        self.specinfo = None
+        self.on_navigate_to_page = None
+
+        # Print Tracking Sheet's biggest cost (variable-font instancing,
+        # discrete-GPU lookup) doesn't depend on anything the tech does in
+        # the wizard, so warm it up now, in the background, while they work
+        # through the manual test pages -- by the time they reach this page
+        # and click Print, it should already be done.
+        prefetch_tracking_sheet_data()
+
+        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+
+        page_header = Gtk.Label(label="Spec Complete")
+        page_header.add_css_class("title-3")
+        page_header.set_halign(Gtk.Align.START)
+
+        # Overall pass/fail row
+        complete_list = Gtk.ListBox()
+        complete_list.set_selection_mode(Gtk.SelectionMode.NONE)
+        complete_list.add_css_class("boxed-list")
+        complete_list.set_valign(Gtk.Align.START)
+
+        self.complete_row = Adw.ActionRow()
+        self.complete_row.set_title("")
+        complete_list.append(self.complete_row)
+
+        # Left column: System Info
+        specinfo_header = Gtk.Label(label="System Info")
+        specinfo_header.add_css_class("title-3")
+        specinfo_header.set_halign(Gtk.Align.START)
+
+        self.specinfo_list = Gtk.ListBox()
+        self.specinfo_list.set_selection_mode(Gtk.SelectionMode.NONE)
+        self.specinfo_list.add_css_class("boxed-list")
+        self.specinfo_list.set_valign(Gtk.Align.START)
+        self.specinfo_list.set_hexpand(True)
+
+        left_col = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        left_col.set_hexpand(True)
+        left_col.append(specinfo_header)
+        left_col.append(self.specinfo_list)
+
+        # Right column: Manual Tests
+        manualtest_header = Gtk.Label(label="Manual Tests")
+        manualtest_header.add_css_class("title-3")
+        manualtest_header.set_halign(Gtk.Align.START)
+
+        self.manualtest_list = Gtk.ListBox()
+        self.manualtest_list.set_selection_mode(Gtk.SelectionMode.NONE)
+        self.manualtest_list.add_css_class("boxed-list")
+        self.manualtest_list.set_valign(Gtk.Align.START)
+        self.manualtest_list.set_hexpand(True)
+
+        # Second column, only populated/shown once the first column has more
+        # than MANUALTEST_ROWS_PER_COLUMN rows -- keeps a long failure list
+        # from growing the page past the screen instead of wrapping sideways.
+        self.manualtest_list_2 = Gtk.ListBox()
+        self.manualtest_list_2.set_selection_mode(Gtk.SelectionMode.NONE)
+        self.manualtest_list_2.add_css_class("boxed-list")
+        self.manualtest_list_2.set_valign(Gtk.Align.START)
+        self.manualtest_list_2.set_hexpand(True)
+        self.manualtest_list_2.set_visible(False)
+
+        manualtest_lists_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=20)
+        manualtest_lists_box.append(self.manualtest_list)
+        manualtest_lists_box.append(self.manualtest_list_2)
+
+        right_col = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        right_col.set_hexpand(True)
+        right_col.append(manualtest_header)
+        right_col.append(manualtest_lists_box)
+
+        columns_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=20)
+        columns_box.append(left_col)
+        columns_box.append(right_col)
+
+        # Status label for tracking sheet feedback
+        self.tracking_status = Gtk.Label(label="")
+        self.tracking_status.set_xalign(0)
+        self.tracking_status.set_wrap(True)
+
+        # Print Tracking Sheet button
+        self.tracking_button = Gtk.Button(label="Print Tracking Sheet")
+        self.tracking_button.add_css_class("button-green")
+        self.tracking_button.connect("clicked", self._on_tracking_clicked)
+
+        vbox.append(page_header)
+        vbox.append(complete_list)
+        vbox.append(columns_box)
+        vbox.append(self.tracking_status)
+        vbox.append(self.tracking_button)
+
+        self.set_child(vbox)
+
+    def _clear_list(self, list_box):
+        while True:
+            child = list_box.get_first_child()
+            if child is None:
+                break
+            list_box.remove(child)
+
+    def _passed_row(self):
+        row = Adw.ActionRow()
+        row.set_title("<span foreground='#3fe35a'><b>Passed</b></span>")
+        row.set_icon_name("emblem-ok-symbolic")
+        return row
+
+    def _failure_row(self, reason):
+        row = Adw.ActionRow()
+        row.set_title(GLib.markup_escape_text(reason))
+        row.set_icon_name("emblem-important-symbolic")
+        row.add_css_class("text-error")
+        return row
+
+    def _incomplete_row(self, page):
+        row = Adw.ActionRow()
+        row.set_title(GLib.markup_escape_text(f"{page.title}: not filled out"))
+        row.set_icon_name("emblem-important-symbolic")
+        row.add_css_class("text-warning")
+        row.set_activatable(True)
+        row.connect("activated", self._on_incomplete_row_activated, page)
+        return row
+
+    def _on_incomplete_row_activated(self, row, page):
+        if self.on_navigate_to_page:
+            self.on_navigate_to_page(page)
+
+    def complete(self):
+        print("SpecCompleteV3: complete")
+        utils = Utils()
+        utils.complete_reset("spec")
+
+    def _on_tracking_clicked(self, button):
+        knumber = ""
+        if self.sortly_register:
+            raw = self.sortly_register.knumber_entry.get_text().strip()
+            formatted = Utils.format_knumber(raw)
+            knumber = formatted or raw
+
+        state = self.state.get_value()
+        spec_passed = all(state.values())
+
+        manual_test_results = {}
+        notes_entries = []
+        for page in self.manual_test_pages:
+            manual_test_results[page.key] = page.get_result()
+            if hasattr(page, "get_notes_entries"):
+                notes_entries.extend(page.get_notes_entries())
+
+        # The tracking sheet's "Sound:" field has no dedicated test page --
+        # it's derived from the Browser page (video and audio playback):
+        # GOOD unless Browser failed specifically due to an "Audio" defect.
+        browser_page = next(
+            (p for p in self.manual_test_pages if p.key == "Browser"), None
+        )
+        if browser_page is not None:
+            if not browser_page.is_complete():
+                manual_test_results["Sound"] = "Untested"
+            elif not browser_page.passed and browser_page.has_reason("Audio"):
+                manual_test_results["Sound"] = "Fail"
+            else:
+                manual_test_results["Sound"] = "Pass"
+
+        if self.specinfo is not None and not state.get("SpecInfo", True):
+            for reason in self.specinfo.get_failure_reasons():
+                notes_entries.append({"text": f"System Info: {reason}"})
+
+        self.tracking_button.set_sensitive(False)
+        if not knumber:
+            # TODO: remove this fallback once Sortly registration is required
+            # before reaching this page. For now, allow printing a blank-K-number
+            # sheet so techs aren't blocked when Sortly is unavailable.
+            self.tracking_status.set_label(
+                "No K-Number set — generating a sheet with a blank K-Number field..."
+            )
+        else:
+            self.tracking_status.set_label("Generating tracking sheet...")
+        if self.tracking_status.has_css_class("text-error"):
+            self.tracking_status.remove_css_class("text-error")
+
+        thread = threading.Thread(
+            target=self._generate_thread,
+            args=(knumber, spec_passed, manual_test_results, notes_entries),
+            daemon=True,
+        )
+        thread.start()
+
+    def _generate_thread(self, knumber, spec_passed, manual_test_results, notes_entries):
+        try:
+            output_path = generate_tracking_sheet(
+                knumber,
+                spec_passed=spec_passed,
+                manual_test_results=manual_test_results,
+                notes_entries=notes_entries,
+            )
+            GLib.idle_add(self._on_generate_complete, output_path, None)
+        except Exception as e:
+            GLib.idle_add(self._on_generate_complete, None, str(e))
+
+    def _on_generate_complete(self, output_path, error):
+        self.tracking_button.set_sensitive(True)
+        if error:
+            self.tracking_status.set_label(f"Failed: {error}")
+            self.tracking_status.add_css_class("text-error")
+            return
+
+        self.tracking_status.set_label(f"Saved: {output_path}")
+        if self.tracking_status.has_css_class("text-error"):
+            self.tracking_status.remove_css_class("text-error")
+
+        viewer = (
+            "/usr/bin/evince"
+            if os.path.exists("/usr/bin/evince")
+            else "/usr/bin/papers"
+        )
+        try:
+            subprocess.Popen([viewer, output_path])
+        except Exception as e:
+            self.tracking_status.set_label(
+                f"Saved: {output_path} (could not open viewer: {e})"
+            )
+
+    # on_shown is called when the page is shown in the stack
+    def on_shown(self):
+        print("SpecCompleteV3: on_shown")
+        state = self.state.get_value()
+
+        self._clear_list(self.specinfo_list)
+        self._clear_list(self.manualtest_list)
+        self._clear_list(self.manualtest_list_2)
+        self.manualtest_list_2.set_visible(False)
+
+        all_complete = all(page.is_complete() for page in self.manual_test_pages)
+        if not all_complete:
+            print("SpecCompleteV3: Incomplete")
+            self.complete_row.set_title("Kramden Spec Complete: <b>INCOMPLETE</b>")
+        else:
+            print("SpecCompleteV3: Complete")
+            self.complete_row.set_title("Kramden Spec Complete: <b>COMPLETE</b>")
+
+        # System Info column
+        if not state.get("SpecInfo", True) and self.specinfo:
+            for reason in self.specinfo.get_failure_reasons():
+                self.specinfo_list.append(self._failure_row(reason))
+        else:
+            self.specinfo_list.append(self._passed_row())
+
+        # Manual Tests column — one page per test now, rather than one
+        # combined ManualTest page. Pages with neither toggle selected yet
+        # get a clickable orange row instead of being lumped in with failures.
+        # Rows are collected first and only assigned to list boxes afterward,
+        # since a widget can only ever belong to one container -- once we
+        # know the total count we can decide whether to split into a second
+        # column instead of letting a long list run off the bottom of the
+        # screen.
+        rows = []
+        for page in self.manual_test_pages:
+            if not page.is_complete():
+                rows.append(self._incomplete_row(page))
+                continue
+            if not state.get(page.key, True):
+                for reason in page.get_failure_reasons():
+                    rows.append(self._failure_row(reason))
+        if not rows:
+            rows.append(self._passed_row())
+
+        if len(rows) > MANUALTEST_ROWS_PER_COLUMN:
+            split = (len(rows) + 1) // 2
+            first_column, second_column = rows[:split], rows[split:]
+        else:
+            first_column, second_column = rows, []
+
+        for row in first_column:
+            self.manualtest_list.append(row)
+        for row in second_column:
+            self.manualtest_list_2.append(row)
+        self.manualtest_list_2.set_visible(bool(second_column))
