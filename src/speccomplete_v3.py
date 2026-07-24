@@ -106,10 +106,19 @@ class SpecCompleteV3(Adw.Bin):
         self.tracking_status.set_xalign(0)
         self.tracking_status.set_wrap(True)
 
-        # Print Tracking Sheet button
-        self.tracking_button = Gtk.Button(label="Print Tracking Sheet")
-        self.tracking_button.add_css_class("button-green")
+        # Tracking Sheet button: starts as "Review" (blue) to generate the PDF
+        # and open it for a look; once that's done it flips to "Print" (green)
+        # and the same button sends it straight to the printer with the paper
+        # size forced to A5. Forcing A5 here -- rather than depending on the
+        # printer's default media or a tech picking it in the viewer's print
+        # dialog -- matters because every one of these machines is a fresh
+        # boot with its own from-scratch CUPS state; a default or a manual
+        # dialog selection on one machine doesn't carry over to the next one.
+        self.tracking_button = Gtk.Button(label="Review Tracking Sheet")
+        self.tracking_button.add_css_class("suggested-action")
         self.tracking_button.connect("clicked", self._on_tracking_clicked)
+        self._tracking_output_path = None
+        self._tracking_ready_to_print = False
 
         vbox.append(page_header)
         vbox.append(complete_list)
@@ -158,6 +167,12 @@ class SpecCompleteV3(Adw.Bin):
         utils.complete_reset("spec")
 
     def _on_tracking_clicked(self, button):
+        if self._tracking_ready_to_print:
+            self._print_tracking_sheet()
+        else:
+            self._generate_tracking_sheet()
+
+    def _generate_tracking_sheet(self):
         knumber = ""
         if self.sortly_register:
             raw = self.sortly_register.knumber_entry.get_text().strip()
@@ -235,6 +250,12 @@ class SpecCompleteV3(Adw.Bin):
         if self.tracking_status.has_css_class("text-error"):
             self.tracking_status.remove_css_class("text-error")
 
+        self._tracking_output_path = output_path
+        self._tracking_ready_to_print = True
+        self.tracking_button.set_label("Print Tracking Sheet")
+        self.tracking_button.remove_css_class("suggested-action")
+        self.tracking_button.add_css_class("button-green")
+
         viewer = (
             "/usr/bin/evince"
             if os.path.exists("/usr/bin/evince")
@@ -247,10 +268,115 @@ class SpecCompleteV3(Adw.Bin):
                 f"Saved: {output_path} (could not open viewer: {e})"
             )
 
+    def _resolve_printer_name(self):
+        """Pick which CUPS destination to print to. Every one of these
+        machines is a fresh boot, so there's no guarantee a system default
+        destination is set -- fall back to the sole enabled printer if
+        there's exactly one, since that's the common case (one printer
+        wired up at the station)."""
+        try:
+            result = subprocess.run(
+                ["lpstat", "-d"], capture_output=True, text=True, timeout=5
+            )
+            prefix = "system default destination:"
+            line = result.stdout.strip()
+            if line.lower().startswith(prefix):
+                name = line[len(prefix):].strip()
+                if name:
+                    return name
+        except Exception:
+            pass
+
+        try:
+            result = subprocess.run(
+                ["lpstat", "-e"], capture_output=True, text=True, timeout=5
+            )
+            names = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+            if len(names) == 1:
+                return names[0]
+        except Exception:
+            pass
+
+        return None
+
+    def _print_tracking_sheet(self):
+        output_path = self._tracking_output_path
+        if not output_path:
+            return
+
+        self.tracking_button.set_sensitive(False)
+        self.tracking_status.set_label("Printing...")
+        if self.tracking_status.has_css_class("text-error"):
+            self.tracking_status.remove_css_class("text-error")
+
+        thread = threading.Thread(
+            target=self._print_thread, args=(output_path,), daemon=True
+        )
+        thread.start()
+
+    def _print_thread(self, output_path):
+        printer = self._resolve_printer_name()
+        if not printer:
+            GLib.idle_add(
+                self._on_print_complete,
+                "No printer found. Set a CUPS default destination or make "
+                "sure exactly one printer is connected.",
+            )
+            return
+        try:
+            # print-scaling=none: the sheet is already sized exactly to A5,
+            # so scaling should never kick in -- if it did, that's a sign
+            # something about the sheet or printer changed and is worth
+            # noticing rather than silently compensating for.
+            subprocess.run(
+                [
+                    "lp",
+                    "-d",
+                    printer,
+                    "-o",
+                    "media=A5",
+                    "-o",
+                    "print-scaling=none",
+                    output_path,
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            GLib.idle_add(self._on_print_complete, None)
+        except subprocess.CalledProcessError as e:
+            GLib.idle_add(self._on_print_complete, e.stderr.strip() or str(e))
+        except Exception as e:
+            GLib.idle_add(self._on_print_complete, str(e))
+
+    def _on_print_complete(self, error):
+        self.tracking_button.set_sensitive(True)
+        if error:
+            self.tracking_status.set_label(f"Print failed: {error}")
+            self.tracking_status.add_css_class("text-error")
+            return
+
+        self.tracking_status.set_label("Sent to printer.")
+        if self.tracking_status.has_css_class("text-error"):
+            self.tracking_status.remove_css_class("text-error")
+
     # on_shown is called when the page is shown in the stack
     def on_shown(self):
         print("SpecCompleteV3: on_shown")
         state = self.state.get_value()
+
+        # Results may have changed since the last visit (e.g. the tech went
+        # back and redid a test), so any previously generated sheet is
+        # stale -- reset to "Review" rather than risk printing outdated data.
+        self._tracking_output_path = None
+        self._tracking_ready_to_print = False
+        self.tracking_button.set_label("Review Tracking Sheet")
+        self.tracking_button.remove_css_class("button-green")
+        self.tracking_button.add_css_class("suggested-action")
+        self.tracking_status.set_label("")
+        if self.tracking_status.has_css_class("text-error"):
+            self.tracking_status.remove_css_class("text-error")
 
         self._clear_list(self.specinfo_list)
         self._clear_list(self.manualtest_list)
