@@ -16,7 +16,15 @@ if [ -x "/opt/dell/dcc/cctk" ]; then
     # password required to change this setting". Exit 65 ("command
     # sub-function disabled or unavailable") is unrelated to
     # password state and must not be treated as a password signal.
-    /opt/dell/dcc/cctk --tpmppiclearoverride=enable >/dev/null 2>&1
+    #
+    # --tpmppiclearoverride is unsupported on some older platforms
+    # (e.g. Latitude E7250), where it always exits 65 regardless of
+    # password state, making it useless as a probe there. --PropOwnTag
+    # is supported far more broadly (it's used fleet-wide in dell.sh),
+    # so probe it instead by re-writing its current value — a no-op
+    # when the write succeeds.
+    current_owner=$(/opt/dell/dcc/cctk --PropOwnTag 2>/dev/null | awk -F= '{print $2}')
+    /opt/dell/dcc/cctk --PropOwnTag="$current_owner" >/dev/null 2>&1
     case $? in
         149|152|180|191) dell_admin_pass="enabled" ;;
     esac
