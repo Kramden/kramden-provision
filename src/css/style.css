@@ -12,6 +12,17 @@
     color: #E95420; /* Text color */
 }
 
+.instructions-label {
+    color: white;
+    font-size: 1.2em;
+}
+
+.sub-question-label {
+    color: white;
+    font-size: 1.15em;
+    font-weight: bold;
+}
+
 .text-warning {
     color: #e5a50a; /* Orange, matches .test-mode-banner */
 }

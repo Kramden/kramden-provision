@@ -3,9 +3,8 @@
 Generate a PDF tracking sheet with system hardware information (v3 preview
 fork of generate_tracking_sheet.py).
 
-Adds auto-populated "Notes & Cosmetics" entries (short text plus, for
-screen/touchscreen defects marked by drawing, an embedded diagram) built
-from each manual test page's get_notes_entries().
+Adds auto-populated, coded "Notes & Cosmetics" entries (e.g. "KB2: Key(s)
+Sticking (F, G)") built from each manual test page's get_notes_entries().
 
 Usage: python3 generate_tracking_sheet_v3.py <item_name> [output_path]
 """
@@ -40,14 +39,6 @@ except ImportError:
     )
     sys.exit(1)
 
-try:
-    import cairo
-    from drawing_utils import draw_screen_outline_and_strokes
-
-    _DIAGRAM_RENDER_AVAILABLE = True
-except ImportError:
-    _DIAGRAM_RENDER_AVAILABLE = False
-
 from utils import Utils
 
 TRACKING_SHEET_TITLE = "Kramden Institute Tracking Sheet"
@@ -65,9 +56,9 @@ QC_STAGES = [
 ]
 
 # Target number of note-line-equivalents to budget for in the Notes &
-# Cosmetics box (matches the original's fixed 13 blank lines). A text entry
-# costs 1 line; an embedded diagram costs 3. Whatever's left over is filled
-# with blank ruled lines for handwritten notes.
+# Cosmetics box (matches the original's fixed 13 blank lines). Whatever's
+# left over after each entry's wrapped height is filled with blank ruled
+# lines for handwritten notes.
 NOTE_LINE_BUDGET = 13
 NOTE_LINE_HEIGHT = 0.19 * inch
 MIN_BLANK_NOTE_LINES = 2
@@ -292,68 +283,9 @@ def _grid_table(data, col_widths, row_heights=None, extra_cmds=None):
     return table
 
 
-def _diagram_image(strokes, max_width):
-    """Render a defect-location diagram to a reportlab Image flowable, 3
-    note-line-heights tall and proportionally wide (capped to max_width)."""
-    render_w, render_h = 480, 300  # matches the laptop-screen draw shape
-    surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, render_w, render_h)
-    ctx = cairo.Context(surface)
-    # Invert the app's dark-theme colors for print: light background, dark
-    # outline/strokes, so this doesn't render as a solid dark block when
-    # printed in greyscale.
-    draw_screen_outline_and_strokes(
-        ctx,
-        render_w,
-        render_h,
-        strokes,
-        background_rgb=(0.97, 0.97, 0.97),
-        outline_rgb=(0.25, 0.25, 0.25),
-        stroke_rgb=(0.65, 0.1, 0.05),
-    )
-    buf = io.BytesIO()
-    surface.write_to_png(buf)
-    buf.seek(0)
-
-    target_height = 3 * NOTE_LINE_HEIGHT
-    target_width = min(target_height * (render_w / render_h), max_width)
-    return Image(buf, width=target_width, height=target_height)
-
-
-_DIAGRAM_GAP = 6
-
-
-def _diagrams_row(strokes_list, content_width):
-    """Lay out one or more separate defect diagrams side by side on a
-    single row, each shrunk to fit content_width / len(strokes_list) so
-    multiple drawings from the same test don't each claim their own line."""
-    count = len(strokes_list)
-    each_width = (content_width - _DIAGRAM_GAP * (count - 1)) / count
-    images = [_diagram_image(strokes, each_width) for strokes in strokes_list]
-    if count == 1:
-        return images[0]
-    # Column widths follow each image's actual (possibly narrower than
-    # each_width) rendered width so the diagrams sit snug next to each
-    # other instead of spread across evenly-divided, mostly-empty columns.
-    row = Table([images], colWidths=[img.drawWidth for img in images])
-    row.setStyle(
-        TableStyle(
-            [
-                ("LEFTPADDING", (0, 0), (-1, -1), 0),
-                ("RIGHTPADDING", (0, 0), (-1, -1), _DIAGRAM_GAP),
-                ("RIGHTPADDING", (-1, 0), (-1, 0), 0),
-                ("TOPPADDING", (0, 0), (-1, -1), 0),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ]
-        )
-    )
-    return row
-
-
 def _notes_table_rows(notes_entries, notes_label_style, value_style, content_width):
     """Build the [row, ...]/[height, ...] pairs for the Notes & Cosmetics
-    box: the auto-filled entries first (short text, plus an embedded
-    diagram for drawing-based reasons), then enough blank ruled lines to
+    box: the auto-filled entries first, then enough blank ruled lines to
     fill out the usual line budget.
 
     Entry text is concatenated (comma-separated) by the callers, so a
@@ -407,9 +339,9 @@ def generate_tracking_sheet(
 ):
     """Generate a single-page portrait PDF tracking sheet for a computer.
 
-    notes_entries, if given, is a list of {"text": str, "image_strokes_list":
-    optional} dicts (see manualtest_v3.TogglePage.get_notes_entries) that
-    are pre-filled into the "Notes & Cosmetics" box.
+    notes_entries, if given, is a list of {"text": str} dicts (see
+    manualtest_v3.TogglePage.get_notes_entries) that are pre-filled into the
+    "Notes & Cosmetics" box.
     """
     if output_path is None:
         if item_name:
@@ -743,12 +675,46 @@ def generate_tracking_sheet(
             ),
         )
 
+    def usb_result_cell():
+        """USB-A and USB-C are separate manual test pages (see
+        manualtest_v3.UsbAPage/UsbCPage) but share one "USB:" cell here.
+        "USBC" is only present in manual_test_results on devices with a
+        USB-C port (see spec_v3.py's has_usb_c() gating), mirroring the
+        Touchscreen key's presence-means-applicable convention above."""
+        segments = [("A", test_value("USBA"))]
+        if "USBC" in mt:
+            segments.append(("C", test_value("USBC")))
+        lines = []
+        any_bad = False
+        for label, value in segments:
+            if value == "BAD":
+                any_bad = True
+                lines.append(f'{label}: <font name="Ubuntu-Bold">BAD</font>')
+            else:
+                lines.append(f"{label}: {value}" if value else f"{label}:")
+        para = Paragraph("<br/>".join(lines), value_style)
+        if not any_bad:
+            return para
+        return Table(
+            [[para, _important_symbol()]],
+            colWidths=[None, 12],
+            style=TableStyle(
+                [
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("TOPPADDING", (0, 0), (-1, -1), 0),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                ]
+            ),
+        )
+
     test_grid_data = [
         [
             Paragraph("Keyboard:", label_style),
             test_result_cell(test_value("Keyboard")),
             Paragraph("USB:", label_style),
-            test_result_cell(test_value("USB")),
+            usb_result_cell(),
             Paragraph("Screen:", label_style),
             test_result_cell(test_value("ScreenTest")),
         ],

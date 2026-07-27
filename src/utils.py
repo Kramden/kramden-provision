@@ -960,6 +960,42 @@ class Utils:
         print("touchscreen detection: no touchscreen found")
         return False
 
+    @staticmethod
+    def is_wifi_connected():
+        """Whether a WiFi device currently has an active connection."""
+        try:
+            result = subprocess.run(
+                ["nmcli", "-t", "-f", "TYPE,STATE", "device"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            for line in result.stdout.strip().splitlines():
+                parts = line.split(":")
+                if len(parts) == 2 and parts[0] == "wifi" and parts[1] == "connected":
+                    return True
+            return False
+        except Exception:
+            return False
+
+    @staticmethod
+    def has_usb_c():
+        """Whether this device exposes any USB-C (Type-C) ports, used to
+        decide whether the USB-C manual test page should be shown at all.
+
+        /sys/class/typec/ has one entry per Type-C port (e.g. "port0") when
+        the kernel's typec class is populated. If it can't be read at all
+        (missing directory, permissions, older kernel without the typec
+        class), fail open and show the page rather than silently skipping a
+        real port.
+        """
+        try:
+            entries = os.listdir("/sys/class/typec/")
+        except OSError as e:
+            print(f"has_usb_c: error reading /sys/class/typec/: {e}")
+            return True
+        return any("port" in entry for entry in entries)
+
     KRAMDEN_EFIVAR_GUID = "9a8e2042-75d4-4d70-9890-6a8437367c1f"
     KRAMDEN_EFIVAR_PATH = (
         f"/sys/firmware/efi/efivars/KramdenNumber-{KRAMDEN_EFIVAR_GUID}"

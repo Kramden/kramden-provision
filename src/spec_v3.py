@@ -19,7 +19,8 @@ from manualtest_v3 import (
     TouchscreenPage,
     BrowserPage,
     WebcamPage,
-    UsbPortsPage,
+    UsbAPage,
+    UsbCPage,
 )
 from speccomplete_v3 import SpecCompleteV3
 from observable import ObservableProperty, StateObserver
@@ -46,7 +47,8 @@ class WizardWindow(Gtk.ApplicationWindow):
         self.connect("close-request", self._on_close_request)
 
         # Initialize the observable property for tracking state. One entry
-        # per page below (Touchscreen only exists on touch-capable devices).
+        # per page below (Touchscreen and USB-C only exist on capable
+        # devices).
         initial_state = {
             "SpecInfo": False,
             "PhysicalDefects": False,
@@ -56,11 +58,14 @@ class WizardWindow(Gtk.ApplicationWindow):
             "ScreenTest": False,
             "Browser": False,
             "WebCam": False,
-            "USB": False,
+            "USBA": False,
         }
         has_touchscreen = Utils.has_touchscreen()
         if has_touchscreen:
             initial_state["Touchscreen"] = False
+        has_usb_c = Utils.has_usb_c()
+        if has_usb_c:
+            initial_state["USBC"] = False
         self.observable_property = ObservableProperty(initial_state)
         # Create and add an observer
         observer = StateObserver()
@@ -104,13 +109,17 @@ class WizardWindow(Gtk.ApplicationWindow):
         touchscreen_pages = [TouchscreenPage()] if has_touchscreen else []
         browser = BrowserPage()
         webcam = WebcamPage()
-        usb = UsbPortsPage()
+        usb_a = UsbAPage()
+        usb_c_pages = [UsbCPage()] if has_usb_c else []
+        physical_defects.usb_a_page = usb_a
+        physical_defects.usb_c_page = usb_c_pages[0] if usb_c_pages else None
         complete = SpecCompleteV3()
 
         manual_test_pages = (
             [physical_defects, wifi, touchpad, keyboard, screen]
             + touchscreen_pages
-            + [browser, webcam, usb]
+            + [browser, webcam, usb_a]
+            + usb_c_pages
         )
         self.pages = [sortly_register, specinfo] + manual_test_pages + [complete]
 
@@ -123,12 +132,14 @@ class WizardWindow(Gtk.ApplicationWindow):
 
         for page in manual_test_pages:
             page.state = self.observable_property
+            page.on_status_changed = self.update_buttons
 
         complete.sortly_register = sortly_register
         complete.specinfo = specinfo
         complete.manual_test_pages = manual_test_pages
         complete.state = self.observable_property
         complete.on_navigate_to_page = self._navigate_to_page
+        complete.on_status_changed = self.update_buttons
 
         self.manual_test_pages = manual_test_pages
 
@@ -209,6 +220,11 @@ class WizardWindow(Gtk.ApplicationWindow):
             self._show_sortly_warning()
             return
 
+        current = self.pages[self.current_page]
+        if hasattr(current, "is_complete") and not current.is_complete():
+            self._show_incomplete_warning()
+            return
+
         self._advance_next()
 
     def _show_sortly_warning(self):
@@ -228,6 +244,18 @@ class WizardWindow(Gtk.ApplicationWindow):
         if response == Gtk.ResponseType.OK:
             self._advance_next()
 
+    def _show_incomplete_warning(self):
+        dialog = Gtk.MessageDialog(
+            transient_for=self,
+            modal=True,
+            message_type=Gtk.MessageType.WARNING,
+            buttons=Gtk.ButtonsType.OK,
+            text="You must fill out all of the necessary information before "
+            "moving to the next page!",
+        )
+        dialog.connect("response", lambda d, r: d.close())
+        dialog.present()
+
     def _advance_next(self):
         last_index = len(self.pages) - 1
         if self.current_page < last_index:
@@ -245,14 +273,25 @@ class WizardWindow(Gtk.ApplicationWindow):
         last_index = len(self.pages) - 1
         self.prev_button.set_sensitive(self.current_page > 0)
         self.next_button.set_sensitive(self.current_page <= last_index)
+        current = self.pages[self.current_page]
         if self.current_page == last_index:
             self.next_button.set_label("Complete")
             self.next_button.add_css_class("button-next-last-page")
-            all_complete = all(page.is_complete() for page in self.manual_test_pages)
+            self.next_button.remove_css_class("suggested-action")
+            all_complete = all(
+                page.is_complete() for page in self.manual_test_pages
+            ) and self.pages[last_index].is_complete()
             self.next_button.set_sensitive(all_complete)
         else:
             self.next_button.remove_css_class("button-next-last-page")
             self.next_button.set_label("Next")
+            # Light the button up once the current page has everything it
+            # needs to move on (see TogglePage/PhysicalDefectsPage.is_complete)
+            # -- pages without is_complete (Sortly, SpecInfo) are left alone.
+            if hasattr(current, "is_complete") and current.is_complete():
+                self.next_button.add_css_class("suggested-action")
+            else:
+                self.next_button.remove_css_class("suggested-action")
 
         # While SpecInfo is gathering data, lock Next so rapid clicks
         # don't queue and fire after the page finishes loading.

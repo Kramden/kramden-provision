@@ -124,6 +124,15 @@ class SpecCompleteV3(Adw.Bin):
         self.tracking_button.connect("clicked", self._on_tracking_clicked)
         self._tracking_output_path = None
         self._tracking_ready_to_print = False
+        # Both must happen at least once (in order) before is_complete()
+        # allows the wizard's "Complete" button to be clicked -- see
+        # is_complete() and on_shown() below.
+        self._tracking_reviewed = False
+        self._tracking_printed = False
+        # Set by spec_v3.py to WizardWindow.update_buttons, so the
+        # "Complete" button's sensitivity updates immediately when review/
+        # print finish, rather than waiting for the next page navigation.
+        self.on_status_changed = None
 
         vbox.append(page_header)
         vbox.append(complete_list)
@@ -209,8 +218,7 @@ class SpecCompleteV3(Adw.Bin):
                 manual_test_results["Sound"] = "Pass"
 
         if self.specinfo is not None and not state.get("SpecInfo", True):
-            for reason in self.specinfo.get_failure_reasons():
-                notes_entries.append({"text": f"System Info: {reason}"})
+            notes_entries.extend(self.specinfo.get_notes_entries())
 
         self.tracking_button.set_sensitive(False)
         if not knumber:
@@ -257,6 +265,7 @@ class SpecCompleteV3(Adw.Bin):
 
         self._tracking_output_path = output_path
         self._tracking_ready_to_print = True
+        self._tracking_reviewed = True
         self.tracking_button.set_label("Print Tracking Sheet")
         self.tracking_button.remove_css_class("suggested-action")
         self.tracking_button.add_css_class("button-green")
@@ -266,12 +275,33 @@ class SpecCompleteV3(Adw.Bin):
             if os.path.exists("/usr/bin/evince")
             else "/usr/bin/papers"
         )
+        # Evince/Papers persists its last window state (maximized/fullscreen)
+        # in GSettings and restores it on the next launch -- these are
+        # freshly-imaged, single-use machines, so without resetting this
+        # first the viewer tends to come up covering the whole screen
+        # instead of a normal window.
+        schema = (
+            "org.gnome.Evince.Default"
+            if viewer.endswith("evince")
+            else "org.gnome.Papers.Default"
+        )
+        try:
+            subprocess.run(
+                ["gsettings", "set", schema, "window-maximized", "false"],
+                check=False,
+                capture_output=True,
+                timeout=5,
+            )
+        except Exception:
+            pass
         try:
             subprocess.Popen([viewer, output_path])
         except Exception as e:
             self.tracking_status.set_label(
                 f"Saved: {output_path} (could not open viewer: {e})"
             )
+        if self.on_status_changed:
+            self.on_status_changed()
 
     def _resolve_printer_name(self):
         """Pick which CUPS destination to print to.
@@ -458,6 +488,16 @@ class SpecCompleteV3(Adw.Bin):
         self.tracking_status.set_label("Sent to printer.")
         if self.tracking_status.has_css_class("text-error"):
             self.tracking_status.remove_css_class("text-error")
+        self._tracking_printed = True
+        if self.on_status_changed:
+            self.on_status_changed()
+
+    def is_complete(self):
+        """The wizard's "Complete" button stays disabled until the tech has
+        both reviewed and printed the tracking sheet at least once (see
+        on_shown(), which resets this if they navigate away and the
+        underlying results change)."""
+        return self._tracking_reviewed and self._tracking_printed
 
     # on_shown is called when the page is shown in the stack
     def on_shown(self):
@@ -469,6 +509,8 @@ class SpecCompleteV3(Adw.Bin):
         # stale -- reset to "Review" rather than risk printing outdated data.
         self._tracking_output_path = None
         self._tracking_ready_to_print = False
+        self._tracking_reviewed = False
+        self._tracking_printed = False
         self.tracking_button.set_label("Review Tracking Sheet")
         self.tracking_button.remove_css_class("button-green")
         self.tracking_button.add_css_class("suggested-action")
@@ -482,9 +524,18 @@ class SpecCompleteV3(Adw.Bin):
         self.manualtest_list_2.set_visible(False)
 
         all_complete = all(page.is_complete() for page in self.manual_test_pages)
+        # A test marked "Has Issues" with no fully-filled-out reason (still)
+        # counts as incomplete (see TogglePage.is_complete), so printing a
+        # tracking sheet is blocked until every reported issue has its
+        # specifics filled in, not just an overall pass/fail.
+        self.tracking_button.set_sensitive(all_complete)
         if not all_complete:
             print("SpecCompleteV3: Incomplete")
             self.complete_row.set_title("Kramden Spec Complete: <b>INCOMPLETE</b>")
+            self.tracking_status.set_label(
+                "Complete all manual tests (with full details for any "
+                "reported issues) before printing the tracking sheet."
+            )
         else:
             print("SpecCompleteV3: Complete")
             self.complete_row.set_title("Kramden Spec Complete: <b>COMPLETE</b>")
