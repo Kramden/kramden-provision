@@ -113,6 +113,8 @@ class WizardWindow(Gtk.ApplicationWindow):
         usb_c_pages = [UsbCPage()] if has_usb_c else []
         physical_defects.usb_a_page = usb_a
         physical_defects.usb_c_page = usb_c_pages[0] if usb_c_pages else None
+        physical_defects.keyboard_page = keyboard
+        physical_defects.screen_page = screen
         complete = SpecCompleteV3()
 
         manual_test_pages = (
