@@ -1113,12 +1113,35 @@ class Utils:
         Defects page to prompt the tech to check/use the primary port
         instead."""
         status = Utils.get_charging_port_status()
-        return (
-            status["has_primary_port"]
-            and status["has_secondary_port"]
-            and status["secondary_online"]
-            and not status["primary_online"]
-        )
+        if not (status["has_primary_port"] and status["has_secondary_port"]):
+            return False
+        if not status["secondary_online"]:
+            return False
+        if status["primary_online"]:
+            return False
+
+        # Be conservative: if we can't read any primary "online" value, don't
+        # claim the primary port is unused.
+        try:
+            entries = os.listdir("/sys/class/power_supply/")
+        except OSError:
+            return False
+
+        primary_read_succeeded = False
+        for entry in entries:
+            base = f"/sys/class/power_supply/{entry}"
+            try:
+                with open(f"{base}/type", "r") as f:
+                    if f.read().strip() != "Mains":
+                        continue
+                with open(f"{base}/online", "r") as f:
+                    primary_read_succeeded = True
+                    if f.read().strip() == "1":
+                        return False
+            except OSError:
+                continue
+
+        return primary_read_succeeded
 
     KRAMDEN_EFIVAR_GUID = "9a8e2042-75d4-4d70-9890-6a8437367c1f"
     KRAMDEN_EFIVAR_PATH = (
