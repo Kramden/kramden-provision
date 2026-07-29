@@ -8,16 +8,10 @@ from gi.repository import Adw, GLib, Gtk
 from loading_capture import StdoutCapture
 from utils import Utils
 
-# Ordered so each reason's 1-based position is its tracking-sheet note code
-# (e.g. "SI1: BIOS password is set"). To add a new System Info check, add its
-# failure-reason string here (in get_failure_reasons() too) -- it gets the
-# next number for free; edit a string in place to change its wording.
-SPEC_INFO_REASONS = [
-    "BIOS password is set",
-    "Asset info present on device",
-    "Computrace/Absolute is active",
-    "Disk configuration needs review",
-]
+# Toggle: when True, finding a drive already installed in the device blocks
+# the SpecInfo page's Next button (until staff override it). Flip to False
+# to allow proceeding with a drive present, in case this policy changes.
+BLOCK_NEXT_WHEN_DRIVE_PRESENT = True
 
 
 class SpecInfo(Adw.Bin):
@@ -177,9 +171,7 @@ class SpecInfo(Adw.Bin):
         self._loading_textview.set_monospace(True)
         self._loading_textview.set_wrap_mode(Gtk.WrapMode.WORD_CHAR)
         loading_scroll = Gtk.ScrolledWindow()
-        loading_scroll.set_policy(
-            Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC
-        )
+        loading_scroll.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
         loading_scroll.set_min_content_height(320)
         loading_scroll.set_vexpand(True)
         loading_scroll.set_child(self._loading_textview)
@@ -328,7 +320,8 @@ class SpecInfo(Adw.Bin):
         bios_password = self._gathered["bios_password"]
         bios_password_warning = self._gathered.get("bios_password_warning")
         if bios_password and not self.bios_password_override:
-            # True: password detected – error state, blocks completion
+            # True: password detected -- flagged on the tracking sheet (see
+            # get_notes_entries) but does not block Next/completion.
             self.bios_password_row.set_subtitle("Has Password")
             self.bios_password_row.set_icon_name("emblem-important-symbolic")
             self.bios_password_row.add_css_class("text-error")
@@ -338,7 +331,6 @@ class SpecInfo(Adw.Bin):
                     "BIOS Password Override",
                     self._on_bios_password_override_accepted,
                 )
-            passed = False
         elif bios_password is None and not self.bios_password_override:
             # None: indeterminate – warning state, does NOT block completion
             self.bios_password_row.set_subtitle(
@@ -449,7 +441,7 @@ class SpecInfo(Adw.Bin):
             self.disks_populated = True
 
         # Check disk override status (runs every time on_shown is called)
-        if self.has_disks and not self.disk_override:
+        if BLOCK_NEXT_WHEN_DRIVE_PRESENT and self.has_disks and not self.disk_override:
             passed = False
 
         # Populate battery information
@@ -477,30 +469,37 @@ class SpecInfo(Adw.Bin):
         state["SpecInfo"] = passed
         print("specinfo:_render " + str(self.state.get_value()))
 
+    def is_complete(self):
+        """Whether the SpecInfo page's Next button should be enabled. A
+        drive or asset tag found on the device blocks progress outright
+        (staff can override via the row's Override button); a BIOS
+        password does not block -- see get_notes_entries()."""
+        if self._gathered.get("asset_info") and not self.asset_info_override:
+            return False
+        if BLOCK_NEXT_WHEN_DRIVE_PRESENT and self.has_disks and not self.disk_override:
+            return False
+        return True
+
     def get_failure_reasons(self):
         if not self._data_ready:
             return ["System info not yet gathered"]
         reasons = []
         if self._gathered.get("bios_password") and not self.bios_password_override:
-            reasons.append("BIOS password is set")
-        if self._gathered.get("asset_info") and not self.asset_info_override:
-            reasons.append("Asset info present on device")
+            reasons.append("HAS BIOS PASSWORD")
         if self._gathered.get("computrace") is True:
             reasons.append("Computrace/Absolute is active")
-        if self.has_disks and not self.disk_override:
-            reasons.append("Disk configuration needs review")
         return reasons
 
     def get_notes_entries(self):
-        """Same reasons as get_failure_reasons(), coded for the tracking
-        sheet's Notes & Cosmetics box (e.g. "SI1: BIOS password is set")."""
+        """Tracking-sheet notes for System Info issues that don't block
+        completion outright. A drive or asset tag blocks the SpecInfo
+        page's Next button before a tracking sheet can even be generated
+        (see is_complete()), so neither is reported here."""
         entries = []
-        for reason in self.get_failure_reasons():
-            try:
-                code = f"SI{SPEC_INFO_REASONS.index(reason) + 1}"
-            except ValueError:
-                code = "SIX"
-            entries.append({"text": f"{code}: {reason}"})
+        if self._gathered.get("bios_password") and not self.bios_password_override:
+            entries.append({"text": "<b>HAS BIOS PASSWORD</b>"})
+        if self._gathered.get("computrace") is True:
+            entries.append({"text": "Computrace/Absolute is active"})
         return entries
 
     def _add_override_button(self, parent_row, dialog_title, on_accepted):

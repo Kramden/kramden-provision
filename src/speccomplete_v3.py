@@ -217,7 +217,7 @@ class SpecCompleteV3(Adw.Bin):
             else:
                 manual_test_results["Sound"] = "Pass"
 
-        if self.specinfo is not None and not state.get("SpecInfo", True):
+        if self.specinfo is not None:
             notes_entries.extend(self.specinfo.get_notes_entries())
 
         self.tracking_button.set_sensitive(False)

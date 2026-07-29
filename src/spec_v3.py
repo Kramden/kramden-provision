@@ -129,6 +129,7 @@ class WizardWindow(Gtk.ApplicationWindow):
         specinfo.state = self.observable_property
         specinfo.on_loading_changed = self._on_specinfo_loading_changed
         self._specinfo_loading = False
+        self.specinfo_page = specinfo
 
         for page in manual_test_pages:
             page.state = self.observable_property
@@ -222,7 +223,10 @@ class WizardWindow(Gtk.ApplicationWindow):
 
         current = self.pages[self.current_page]
         if hasattr(current, "is_complete") and not current.is_complete():
-            self._show_incomplete_warning()
+            if current is self.specinfo_page:
+                self._show_specinfo_blocked_warning()
+            else:
+                self._show_incomplete_warning()
             return
 
         self._advance_next()
@@ -243,6 +247,25 @@ class WizardWindow(Gtk.ApplicationWindow):
         dialog.close()
         if response == Gtk.ResponseType.OK:
             self._advance_next()
+
+    def _show_specinfo_blocked_warning(self):
+        dialog = Gtk.MessageDialog(
+            transient_for=self,
+            modal=True,
+            message_type=Gtk.MessageType.WARNING,
+            buttons=Gtk.ButtonsType.NONE,
+            text="There is either asset info on this device or a drive in "
+            "this device. You can not spec this device. Please find a "
+            "Super Geek or Staff member and hand the machine to them.",
+        )
+        dialog.add_button("Power Off", Gtk.ResponseType.ACCEPT)
+        dialog.connect("response", self._on_specinfo_blocked_response)
+        dialog.present()
+
+    def _on_specinfo_blocked_response(self, dialog, response):
+        dialog.close()
+        if response == Gtk.ResponseType.ACCEPT:
+            Utils.power_off()
 
     def _show_incomplete_warning(self):
         dialog = Gtk.MessageDialog(
@@ -278,9 +301,10 @@ class WizardWindow(Gtk.ApplicationWindow):
             self.next_button.set_label("Complete")
             self.next_button.add_css_class("button-next-last-page")
             self.next_button.remove_css_class("suggested-action")
-            all_complete = all(
-                page.is_complete() for page in self.manual_test_pages
-            ) and self.pages[last_index].is_complete()
+            all_complete = (
+                all(page.is_complete() for page in self.manual_test_pages)
+                and self.pages[last_index].is_complete()
+            )
             self.next_button.set_sensitive(all_complete)
         else:
             self.next_button.remove_css_class("button-next-last-page")

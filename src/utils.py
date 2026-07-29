@@ -2,6 +2,7 @@ import psutil
 import subprocess
 import threading
 import os
+import glob
 import tempfile
 from constants import snap_packages, deb_packages, CHASSIS_TYPE_MAP, Brand
 import gi
@@ -127,6 +128,12 @@ class Utils:
         if result.returncode == 0:
             Utils.write_kramden_number_efivar(hostname)
         return result.returncode == 0
+
+    # Power off the machine (used when a device can't be specced and must be
+    # handed to a Super Geek/Staff member instead).
+    @staticmethod
+    def power_off():
+        subprocess.run(["systemctl", "poweroff"])
 
     # Set timezone and sync hardware clock
     def sync_clock(self):
@@ -954,6 +961,43 @@ class Utils:
         return False
 
     @staticmethod
+    def get_webcam_status():
+        """Classify camera hardware by inspecting /dev/video* device names:
+        "present" (at least one real, non-IR camera exists), "ir_only"
+        (only an infrared/Windows Hello camera exists), or "absent" (no
+        camera device at all)."""
+        ir_keywords = ["infrared", "ir camera", "windows hello", "ir sensor"]
+        found_ir = False
+        for video_path in sorted(glob.glob("/dev/video*")):
+            name_file = f"/sys/class/video4linux/{os.path.basename(video_path)}/name"
+            try:
+                with open(name_file) as f:
+                    name = f.read().strip().lower()
+            except OSError:
+                continue
+            if any(kw in name for kw in ir_keywords):
+                found_ir = True
+            else:
+                return "present"
+        return "ir_only" if found_ir else "absent"
+
+    @staticmethod
+    def has_trackpoint():
+        """Check if the system has a trackpoint (pointing stick) by
+        inspecting input device names for known trackpoint identifiers."""
+        try:
+            with open("/proc/bus/input/devices", "r") as f:
+                content = f.read()
+        except OSError as e:
+            print(f"trackpoint detection: error reading input devices: {e}")
+            return False
+        pattern = re.compile(r"trackpoint|pointstick|dualpoint stick", re.IGNORECASE)
+        for line in content.splitlines():
+            if line.startswith("N: Name=") and pattern.search(line):
+                return True
+        return False
+
+    @staticmethod
     def is_wifi_connected():
         """Whether a WiFi device currently has an active connection."""
         try:
@@ -988,6 +1032,109 @@ class Utils:
             print(f"has_usb_c: error reading /sys/class/typec/: {e}")
             return True
         return any("port" in entry for entry in entries)
+
+    @staticmethod
+    def get_charging_port_status():
+        """Inspect /sys/class/power_supply/ to tell whether this device is
+        being charged through its primary port (a "Mains"-type supply --
+        the barrel/DC-jack port on devices like Dell laptops) versus only
+        through a secondary USB charging path (e.g. a USB-C PD port also
+        present on the same device).
+
+        Returns a dict:
+          has_primary_port: a "Mains"-type power supply exists at all
+          has_secondary_port: a "USB*"-type power supply exists at all
+          primary_online: the primary port is actively delivering power
+          secondary_online: a secondary port is actively delivering power
+
+        Only counts an "online" reading when it can actually be read, so a
+        permissions/kernel quirk on one supply can't falsely report power
+        as absent -- callers should treat this as best-effort information,
+        not a guarantee.
+        """
+        has_primary_port = False
+        has_secondary_port = False
+        primary_online = False
+        secondary_online = False
+        try:
+            entries = os.listdir("/sys/class/power_supply/")
+        except OSError as e:
+            print(f"get_charging_port_status: error reading power_supply: {e}")
+            entries = []
+
+        for entry in entries:
+            base = f"/sys/class/power_supply/{entry}"
+            try:
+                with open(f"{base}/type", "r") as f:
+                    supply_type = f.read().strip()
+            except OSError:
+                continue
+
+            if supply_type == "Mains":
+                is_primary = True
+            elif supply_type.startswith("USB"):
+                is_primary = False
+            else:
+                continue
+
+            try:
+                with open(f"{base}/online", "r") as f:
+                    online = f.read().strip() == "1"
+            except OSError:
+                online = False
+
+            if is_primary:
+                has_primary_port = True
+                primary_online = primary_online or online
+            else:
+                has_secondary_port = True
+                secondary_online = secondary_online or online
+
+        return {
+            "has_primary_port": has_primary_port,
+            "has_secondary_port": has_secondary_port,
+            "primary_online": primary_online,
+            "secondary_online": secondary_online,
+        }
+
+    @staticmethod
+    def primary_charging_port_unused():
+        """True when this device has both a primary (Mains/barrel) charging
+        port and a secondary USB charging port, the secondary port is
+        currently delivering power, but the primary port is not -- i.e. the
+        machine is plugged in via the "wrong" port. Used by the Physical
+        Defects page to prompt the tech to check/use the primary port
+        instead."""
+        status = Utils.get_charging_port_status()
+        if not (status["has_primary_port"] and status["has_secondary_port"]):
+            return False
+        if not status["secondary_online"]:
+            return False
+        if status["primary_online"]:
+            return False
+
+        # Be conservative: if we can't read any primary "online" value, don't
+        # claim the primary port is unused.
+        try:
+            entries = os.listdir("/sys/class/power_supply/")
+        except OSError:
+            return False
+
+        primary_read_succeeded = False
+        for entry in entries:
+            base = f"/sys/class/power_supply/{entry}"
+            try:
+                with open(f"{base}/type", "r") as f:
+                    if f.read().strip() != "Mains":
+                        continue
+                with open(f"{base}/online", "r") as f:
+                    primary_read_succeeded = True
+                    if f.read().strip() == "1":
+                        return False
+            except OSError:
+                continue
+
+        return primary_read_succeeded
 
     KRAMDEN_EFIVAR_GUID = "9a8e2042-75d4-4d70-9890-6a8437367c1f"
     KRAMDEN_EFIVAR_PATH = (
