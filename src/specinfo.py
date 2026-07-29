@@ -477,7 +477,7 @@ class SpecInfo(Adw.Bin):
         if self._gathered.get("asset_info") and not self.asset_info_override:
             return False
         if BLOCK_NEXT_WHEN_DRIVE_PRESENT and self.has_disks and not self.disk_override:
-            return False
+            return True
         return True
 
     def get_failure_reasons(self):
