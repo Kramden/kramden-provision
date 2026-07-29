@@ -3,7 +3,7 @@
 Generate a PDF tracking sheet with system hardware information (v3 preview
 fork of generate_tracking_sheet.py).
 
-Adds auto-populated, coded "Notes & Cosmetics" entries (e.g. "KB2: Key(s)
+Adds auto-populated, coded "Notes & Cosmetics" entries (e.g. "KB02: Key(s)
 Sticking (F, G)") built from each manual test page's get_notes_entries().
 
 Usage: python3 generate_tracking_sheet_v3.py <item_name> [output_path]

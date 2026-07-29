@@ -20,7 +20,7 @@ CUSTOM_OPTION = "Custom..."
 PLACEHOLDER_REASONS = ["Reason option 1", "Reason option 2", "Reason option 3"]
 
 # Fixed Physical Defects defect-type list; a defect's tracking-sheet code
-# (PD1, PD2, ...) is just its 1-based position here -- see
+# (PD01, PD02, ...) is just its 1-based position here -- see
 # CUSTOM_REASON_CODE_SUFFIX below.
 PHYSICAL_DEFECT_TYPES = [
     "Dents",
@@ -36,7 +36,14 @@ PHYSICAL_SCREEN_SECTION_TYPES = {"Screen Cracked"}
 # Ask which part is affected, then where on that part (same sextant grid as
 # SCREEN_SECTIONS below -- see _build_section_picker).
 PHYSICAL_PART_LOCATION_TYPES = {"Dents", "Deep Scratches", "Peeling Paint", "Cracks"}
-PHYSICAL_AFFECTED_PARTS = ["Near Keyboard", "Top", "Bottom", "Bezel"]
+PHYSICAL_AFFECTED_PARTS = [
+    "Top of the lid",
+    "The Bezel (Around the screen)",
+    "Near the keyboard",
+    "On the bottom",
+    "On one of the sides of the laptop (including the back or front)",
+    "One or multiple corners",
+]
 # Ask which port type, reusing the same location/port-# picker as the
 # dedicated USB-A/USB-C pages (see UsbPortLocationMixin). Only USB-A/USB-C
 # trigger the suppress-on-matching-page logic below since those are the only
@@ -58,8 +65,8 @@ PHYSICAL_PORT_TYPES = [
 # see PhysicalDefectsPage._build_broken_part_picker/_delegate_broken_part.
 # "Hinge" and "Other" have no dedicated page and stay Physical-Defects-coded.
 PHYSICAL_BROKEN_PART_TYPES = {"Broken Part"}
-BROKEN_PART_KEYS_TYPE = "Keys Have Physical Damage"
-BROKEN_PART_PORT_TYPE = "Port Physically Broken"
+BROKEN_PART_KEYS_TYPE = "Keys have physical damage"
+BROKEN_PART_PORT_TYPE = "Port physically broken"
 BROKEN_PART_HINGE_TYPE = "Hinge"
 BROKEN_PART_SCREEN_TYPE = "Screen"
 BROKEN_PART_OTHER_TYPE = "Other"
@@ -85,12 +92,12 @@ USB_A_DEFECT_TYPES = [
 USB_A_PORT_DAMAGE_REASON = "USB Port is physically damage"
 # Tracking-sheet codes for USB-A reasons -- "finicky" and "does not work"
 # both just mean the port doesn't work right, so they share the default
-# UA1 code; only "physically damage" gets its own (UA2). Same "several
+# UA01 code; only "physically damage" gets its own (UA02). Same "several
 # reasons, one code" pattern as KeyboardPage._reason_code.
 USB_A_REASON_CODES = {
-    "USB Port is finicky, connection cuts in and out": "UA1",
-    "USB Port does not work": "UA1",
-    "USB Port is physically damage": "UA2",
+    "USB Port is finicky, connection cuts in and out": "UA01",
+    "USB Port does not work": "UA01",
+    "USB Port is physically damage": "UA02",
 }
 
 USB_C_DEFECT_TYPES = [
@@ -102,13 +109,13 @@ USB_C_DEFECT_TYPES = [
 # Must match an entry in USB_C_DEFECT_TYPES exactly -- see
 # USB_A_PORT_DAMAGE_REASON above, same suppression but for UsbCPage.
 USB_C_PORT_DAMAGE_REASON = "USB-C Port is physically damage"
-# See USB_A_REASON_CODES above -- "finicky"/"does not work" share UC1, and
-# the upside-down failure (unique to USB-C) gets its own UC3.
+# See USB_A_REASON_CODES above -- "finicky"/"does not work" share UC01, and
+# the upside-down failure (unique to USB-C) gets its own UC03.
 USB_C_REASON_CODES = {
-    "USB-C Port is finicky, connection cuts in and out": "UC1",
-    "USB-C Port does not work": "UC1",
-    "USB-C Port is physically damage": "UC2",
-    "USB-C Port works one way, but when flipping it upside-down, it doesn't work": "UC3",
+    "USB-C Port is finicky, connection cuts in and out": "UC01",
+    "USB-C Port does not work": "UC01",
+    "USB-C Port is physically damage": "UC02",
+    "USB-C Port works one way, but when flipping it upside-down, it doesn't work": "UC03",
 }
 
 USB_PORT_LOCATIONS = ["Left Side", "Right Side", "Back"]
@@ -121,54 +128,69 @@ BROWSER_DEFECT_TYPES = ["Video", "Audio"]
 WIFI_DEFECT_TYPES = [
     "Wi-Fi doesn't work",
     "Wi-Fi is extremely slow",
-    "No WiFi Adapter Detected",
+    "No WiFi device detected",
 ]
 
 TOUCHPAD_DEFECT_TYPES = [
     "Touchpad does not work at all",
     "A problem with left or right click",
-    "Touchpad feels very tight",
+    "Touchpad looks as if it is bulging out",
     "Something is wrong with how the cursor moves",
 ]
 
-# "A problem with left or right click" expands into this pick-list instead
-# of the generic touchpad-location section picker. The tracking-sheet note
-# for this reason is "TP2 Touchpad click broken: <zone(s)>" -- the zone
-# names below are just the bit after the colon, not full sentences -- see
-# TouchpadPage.build_reason_locations/_touchpad_reason_notes.
+# "A problem with left or right click" expands into "Left click"/"Right
+# click"/"Touchpad click" instead of the generic touchpad-location section
+# picker -- see TouchpadPage._build_click_picker. "Left click"/"Right
+# click" each get their own independent Top/Bottom location grid (a left-
+# click issue on Top and a right-click issue on Bottom aren't the same
+# report -- same "each gets its own grid" pattern as
+# PhysicalDefectsPage._build_part_location_picker); "Touchpad click" (the
+# physical push-to-click mechanism) has no location to narrow down. Unlike
+# every other reason here, this reason itself carries no single code --
+# each side reports under its own fixed code regardless of Top vs Bottom
+# (see TOUCHPAD_CLICK_SIDE_CODES/TouchpadPage._touchpad_click_notes).
 TOUCHPAD_CLICK_REASON = "A problem with left or right click"
-TOUCHPAD_CLICK_LABEL = "Touchpad click broken"
-TOUCHPAD_CLICK_ZONE_NOTES = {
-    "Top left click broken": "top left",
-    "Top right click broken": "top right",
-    "Bottom left click broken": "bottom left",
-    "Bottom right click broken": "bottom right",
-    "Pushing down on the touchpad to click does not work (and it is supposed to)": (
-        "physical click"
-    ),
+TOUCHPAD_CLICK_LOCATION_OPTIONS = ["Top", "Bottom"]
+TOUCHPAD_CLICK_SIDE_OPTIONS = ["Left click", "Right click", "Touchpad click"]
+# "Touchpad click" has no Top/Bottom location popup -- see
+# TouchpadPage._build_click_picker/_touchpad_click_notes.
+TOUCHPAD_CLICK_SIDES_WITH_LOCATION = {"Left click", "Right click"}
+TOUCHPAD_CLICK_SIDE_CODES = {
+    "Left click": "TP07",
+    "Right click": "TP08",
+    "Touchpad click": "TP02",
 }
-TOUCHPAD_CLICK_ZONE_OPTIONS = list(TOUCHPAD_CLICK_ZONE_NOTES)
+TOUCHPAD_CLICK_CODE_LABELS = {
+    "TP07": "Left click broken",
+    "TP08": "Right click broken",
+    "TP02": "Touchpad click broken",
+}
 
 # "Something is wrong with how the cursor moves" expands into this
-# pick-list. The tracking-sheet note is "TP4 Cursor moves strangely:
-# <behavior(s)>" -- see TOUCHPAD_CURSOR_NOTES/TouchpadPage._touchpad_reason_notes.
+# pick-list -- like the click reason above, it carries no single code of
+# its own; each selected behavior reports under its own fixed code
+# instead (see TOUCHPAD_CURSOR_CODES/TouchpadPage._touchpad_cursor_notes).
 TOUCHPAD_CURSOR_REASON = "Something is wrong with how the cursor moves"
-TOUCHPAD_CURSOR_LABEL = "Cursor moves strangely"
-TOUCHPAD_CURSOR_NOTES = {
-    "Cursor drags slowly": "drags slowly",
-    "Cursor moves on its own": "moves on its own",
-    "Cursor is too sensitive, it moves too fast": "too sensitive, moves too fast",
+TOUCHPAD_CURSOR_CODES = {
+    "Cursor drags slowly": "TP04",
+    "Cursor moves on its own": "TP05",
+    "Cursor is too sensitive, it moves too fast": "TP06",
 }
-TOUCHPAD_CURSOR_OPTIONS = list(TOUCHPAD_CURSOR_NOTES)
+TOUCHPAD_CURSOR_CODE_LABELS = {
+    "TP04": "Cursor drags slowly",
+    "TP05": "Cursor moves on its own",
+    "TP06": "Touchpad too sensitive",
+}
+TOUCHPAD_CURSOR_OPTIONS = list(TOUCHPAD_CURSOR_CODES)
 
 # Tracking-sheet note text for the touchpad reasons that don't expand into
 # a sub-picker -- see TouchpadPage._touchpad_reason_notes. Edit the values
 # here to change the wording that ends up on the tracking sheet (the code,
-# e.g. "TP1", is prepended automatically from reason_options position --
+# e.g. "TP01", is prepended automatically from reason_options position --
 # see CUSTOM_REASON_CODE_SUFFIX comment below).
 TOUCHPAD_REASON_NOTES = {
-    "Touchpad does not work at all": "Touchpad does not work",
-    "Touchpad feels very tight": "Touchpad feels tight",
+    "Touchpad does not work at all": "Touchpad broken",
+    "Touchpad looks as if it is bulging out": "Touchpad bulging",
 }
 
 SCREEN_DEFECT_TYPES = [
@@ -180,7 +202,7 @@ SCREEN_DEFECT_TYPES = [
     "Screen glitches out",
     "Backlight failing",
     "Screen broken",
-    "Screen not responding",
+    "Screen cracked",
 ]
 # Must match an entry in SCREEN_DEFECT_TYPES exactly -- Physical Defects'
 # "Broken Part" -> "Screen" delegates to this same no-location reason
@@ -189,11 +211,13 @@ SCREEN_DEFECT_TYPES = [
 SCREEN_BROKEN_REASON = "Screen broken"
 
 WEBCAM_DEFECT_TYPES = [
+    "The webcam does not work at all",
     "The webcam reports a solid black screen",
     "There are lines going across or down the webcam output",
     "The Image is blurry",
     "The video is very choppy with a low frame rate",
-    "Everything is black and white and flashing",
+    "Everything is monochrome and flashing",
+    "No webcam device found",
 ]
 
 # Tracking-sheet note text used when WebcamPage auto-detects no usable
@@ -202,39 +226,41 @@ WEBCAM_NO_DEVICE_NOTE = "No webcam present"
 WEBCAM_IR_ONLY_NOTE = "IR camera only, no webcam present"
 
 TOUCHSCREEN_DEFECT_TYPES = [
-    "Touchscreen doesn't work",
-    "Touchscreen is inaccurate",
-    "Some parts of the touchscreen are not working",
+    "Areas of the touchscreen aren't working",
+    "Where I touch is not where it registers",
+    "The touchscreen doesn't work at all",
+    "The cursor freaks out when I touch the screen",
 ]
 
 # The keyboard's top-level failure-reason buttons. "Physical damage" isn't
 # one of the 9 fixed data codes below -- picking it expands into its own
 # pick-list (PHYSICAL_DAMAGE_CATEGORIES) whose individual categories carry
-# the real codes (KB3/KB4/KB5) -- see KeyboardPage.build_reason_locations,
+# the real codes (KB03/KB04/KB05) -- see KeyboardPage.build_reason_locations,
 # KEYBOARD_REASON_CODES, and PHYSICAL_DAMAGE_CATEGORY_CODES below.
 KEYBOARD_DEFECT_TYPES = [
-    "Keyboard does not work",
-    "Keys do not work",
+    "The whole keyboard does not work",
+    "Certain keys do not work",
     "Physical damage",
-    "Keys need additional pressure",
-    "International keyboard",
-    "Keys stick",
-    "Keys type the wrong keys",
+    "Certain keys need extra pressure or massaging to work",
+    "It is an international keyboard",
+    "Certain keys stick",
+    "Keys report the incorrect keys when typing",
+    "Certain keys are scratched",
 ]
 
 # Tracking-sheet/failure-summary data codes for every keyboard reason
 # except "Physical damage" (see PHYSICAL_DAMAGE_CATEGORY_CODES for that
 # one) -- fixed explicitly here, rather than derived from each reason's
 # position in KEYBOARD_DEFECT_TYPES, since "Physical damage" occupies one
-# button but represents 3 codes (KB3/KB4/KB5), which would throw off
+# button but represents 3 codes (KB03/KB04/KB05), which would throw off
 # position-based numbering -- see KeyboardPage._reason_code.
 KEYBOARD_REASON_CODES = {
-    "Keyboard does not work": "KB1",
-    "Keys do not work": "KB2",
-    "Keys need additional pressure": "KB6",
-    "International keyboard": "KB7",
-    "Keys stick": "KB8",
-    "Keys type the wrong keys": "KB9",
+    "The whole keyboard does not work": "KB01",
+    "Certain keys do not work": "KB02",
+    "Certain keys need extra pressure or massaging to work": "KB06",
+    "It is an international keyboard": "KB07",
+    "Certain keys stick": "KB08",
+    "Keys report the incorrect keys when typing": "KB09",
 }
 
 # These two reasons apply to the whole keyboard with nothing to point at --
@@ -244,14 +270,14 @@ KEYBOARD_REASON_CODES = {
 # damage" category below) pops up the keyboard picker so the tech can mark
 # which specific keys are affected.
 KEYBOARD_NO_KEYS_REASONS = {
-    "Keyboard does not work",
-    "International keyboard",
+    "The whole keyboard does not work",
+    "It is an international keyboard",
 }
 
 # "Physical damage" expands into this pick-list instead of a single
 # keyboard popup -- see KeyboardPage.build_reason_locations. Each selected
 # category gets its own "Select Keys" popup. "Keys are scratched" has no
-# code of its own -- per user direction it's reported under the same KB4
+# code of its own -- per user direction it's reported under the same KB04
 # code as "Keys are cracked" (see KeyboardPage._physical_damage_notes,
 # which merges their key sets together on the tracking sheet).
 KEYBOARD_PHYSICAL_DAMAGE_REASON = "Physical damage"
@@ -262,15 +288,15 @@ PHYSICAL_DAMAGE_CATEGORIES = [
     "Keys are missing",
 ]
 PHYSICAL_DAMAGE_CATEGORY_CODES = {
-    "Keys are worn through": "KB5",
-    "Keys are cracked": "KB4",
-    "Keys are scratched": "KB4",
-    "Keys are missing": "KB3",
+    "Keys are worn through": "KB05",
+    "Keys are cracked": "KB04",
+    "Keys are scratched": "KB10",
+    "Keys are missing": "KB03",
 }
 PHYSICAL_DAMAGE_CODE_LABELS = {
-    "KB5": "Keys worn through",
-    "KB4": "Keys cracked",
-    "KB3": "Keys missing",
+    "KB05": "Keys worn through",
+    "KB04": "Keys cracked",
+    "KB03": "Keys missing",
 }
 
 SOUND_DEFECT_TYPES = [
@@ -292,7 +318,7 @@ ALL_KEYBOARD_KEYS = [key for row in KEYBOARD_LAYOUT for key in row]
 ENTIRE_KEYBOARD_MARKER = "__ENTIRE_KEYBOARD__"
 
 # Tracking sheet "Notes & Cosmetics" entries report each failure reason as a
-# short parseable code (e.g. "KB2: Key(s) Sticking (F, G)") instead of a full
+# short parseable code (e.g. "KB02: Key(s) Sticking (F, G)") instead of a full
 # sentence. The number is just 1-based position of that reason string in the
 # page's reason_options list (KEYBOARD_DEFECT_TYPES, TOUCHPAD_DEFECT_TYPES,
 # etc.) or PHYSICAL_DEFECT_TYPES for Physical Defects -- so to add a new
@@ -300,7 +326,7 @@ ENTIRE_KEYBOARD_MARKER = "__ENTIRE_KEYBOARD__"
 # change a code's wording, edit the string in place. A reason typed in via
 # the "Custom..." free-text box has no fixed slot, so it falls back to
 # "<PREFIX>O" instead of a number.
-CUSTOM_REASON_CODE_SUFFIX = "O"
+CUSTOM_REASON_CODE_SUFFIX = "OT"
 
 # The 6 regions of a laptop screen (3 across the top half, 3 across the
 # bottom half) used by the Screen/Touchscreen/Screen-Cracked defect-location
@@ -328,7 +354,7 @@ def _toggle_button_css(button):
 # once, edit the template here; to change what a single page calls itself
 # in that question, pass topic= to TogglePage.__init__ (or edit the
 # PhysicalDefectsPage topic below) instead of touching this template.
-DEFECT_QUESTION_TEMPLATE = "Did the {topic} work as expected?"
+DEFECT_QUESTION_TEMPLATE = "Did the {topic} work as expected? (Select all that apply)"
 
 
 def _scroll_to_bottom(scrolled_window):
@@ -563,6 +589,13 @@ def _build_fullscreen_section_row(title, select_all_label, data, on_change=None)
 
     launch_button.connect("clicked", _on_launch_clicked)
     row_box.append(launch_button)
+
+    # Launch the picker right away, as soon as the reason is added, instead
+    # of leaving the tech to remember to press the button -- same "ask
+    # immediately" pattern as KeyPickerDialog/_build_physical_damage_picker.
+    # The button stays so the picker can still be reopened to redo/correct
+    # the selection.
+    GLib.idle_add(_on_launch_clicked, launch_button)
 
     list_row = Gtk.ListBoxRow()
     list_row.set_selectable(False)
@@ -802,7 +835,7 @@ class TogglePage(Adw.Bin):
         # picker).
         self._suppressed_reasons = set()
         # See CUSTOM_REASON_CODE_SUFFIX above for the tracking-sheet code
-        # scheme this drives (e.g. "KB2: ...").
+        # scheme this drives (e.g. "KB02: ...").
         self.code_prefix = code_prefix
         # What this page calls itself in the "Are there any {topic} defects
         # ..." question below -- defaults to row_title, but a subclass can
@@ -1090,6 +1123,24 @@ class TogglePage(Adw.Bin):
                 port_num = port_numbers.get(location, "").strip()
                 parts.append(f"{location} (port #{port_num})" if port_num else location)
             return ", ".join(parts)
+        if kind == "click_sides":
+            # See TouchpadPage._build_click_picker -- "Touchpad click" has
+            # no location, "Left click"/"Right click" each have their own
+            # Top/Bottom selection.
+            sides = data.get("sides") or []
+            if not sides:
+                return "no click type specified"
+            parts = []
+            for side in sides:
+                if side in TOUCHPAD_CLICK_SIDES_WITH_LOCATION:
+                    locations = data.get("locations", {}).get(side) or []
+                    loc_text = (
+                        ", ".join(locations) if locations else "no location specified"
+                    )
+                    parts.append(f"{side}: {loc_text}")
+                else:
+                    parts.append(side)
+            return "; ".join(parts)
         return "no location specified"
 
     def _reason_is_filled(self, data):
@@ -1118,6 +1169,18 @@ class TogglePage(Adw.Bin):
             # multiple same-side ports); at least one location must be
             # picked for the reason to count as filled.
             return bool(data.get("locations"))
+        if kind == "click_sides":
+            # At least one side must be picked, and every side that needs
+            # a Top/Bottom location (see TOUCHPAD_CLICK_SIDES_WITH_LOCATION)
+            # must have one selected -- "Touchpad click" needs no location.
+            sides = data.get("sides") or []
+            if not sides:
+                return False
+            return all(
+                bool(data.get("locations", {}).get(side))
+                for side in sides
+                if side in TOUCHPAD_CLICK_SIDES_WITH_LOCATION
+            )
         return False
 
     def is_complete(self):
@@ -1148,12 +1211,12 @@ class TogglePage(Adw.Bin):
             self.on_status_changed()
 
     def _reason_code(self, reason):
-        """Short parseable code for a failure reason, e.g. "KB2" -- see the
+        """Short parseable code for a failure reason, e.g. "KB02" -- see the
         CUSTOM_REASON_CODE_SUFFIX comment near the top of this file."""
         if not self.code_prefix:
             return None
         try:
-            return f"{self.code_prefix}{self.reason_options.index(reason) + 1}"
+            return f"{self.code_prefix}{self.reason_options.index(reason) + 1:02d}"
         except ValueError:
             return f"{self.code_prefix}{CUSTOM_REASON_CODE_SUFFIX}"
 
@@ -1162,7 +1225,7 @@ class TogglePage(Adw.Bin):
         return f"{code}: {reason}" if code else reason
 
     def _code_sort_key(self, code):
-        """Numeric part of a code like "KB6" -> 6, so codes/notes always
+        """Numeric part of a code like "KB06" -> 6, so codes/notes always
         sort in numeric order regardless of the order reasons were added.
         A code that doesn't parse (e.g. the CUSTOM_REASON_CODE_SUFFIX
         fallback, or None) sorts last."""
@@ -1174,7 +1237,7 @@ class TogglePage(Adw.Bin):
             return 999
 
     def _failed_codes(self):
-        """Data codes (e.g. "KB2") for every reported failure reason,
+        """Data codes (e.g. "KB02") for every reported failure reason,
         deduped and sorted in numeric order -- used for the compact Spec
         Complete failure-summary row (get_failure_reasons) so it doesn't
         repeat the full reason/location text already on the tracking
@@ -1187,7 +1250,7 @@ class TogglePage(Adw.Bin):
     def _sorted_reason_items(self):
         """(reason, data) pairs from self._reason_entries sorted by each
         reason's numeric data code (its position in reason_options) so the
-        tracking sheet always lists issues in code order (KB1, KB2, ...)
+        tracking sheet always lists issues in code order (KB01, KB02, ...)
         regardless of the order they were added in the app. Custom
         free-text reasons have no fixed number (see CUSTOM_REASON_CODE_SUFFIX)
         and sort after every numbered one, in the order they were added."""
@@ -1204,7 +1267,7 @@ class TogglePage(Adw.Bin):
 
     def get_failure_reasons(self):
         """Reported reasons are summarized as just their data codes (e.g.
-        "Keyboard failed: KB1, KB4, KB9") rather than the full
+        "Keyboard failed: KB01, KB04, KB09") rather than the full
         reason/location text -- that detail already lives on the tracking
         sheet (see get_notes_entries); this is just the compact Spec
         Complete screen summary."""
@@ -1220,7 +1283,7 @@ class TogglePage(Adw.Bin):
         return []
 
     def get_notes_entries(self):
-        """Each reported reason becomes its own coded detail (e.g. "KB2:
+        """Each reported reason becomes its own coded detail (e.g. "KB02:
         Key(s) Sticking (F, G)"), all joined onto a single line so multiple
         issues on the same test read as one grouped note."""
         if self.passed is not False:
@@ -1310,7 +1373,7 @@ class PhysicalDefectsPage(Adw.Bin):
 
         result_group = Adw.PreferencesGroup(title="Result")
         toggle_row = Adw.ActionRow()
-        toggle_row.set_title("Is the laptop in good physical condition? (FIXME)")
+        toggle_row.set_title("Is the laptop in good physical condition?")
 
         toggle_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
         toggle_box.add_css_class("linked")
@@ -1333,7 +1396,7 @@ class PhysicalDefectsPage(Adw.Bin):
         defects_content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
 
         defect_buttons_box, self._defect_buttons = _build_toggle_button_grid(
-            "What type of damage is present? (Add all that apply)",
+            "What type of damage is present? (Select all that apply)",
             PHYSICAL_DEFECT_TYPES + [CUSTOM_OPTION],
             self._on_defect_button_toggled,
         )
@@ -1545,7 +1608,7 @@ class PhysicalDefectsPage(Adw.Bin):
             _scroll_to_bottom(self.scrolled)
 
         parts_row = _build_section_row(
-            "Affected part(s)",
+            f"Where is/are the {entry_row.get_title()}(s)?",
             PHYSICAL_AFFECTED_PARTS,
             columns=len(PHYSICAL_AFFECTED_PARTS),
             on_change=_on_parts_change,
@@ -1904,9 +1967,9 @@ class PhysicalDefectsPage(Adw.Bin):
                 if not page.fail_button.get_active():
                     page.fail_button.set_active(True)
                 page.suppress_reason_option(reason)
-                port_data["_delegated_pages"][
-                    port_type
-                ] = self._build_port_physical_damage_block(block, page, reason)
+                port_data["_delegated_pages"][port_type] = (
+                    self._build_port_physical_damage_block(block, page, reason)
+                )
                 return block
 
             if port_type == "Other":
@@ -1923,7 +1986,9 @@ class PhysicalDefectsPage(Adw.Bin):
 
             ports_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
 
-            def _on_locations_change(selected, port_type=port_type, ports_box=ports_box):
+            def _on_locations_change(
+                selected, port_type=port_type, ports_box=ports_box
+            ):
                 port_data["locations"][port_type] = selected
                 port_data["port_numbers"][port_type] = {
                     location: value
@@ -2042,7 +2107,7 @@ class PhysicalDefectsPage(Adw.Bin):
         Physical Defects entry, so the tech never has to leave this page.
         The resulting data is registered as keyboard_page's own reason
         entry (tracked under the Keyboard test's own datacode --
-        KB3/KB4/KB5), with a read-only mirror row on keyboard_page's own
+        KB03/KB04/KB05), with a read-only mirror row on keyboard_page's own
         reasons list (see _add_mirror_row) keeping that page showing the
         same, correctly filled out report."""
         data = keyboard_page._build_physical_damage_picker(_RowAdderBox(block))
@@ -2074,7 +2139,7 @@ class PhysicalDefectsPage(Adw.Bin):
         """Embeds the same location/port-# picker usb_page itself would
         show (see UsbPortLocationMixin.build_reason_locations) directly
         inside this Physical Defects entry -- tracked under that page's
-        own datacode (UA2/UC2) instead of a Physical Defects one, with a
+        own datacode (UA02/UC02) instead of a Physical Defects one, with a
         read-only mirror row on that page's own reasons list (see
         _add_mirror_row) so visiting it directly shows the same, correctly
         filled out report."""
@@ -2104,7 +2169,7 @@ class PhysicalDefectsPage(Adw.Bin):
         screen_page itself would show for "Screen broken" (see
         ScreenSectionMixin.build_reason_locations) directly inside this
         Physical Defects entry -- tracked under the Screen test's own
-        datacode (SC8) instead of a Physical Defects one, with a
+        datacode (SC08) instead of a Physical Defects one, with a
         read-only mirror row on screen_page's own reasons list (see
         _add_mirror_row) so visiting it directly shows the same,
         correctly filled out report."""
@@ -2144,7 +2209,7 @@ class PhysicalDefectsPage(Adw.Bin):
         return None
 
     def _delegate_broken_part(self, sub_type, data, block, status_label):
-        """"Keys Have Physical Damage"/"Screen" are reported the same way
+        """ "Keys Have Physical Damage"/"Screen" are reported the same way
         the tech would on that page directly, right here in Physical
         Defects (see _build_keys_physical_damage_block/
         _build_screen_broken_block) -- tracked (and coded) under that
@@ -2363,7 +2428,9 @@ class PhysicalDefectsPage(Adw.Bin):
     def _defect_code(self, defect_type):
         """See CUSTOM_REASON_CODE_SUFFIX near the top of this file."""
         try:
-            return f"{self.CODE_PREFIX}{PHYSICAL_DEFECT_TYPES.index(defect_type) + 1}"
+            return (
+                f"{self.CODE_PREFIX}{PHYSICAL_DEFECT_TYPES.index(defect_type) + 1:02d}"
+            )
         except ValueError:
             return f"{self.CODE_PREFIX}{CUSTOM_REASON_CODE_SUFFIX}"
 
@@ -2449,7 +2516,7 @@ class PhysicalDefectsPage(Adw.Bin):
 
     def get_failure_reasons(self):
         """Reported defects are summarized as just their data codes (e.g.
-        "PD1, PD5") rather than the full defect/location text -- that
+        "PD01, PD05") rather than the full defect/location text -- that
         detail already lives on the tracking sheet (see get_notes_entries);
         this is just the compact Spec Complete screen summary. "Broken
         Part" is left out entirely when everything selected under it was
@@ -2476,7 +2543,7 @@ class PhysicalDefectsPage(Adw.Bin):
     def get_notes_entries(self):
         """All reported defects are concatenated onto a single line (rather
         than one line per defect type) so damages affecting the device read
-        as a single grouped note, e.g. "PD1: Hinge Broken, PD5: Deep
+        as a single grouped note, e.g. "PD01: Hinge Broken, PD05: Deep
         Scratches (Keyboard: Top, Left)". "Broken Part" contributes nothing
         here when everything selected under it was handed off to a
         dedicated test page instead (see _broken_part_detail, which
@@ -2566,12 +2633,7 @@ class TouchpadPage(TogglePage):
 
     def build_reason_locations(self, entry_row, reason):
         if reason == TOUCHPAD_CLICK_REASON:
-            return _build_section_picker(
-                self,
-                entry_row,
-                options=TOUCHPAD_CLICK_ZONE_OPTIONS,
-                title="Which click(s) are broken?",
-            )
+            return self._build_click_picker(entry_row)
         if reason == TOUCHPAD_CURSOR_REASON:
             return _build_section_picker(
                 self,
@@ -2585,41 +2647,167 @@ class TouchpadPage(TogglePage):
         # custom entries simple.
         return {"type": "none"}
 
+    def _build_click_picker(self, entry_row):
+        """ "A problem with left or right click" expands into "Left
+        click"/"Right click"/"Touchpad click" -- Left/Right each get their
+        own independent Top/Bottom location grid (same "each gets its own
+        grid" pattern as PhysicalDefectsPage._build_part_location_picker,
+        since a left-click issue on Top and a right-click issue on Bottom
+        aren't the same report); "Touchpad click" has no location to narrow
+        down. See TOUCHPAD_CLICK_SIDE_CODES/_touchpad_click_notes for how
+        each side reports under its own fixed code regardless of Top vs
+        Bottom."""
+        data = {"type": "click_sides", "sides": [], "locations": {}}
+
+        locations_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        locations_list_row = Gtk.ListBoxRow()
+        locations_list_row.set_selectable(False)
+        locations_list_row.set_activatable(False)
+        locations_list_row.set_child(locations_box)
+
+        # Keyed by side so a side's Top/Bottom row is only built once and
+        # left alone as long as that side stays selected -- toggling a
+        # *different* side used to rebuild every row from scratch, which
+        # reset every already-picked Top/Bottom button back to unchecked.
+        location_rows = {}
+
+        def _add_location_row(side):
+            def _on_location_change(selected, side=side):
+                data["locations"][side] = selected
+                self.check_status()
+
+            side_row = _build_section_row(
+                f"Where is/are the {side} issue(s)?",
+                TOUCHPAD_CLICK_LOCATION_OPTIONS,
+                columns=len(TOUCHPAD_CLICK_LOCATION_OPTIONS),
+                on_change=_on_location_change,
+            )
+            location_rows[side] = side_row
+            locations_box.append(side_row)
+
+        def _on_sides_change(selected):
+            data["sides"] = selected
+            for side in list(location_rows):
+                if side not in selected:
+                    locations_box.remove(location_rows.pop(side))
+                    data["locations"].pop(side, None)
+            for side in selected:
+                if (
+                    side in TOUCHPAD_CLICK_SIDES_WITH_LOCATION
+                    and side not in location_rows
+                ):
+                    _add_location_row(side)
+            self.check_status()
+            _scroll_to_bottom(self.scrolled)
+
+        sides_row = _build_section_row(
+            "Which click(s) are broken?",
+            TOUCHPAD_CLICK_SIDE_OPTIONS,
+            columns=len(TOUCHPAD_CLICK_SIDE_OPTIONS),
+            on_change=_on_sides_change,
+        )
+        entry_row.add_row(sides_row)
+        entry_row.add_row(locations_list_row)
+        return data
+
     def get_notes_entries(self):
         """Overrides TogglePage.get_notes_entries -- touchpad reasons get
         their own plain-English wording (see TOUCHPAD_REASON_NOTES /
-        TOUCHPAD_CLICK_ZONE_NOTES / TOUCHPAD_CURSOR_NOTES above), still
-        prefixed with their "TP<n>" data code (see _reason_code) so the
-        tracking sheet stays consistent with every other test's notes."""
+        TOUCHPAD_CLICK_CODE_LABELS / TOUCHPAD_CURSOR_CODE_LABELS above),
+        still prefixed with a "TP<n>" data code so the tracking sheet stays
+        consistent with every other test's notes. "A problem with left or
+        right click" and "Something is wrong with how the cursor moves"
+        have no code of their own -- each selected sub-option maps to its
+        own real code instead (see _touchpad_click_notes/
+        _touchpad_cursor_notes), so entries are gathered across every
+        reason and re-sorted by code at the end (same pattern as
+        KeyboardPage.get_notes_entries for "Physical damage")."""
         if self.passed is not False:
             return []
         if not self._reason_entries:
             return [{"text": "Touchpad: issue reported"}]
-        details = []
-        for reason, data in self._sorted_reason_items():
-            details.extend(self._touchpad_reason_notes(reason, data))
-        return [{"text": ", ".join(details)}]
+        entries = []
+        for reason, (entry_row, data) in self._reason_entries.items():
+            entries.extend(self._touchpad_reason_notes(reason, data))
+        entries.sort(key=lambda entry: self._code_sort_key(entry[0]))
+        return [{"text": ", ".join(text for _, text in entries)}]
+
+    def _failed_codes(self):
+        """Overrides TogglePage._failed_codes -- the click/cursor reasons
+        have no code of their own, so they contribute whichever real codes
+        their selected sub-options map to instead of being skipped (see
+        KeyboardPage._failed_codes for the same "Physical damage"
+        pattern)."""
+        codes = set()
+        for reason, (entry_row, data) in self._reason_entries.items():
+            if reason in (TOUCHPAD_CLICK_REASON, TOUCHPAD_CURSOR_REASON):
+                codes.update(
+                    code for code, _ in self._touchpad_reason_notes(reason, data)
+                )
+            else:
+                code = self._reason_code(reason)
+                if code:
+                    codes.add(code)
+        return sorted(codes, key=self._code_sort_key)
+
+    def _reason_code(self, reason):
+        """Overrides TogglePage._reason_code -- "A problem with left or
+        right click" and "Something is wrong with how the cursor moves"
+        get no single code of their own (see class docstring above);
+        every other touchpad reason keeps the default position-based
+        code."""
+        if reason in (TOUCHPAD_CLICK_REASON, TOUCHPAD_CURSOR_REASON):
+            return None
+        return super()._reason_code(reason)
+
+    def _touchpad_click_notes(self, data):
+        """Each selected click side reports under its own fixed code (see
+        TOUCHPAD_CLICK_SIDE_CODES) regardless of Top vs Bottom -- Top/
+        Bottom is just location detail on the tracking sheet, not a
+        separate code."""
+        sides = data.get("sides") or []
+        notes = []
+        for side in sides:
+            code = TOUCHPAD_CLICK_SIDE_CODES[side]
+            label = TOUCHPAD_CLICK_CODE_LABELS[code]
+            if side in TOUCHPAD_CLICK_SIDES_WITH_LOCATION:
+                locations = data.get("locations", {}).get(side) or []
+                loc_text = (
+                    ", ".join(locations) if locations else "no location specified"
+                )
+                notes.append((code, f"{code} {label}: {loc_text}"))
+            else:
+                notes.append((code, f"{code} {label}"))
+        return notes
+
+    def _touchpad_cursor_notes(self, data):
+        """Each selected cursor behavior reports under its own fixed code
+        (see TOUCHPAD_CURSOR_CODES) instead of one merged code/line for
+        every behavior."""
+        selected = data.get("selected") or []
+        notes = []
+        for opt in selected:
+            code = TOUCHPAD_CURSOR_CODES[opt]
+            label = TOUCHPAD_CURSOR_CODE_LABELS[code]
+            addendum = (
+                self._cursor_moves_addendum()
+                if opt == "Cursor moves on its own"
+                else ""
+            )
+            notes.append((code, f"{code} {label}{addendum}"))
+        return notes
 
     def _touchpad_reason_notes(self, reason, data):
-        code = self._reason_code(reason)
         if reason == TOUCHPAD_CLICK_REASON:
-            selected = data.get("selected") or []
-            zones = [TOUCHPAD_CLICK_ZONE_NOTES[zone] for zone in selected]
-            suffix = f": {', '.join(zones)}" if zones else ""
-            return [f"{code} {TOUCHPAD_CLICK_LABEL}{suffix}"]
+            return self._touchpad_click_notes(data)
         if reason == TOUCHPAD_CURSOR_REASON:
-            selected = data.get("selected") or []
-            behaviors = [TOUCHPAD_CURSOR_NOTES[opt] for opt in selected]
-            suffix = f": {', '.join(behaviors)}" if behaviors else ""
-            addendum = ""
-            if "Cursor moves on its own" in selected:
-                addendum = self._cursor_moves_addendum()
-            return [f"{code} {TOUCHPAD_CURSOR_LABEL}{suffix}{addendum}"]
+            return self._touchpad_cursor_notes(data)
+        code = self._reason_code(reason)
         if reason in TOUCHPAD_REASON_NOTES:
-            return [f"{code} {TOUCHPAD_REASON_NOTES[reason]}"]
+            return [(code, f"{code} {TOUCHPAD_REASON_NOTES[reason]}")]
         # Custom free-text reason -- fall back to the generic coded label
         # (already includes a code, e.g. "TPO: some custom text").
-        return [self._reason_label(reason)]
+        return [(code, self._reason_label(reason))]
 
     @staticmethod
     def _cursor_moves_addendum():
@@ -2659,12 +2847,17 @@ class ScreenSectionMixin:
 
 
 class ScreenPage(ScreenSectionMixin, TogglePage):
-    # "Screen not responding" (no display at all) has nothing to point at;
-    # "Screen broken" (physically cracked/shattered) still gets the normal
-    # 6-section location picker like every other reason -- see
+    # "Screen not responding" (no display at all), "Screen broken"
+    # (physically cracked/shattered -- see
     # PhysicalDefectsPage._build_screen_broken_block for the "Broken Part"
-    # -> "Screen" delegation that also relies on this.
-    NO_LOCATION_REASONS = {"Screen not responding"}
+    # -> "Screen" delegation, which gets "type": "none" the same way), and
+    # "Screen glitches out" all apply to the whole screen with nothing
+    # meaningful to point at.
+    NO_LOCATION_REASONS = {
+        "Screen not responding",
+        "Screen broken",
+        "Screen glitches out",
+    }
 
     def __init__(self):
         super().__init__(
@@ -2674,12 +2867,11 @@ class ScreenPage(ScreenSectionMixin, TogglePage):
             reason_options=SCREEN_DEFECT_TYPES,
             code_prefix="SC",
             instructions=(
-                "Click below to launch the screen test pattern and check "
-                "for dead pixels, discoloration, flickering, and light spots. "
-                "During the screen test, please make sure to wipe down the "
-                "screen with a slightly damp rag to help tell apart real "
-                "damage and dirtiness. (Please never spray directly onto the "
-                "screen)"
+                "Click below to launch the screen test pattern to look "
+                "for discoloration, light spots, or any other kind of issue. "
+                "Pease make sure to wipe down the screen with a slightly damp "
+                "rag when testing to help tell apart real damage and "
+                "dirtiness. (Please never spray directly onto the screen)"
             ),
         )
         self.utils = Utils()
@@ -2942,11 +3134,8 @@ class UsbAPage(UsbPortLocationMixin, TogglePage):
             instructions=(
                 "Using a USB mouse, please plug the mouse into each USB-A port "
                 "and move it around, ensuring that the cursor moves around on "
-                "screen. If there are multiple USB-A ports on the same side of "
-                "the device, specify a number to indicate this. USB ports "
-                "closer to the screen hinge are lower numbers (starting with 0) "
-                "and increase with distance from the hinge. USB ports on the "
-                "back of the laptop will increase as they move from left to right."
+                "the screen. Place tape over any USB-A ports that do not work "
+                "and report it below."
             ),
         )
 
@@ -2964,16 +3153,10 @@ class UsbCPage(UsbPortLocationMixin, TogglePage):
             code_prefix="UC",
             topic="USB-C port",
             instructions=(
-                "Using a provided USB-C dock and USB mouse, plug into each "
-                "USB-C port and move the mouse around, ensuring that the "
-                "cursor moves around on screen. Also flip the USB-C plug on "
-                "the dock around and plug into the port to ensure it works "
-                "both ways. If there are multiple USB-C ports on the same "
-                "side of the device, specify a number to indicate this. USB "
-                "ports closer to the screen hinge are lower numbers (starting "
-                "with 0) and increase with distance from the hinge. USB ports "
-                "on the back of the laptop will increase as they move from "
-                "left to right."
+                "Use a provided USB-C dock and USB mouse to test each USB-C "
+                "port. Also, plug into each USB-C port upside-down and test "
+                "it that way as well. If the only USB-C port present is the "
+                "charing port, then you may select yes and move on."
             ),
         )
 
@@ -2982,11 +3165,15 @@ class UsbCPage(UsbPortLocationMixin, TogglePage):
 
 
 class TouchscreenPage(ScreenSectionMixin, TogglePage):
-    # Only "Some parts of the touchscreen are not working" (and custom
-    # entries, which never match a preset reason) need a location -- the
-    # other two reasons apply to the whole touchscreen with nothing to
-    # point at.
-    NO_LOCATION_REASONS = {"Touchscreen doesn't work", "Touchscreen is inaccurate"}
+    # Only "Areas of the touchscreen aren't working" (and custom entries,
+    # which never match a preset reason) need a location -- the other
+    # three reasons apply to the whole touchscreen with nothing to point
+    # at.
+    NO_LOCATION_REASONS = {
+        "The touchscreen doesn't work at all",
+        "The cursor freaks out when I touch the screen",
+        "Where I touch is not where it registers",
+    }
 
     def __init__(self):
         super().__init__(
@@ -3396,11 +3583,11 @@ class KeyboardPage(TogglePage):
 
     def get_notes_entries(self):
         """Overrides TogglePage.get_notes_entries -- tracking-sheet notes
-        read "<code> <reason> (<keys>)" (e.g. "KB2 Keys do not work (F,
+        read "<code> <reason> (<keys>)" (e.g. "KB02 Keys do not work (F,
         G)"), or just "<code> <reason>" for the two reasons with no keys to
         list (see KEYBOARD_NO_KEYS_REASONS). "Physical damage" contributes
         one entry per real code its categories map to (see
-        _physical_damage_notes). Entries always come out in KB1, KB2, ...
+        _physical_damage_notes). Entries always come out in KB01, KB02, ...
         order regardless of the order reasons/categories were added."""
         if self.passed is not False:
             return []
@@ -3439,7 +3626,7 @@ class KeyboardPage(TogglePage):
         """ "Physical damage" doesn't have its own code -- each selected
         category reports under its own real KB code instead (see
         PHYSICAL_DAMAGE_CATEGORY_CODES). "Keys are scratched" has no code
-        of its own; per user direction it merges into the same KB4 entry
+        of its own; per user direction it merges into the same KB04 entry
         as "Keys are cracked" (their key sets are combined)."""
         categories = data.get("categories") or {}
         code_keys = {}
