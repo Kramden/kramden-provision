@@ -13,6 +13,11 @@ from utils import Utils
 # to allow proceeding with a drive present, in case this policy changes.
 BLOCK_NEXT_WHEN_DRIVE_PRESENT = True
 
+# Tracking-sheet/failure-summary data code for a detected BIOS password --
+# see manualtest_v3.py's CUSTOM_REASON_CODE_SUFFIX comment for the same
+# "<code> <reason>" scheme used by every manual test page's notes.
+BIOS_PASSWORD_CODE = "BP00"
+
 
 class SpecInfo(Adw.Bin):
     def __init__(self):
@@ -485,7 +490,7 @@ class SpecInfo(Adw.Bin):
             return ["System info not yet gathered"]
         reasons = []
         if self._gathered.get("bios_password") and not self.bios_password_override:
-            reasons.append("HAS BIOS PASSWORD")
+            reasons.append(f"{BIOS_PASSWORD_CODE} HAS BIOS PASSWORD")
         if self._gathered.get("computrace") is True:
             reasons.append("Computrace/Absolute is active")
         return reasons
@@ -497,7 +502,7 @@ class SpecInfo(Adw.Bin):
         (see is_complete()), so neither is reported here."""
         entries = []
         if self._gathered.get("bios_password") and not self.bios_password_override:
-            entries.append({"text": "<b>HAS BIOS PASSWORD</b>"})
+            entries.append({"text": f"<b>{BIOS_PASSWORD_CODE} HAS BIOS PASSWORD</b>"})
         if self._gathered.get("computrace") is True:
             entries.append({"text": "Computrace/Absolute is active"})
         return entries
