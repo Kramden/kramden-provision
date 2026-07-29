@@ -39,7 +39,7 @@ PHYSICAL_SCREEN_SECTION_TYPES = {"Screen Cracked"}
 # Ask which part is affected, then where on that part (same sextant grid as
 # SCREEN_SECTIONS below -- see _build_section_picker).
 PHYSICAL_PART_LOCATION_TYPES = {"Dents", "Deep Scratches", "Peeling Paint", "Cracks"}
-PHYSICAL_AFFECTED_PARTS = ["Keyboard", "Case", "Screen", "Bezel", "Touchpad"]
+PHYSICAL_AFFECTED_PARTS = ["Near Keyboard", "Top", "Bottom", "Bezel"]
 # Ask which port type, reusing the same location/port-# picker as the
 # dedicated USB-A/USB-C pages (see UsbPortLocationMixin). Only USB-A/USB-C
 # trigger the suppress-on-matching-page logic below since those are the only
@@ -176,31 +176,10 @@ WEBCAM_DEFECT_TYPES = [
     "Everything is black and white and flashing",
 ]
 
-# These two webcam reasons have a common fix that's worth ruling out before
-# reporting them as a real defect -- see WebcamPage.build_reason_locations/
-# _build_webcam_confirm.
-WEBCAM_SOLID_BLACK_REASON = WEBCAM_DEFECT_TYPES[0]
-WEBCAM_FLASHING_REASON = WEBCAM_DEFECT_TYPES[4]
-
-WEBCAM_COVER_CHECK_PROMPT = (
-    "Please check along the top of the screen or near the webcam for a "
-    "small lever or switch. There is likely a built in cover blocking the "
-    "webcams view. Did this fix the issue?"
-)
-WEBCAM_WRONG_CAMERA_PROMPT = (
-    "The webcam the device is choosing by default may be the incorrect "
-    "one (instructions). If you need assistance, please ask a staff "
-    "member or Super Geek. Did this fix the issue?"
-)
-WEBCAM_IR_CHOICE_PROMPT = (
-    "Which of these best describes what a staff member or Super Geek confirmed?"
-)
-WEBCAM_IR_PRESENT_LABEL = (
-    "A staff member or Super Geek confirmed only an IR camera is present"
-)
-WEBCAM_IR_WORKS_LABEL = "A staff member or Super Geek confirmed only the IR camera works"
-WEBCAM_IR_PRESENT_NOTE = "Only IR camera present"
-WEBCAM_IR_WORKS_NOTE = "Webcam broken, Infrared camera works"
+# Tracking-sheet note text used when WebcamPage auto-detects no usable
+# webcam is present -- see WebcamPage.__init__/get_notes_entries.
+WEBCAM_NO_DEVICE_NOTE = "No webcam present"
+WEBCAM_IR_ONLY_NOTE = "IR camera only, no webcam present"
 
 TOUCHSCREEN_DEFECT_TYPES = [
     "Touchscreen doesn't work",
@@ -444,14 +423,29 @@ def _build_toggle_button_grid(title, options, on_toggle, columns=3):
 
 
 def _build_section_picker(
-    owner, entry_row, data=None, options=None, title="Location", select_all_label=None
+    owner,
+    entry_row,
+    data=None,
+    options=None,
+    title="Location",
+    select_all_label=None,
+    fullscreen=False,
 ):
-    """Embed a "click the affected section(s)" picker directly into
-    `entry_row` (no popup window) and keep `data["selected"]` in sync as
-    the tech clicks buttons. Shared by ScreenPage, TouchscreenPage,
-    TouchpadPage, the generic default location picker, and Physical
-    Defects' "Screen Cracked"/dents-scratches-etc pickers. `owner` just
-    needs check_status(), called once a selection changes."""
+    """Embed a "click the affected section(s)" picker into `entry_row` and
+    keep `data["selected"]` in sync as the tech makes a selection. Shared by
+    ScreenPage, TouchscreenPage, TouchpadPage, the generic default location
+    picker, and Physical Defects' "Screen Cracked"/dents-scratches-etc
+    pickers. `owner` just needs check_status(), called once a selection
+    changes.
+
+    `fullscreen=True` is for the call sites that are genuinely about
+    pointing at the physical screen (ScreenSectionMixin, Physical Defects'
+    "Screen Cracked") -- there the picker launches a fullscreen
+    click-through window (screen_section_picker_runner.py) over the 6
+    screen sections (see SCREEN_SECTIONS) instead of a small button grid.
+    Everything else (touchpad zones, port locations, the generic
+    default/custom-defect fallback) isn't a screen location, so it keeps
+    the original embedded button-grid picker regardless of `options`."""
     options = options or SCREEN_SECTIONS
     if data is None:
         data = {"type": "sections", "selected": []}
@@ -460,11 +454,99 @@ def _build_section_picker(
         data["selected"] = selected
         owner.check_status()
 
-    list_row = _build_section_row(
-        title, options, select_all_label=select_all_label, on_change=_on_change
-    )
+    if fullscreen:
+        list_row = _build_fullscreen_section_row(
+            title, select_all_label, data, on_change=_on_change
+        )
+    else:
+        list_row = _build_section_row(
+            title, options, select_all_label=select_all_label, on_change=_on_change
+        )
     entry_row.add_row(list_row)
     return data
+
+
+def _build_fullscreen_section_row(title, select_all_label, data, on_change=None):
+    """Build the Gtk.ListBoxRow used by the default (screen-section)
+    _build_section_picker case: a title, a status label showing the
+    currently selected section(s), and a button that launches the
+    fullscreen click-through picker in screen_section_picker_runner.py.
+    `on_change` is called with the list of currently selected sections (in
+    SCREEN_SECTIONS order) once the picker window closes."""
+    row_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+    row_box.set_margin_top(8)
+    row_box.set_margin_bottom(8)
+    row_box.set_margin_start(12)
+    row_box.set_margin_end(12)
+
+    title_label = Gtk.Label(label=title)
+    title_label.set_halign(Gtk.Align.START)
+    title_label.add_css_class("dim-label")
+    row_box.append(title_label)
+
+    status_label = Gtk.Label(label="No section selected yet.")
+    status_label.set_halign(Gtk.Align.START)
+    status_label.set_wrap(True)
+    row_box.append(status_label)
+
+    def _update_status():
+        selected = data.get("selected") or []
+        status_label.set_label(", ".join(selected) if selected else "No section selected yet.")
+
+    _update_status()
+
+    launch_button = Gtk.Button(label="Mark Location on Screen")
+    launch_button.set_halign(Gtk.Align.START)
+
+    def _on_launch_clicked(button):
+        button.set_sensitive(False)
+        runner = os.path.join(
+            os.path.dirname(os.path.realpath(__file__)),
+            "screen_section_picker_runner.py",
+        )
+        cmd = [sys.executable, runner, "--heading", title]
+        if select_all_label:
+            cmd += ["--select-all-label", select_all_label]
+        initial = data.get("selected") or []
+        if initial:
+            cmd += ["--initial", ",".join(initial)]
+
+        def _run():
+            try:
+                result = subprocess.run(
+                    cmd, capture_output=True, text=True, timeout=600
+                )
+                if result.returncode != 0:
+                    print(f"Section picker subprocess exited rc={result.returncode}")
+                    if result.stderr:
+                        print(result.stderr)
+                    selected = data.get("selected") or []
+                else:
+                    line = result.stdout.strip()
+                    selected = [s for s in line.split(",") if s] if line else []
+            except Exception as exc:
+                print(f"Section picker subprocess error: {exc}")
+                selected = data.get("selected") or []
+            GLib.idle_add(_on_picker_done, selected, button)
+
+        threading.Thread(target=_run, daemon=True).start()
+
+    def _on_picker_done(selected, button):
+        data["selected"] = selected
+        _update_status()
+        if on_change:
+            on_change(selected)
+        button.set_sensitive(True)
+        return False
+
+    launch_button.connect("clicked", _on_launch_clicked)
+    row_box.append(launch_button)
+
+    list_row = Gtk.ListBoxRow()
+    list_row.set_selectable(False)
+    list_row.set_activatable(False)
+    list_row.set_child(row_box)
+    return list_row
 
 
 def _set_status(label, text, is_error=False, auto_clear_ms=None):
@@ -1118,6 +1200,16 @@ class PhysicalDefectsPage(Adw.Bin):
         header.set_halign(Gtk.Align.START)
         vbox.append(header)
 
+        # Shown when the device appears to be charging only through a
+        # secondary port (e.g. USB-C) rather than its primary barrel/DC-jack
+        # port -- see _update_charging_port_banner.
+        self.charging_port_banner = Adw.Banner()
+        self.charging_port_banner.set_button_label("Re-check")
+        self.charging_port_banner.connect(
+            "button-clicked", self._on_charging_port_recheck_clicked
+        )
+        vbox.append(self.charging_port_banner)
+
         instructions_label = Gtk.Label(
             label="Please inspect the machine for any physical damage. Make "
             "sure to check the top, sides."
@@ -1308,6 +1400,7 @@ class PhysicalDefectsPage(Adw.Bin):
                 entry_row,
                 title="Location of crack",
                 select_all_label="Entire Screen",
+                fullscreen=True,
             )
 
         if defect_type in PHYSICAL_PART_LOCATION_TYPES:
@@ -1513,7 +1606,9 @@ class PhysicalDefectsPage(Adw.Bin):
                 # double-reported there too.
                 page = self._usb_page_for_type(port_type)
                 if page is not None and port_type not in data["_suppressed_pages"]:
-                    page.suppress_reason_option(self._port_damage_reason_for_type(port_type))
+                    page.suppress_reason_option(
+                        self._port_damage_reason_for_type(port_type)
+                    )
                     data["_suppressed_pages"][port_type] = page
 
         def _on_types_change(selected):
@@ -1727,6 +1822,24 @@ class PhysicalDefectsPage(Adw.Bin):
 
     def on_shown(self):
         self.check_status()
+        self._update_charging_port_banner()
+
+    def _on_charging_port_recheck_clicked(self, banner):
+        self._update_charging_port_banner()
+
+    def _update_charging_port_banner(self):
+        if Utils.primary_charging_port_unused():
+            self.charging_port_banner.set_title(
+                "This device appears to be charging through a secondary "
+                "port (e.g. USB-C) rather than its primary charging port. "
+                "If the primary charging port is damaged, report it below "
+                'under "Port Damaged" -> "Charging Port". '
+                "Otherwise, please plug the charger into the primary port "
+                "and use that instead."
+            )
+            self.charging_port_banner.set_revealed(True)
+        else:
+            self.charging_port_banner.set_revealed(False)
 
 
 class WiFiPage(TogglePage):
@@ -1819,12 +1932,30 @@ class TouchpadPage(TogglePage):
             selected = data.get("selected") or []
             behaviors = [TOUCHPAD_CURSOR_NOTES[opt] for opt in selected]
             suffix = f": {', '.join(behaviors)}" if behaviors else ""
-            return [f"{code} {TOUCHPAD_CURSOR_LABEL}{suffix}"]
+            addendum = ""
+            if "Cursor moves on its own" in selected:
+                addendum = self._cursor_moves_addendum()
+            return [f"{code} {TOUCHPAD_CURSOR_LABEL}{suffix}{addendum}"]
         if reason in TOUCHPAD_REASON_NOTES:
             return [f"{code} {TOUCHPAD_REASON_NOTES[reason]}"]
         # Custom free-text reason -- fall back to the generic coded label
         # (already includes a code, e.g. "TPO: some custom text").
         return [self._reason_label(reason)]
+
+    @staticmethod
+    def _cursor_moves_addendum():
+        """"Cursor moves on its own" can be a symptom of a trackpoint or
+        touchscreen sending stray input rather than an actual touchpad
+        defect -- flag that possibility on the tracking sheet when either
+        is present, so the diagnosis isn't pinned solely on the touchpad."""
+        culprits = []
+        if Utils.has_trackpoint():
+            culprits.append("trackpoint")
+        if Utils.has_touchscreen():
+            culprits.append("touchscreen")
+        if not culprits:
+            return ""
+        return f" (May be a {' or '.join(culprits)} issue)"
 
 
 class ScreenSectionMixin:
@@ -1844,6 +1975,7 @@ class ScreenSectionMixin:
             entry_row,
             title="Location on screen",
             select_all_label="Entire Screen",
+            fullscreen=True,
         )
 
 
@@ -1969,6 +2101,15 @@ class WebcamPage(TogglePage):
             ),
         )
         self.utils = Utils()
+        # Detected once at startup, since webcam hardware presence doesn't
+        # change during a session -- "present"/"ir_only"/"absent". Anything
+        # other than "present" auto-skips this page (see WizardWindow's use
+        # of page.skip in spec_v3.py) and reports the hardware situation
+        # instead of running the test -- see get_result/get_notes_entries.
+        self.webcam_status = Utils.get_webcam_status()
+        self.skip = self.webcam_status != "present"
+        if self.webcam_status != "present":
+            self.passed = True
 
     def build_action(self, box):
         launch_row = Adw.ActionRow()
@@ -2019,198 +2160,20 @@ class WebcamPage(TogglePage):
             )
 
     def build_reason_locations(self, entry_row, reason):
-        if reason == WEBCAM_SOLID_BLACK_REASON:
-            return self._build_webcam_confirm(entry_row, WEBCAM_COVER_CHECK_PROMPT)
-        if reason == WEBCAM_FLASHING_REASON:
-            return self._build_webcam_confirm(
-                entry_row,
-                WEBCAM_WRONG_CAMERA_PROMPT,
-                build_followup=self._build_ir_choice_content,
-            )
+        # No webcam defect has a meaningful location to narrow down.
         return {"type": "none"}
 
-    def _build_webcam_confirm(self, entry_row, prompt, build_followup=None):
-        """Common "did this fix it?" row for the two webcam reasons that
-        have a known non-defect cause (a physical lens cover, or the wrong
-        camera being selected by default) -- see WEBCAM_SOLID_BLACK_REASON/
-        WEBCAM_FLASHING_REASON. "Yes" means it wasn't a real defect at all
-        (see get_notes_entries/_failed_codes, which drop it from the
-        tracking sheet); "No" reports it as a defect, or -- for the
-        flashing reason -- reveals a further IR-camera choice
-        (build_followup). Yes/No stay toggleable (not locked in after the
-        first click) so the tech can freely change their answer."""
-        data = {
-            "type": "webcam_confirm",
-            "resolved": None,
-            "needs_ir_choice": build_followup is not None,
-            "ir_resolution": None,
-        }
-
-        row = Adw.ActionRow(title=prompt)
-        row.set_title_lines(0)
-
-        button_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
-        button_box.add_css_class("linked")
-        yes_button = Gtk.ToggleButton(label="Yes")
-        no_button = Gtk.ToggleButton(label="No")
-        yes_button.set_valign(Gtk.Align.CENTER)
-        no_button.set_valign(Gtk.Align.CENTER)
-        button_box.append(yes_button)
-        button_box.append(no_button)
-        row.add_suffix(button_box)
-        entry_row.add_row(row)
-
-        followup_revealer = None
-        if build_followup is not None:
-            followup_revealer = Gtk.Revealer()
-            followup_revealer.set_transition_type(Gtk.RevealerTransitionType.SLIDE_DOWN)
-            followup_row = Gtk.ListBoxRow()
-            followup_row.set_selectable(False)
-            followup_row.set_activatable(False)
-            followup_row.set_child(build_followup(data))
-            followup_revealer.set_child(followup_row)
-            followup_revealer.set_reveal_child(False)
-            entry_row.add_row(followup_revealer)
-
-        def _sync(resolved):
-            data["resolved"] = resolved
-            if followup_revealer is not None:
-                followup_revealer.set_reveal_child(resolved is False)
-            self.check_status()
-
-        def _on_yes_toggled(button):
-            if button.get_active():
-                no_button.set_active(False)
-                button.add_css_class("toggle-pass-active")
-                _sync(True)
-            else:
-                button.remove_css_class("toggle-pass-active")
-                if not no_button.get_active():
-                    _sync(None)
-
-        def _on_no_toggled(button):
-            if button.get_active():
-                yes_button.set_active(False)
-                button.add_css_class("toggle-fail-active")
-                _sync(False)
-            else:
-                button.remove_css_class("toggle-fail-active")
-                if not yes_button.get_active():
-                    _sync(None)
-
-        yes_button.connect("toggled", _on_yes_toggled)
-        no_button.connect("toggled", _on_no_toggled)
-
-        return data
-
-    def _build_ir_choice_content(self, data):
-        """Follow-up content revealed when the wrong-camera fix didn't
-        resolve the flashing reason -- a staff member/Super Geek must
-        physically confirm which IR-camera situation applies (see
-        WEBCAM_IR_PRESENT_LABEL/WEBCAM_IR_WORKS_LABEL). Stays toggleable,
-        same as the Yes/No question above."""
-        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-
-        prompt_label = Gtk.Label(label=WEBCAM_IR_CHOICE_PROMPT)
-        prompt_label.set_wrap(True)
-        prompt_label.set_justify(Gtk.Justification.CENTER)
-        prompt_label.set_halign(Gtk.Align.CENTER)
-        content.append(prompt_label)
-
-        present_button = self._build_wrapped_toggle_button(WEBCAM_IR_PRESENT_LABEL)
-        works_button = self._build_wrapped_toggle_button(WEBCAM_IR_WORKS_LABEL)
-        content.append(present_button)
-        content.append(works_button)
-
-        def _on_present_toggled(button):
-            if button.get_active():
-                works_button.set_active(False)
-                button.add_css_class("toggle-fail-active")
-                data["ir_resolution"] = "ir_present"
-            else:
-                button.remove_css_class("toggle-fail-active")
-                if not works_button.get_active():
-                    data["ir_resolution"] = None
-            self.check_status()
-
-        def _on_works_toggled(button):
-            if button.get_active():
-                present_button.set_active(False)
-                button.add_css_class("toggle-fail-active")
-                data["ir_resolution"] = "ir_works"
-            else:
-                button.remove_css_class("toggle-fail-active")
-                if not present_button.get_active():
-                    data["ir_resolution"] = None
-            self.check_status()
-
-        present_button.connect("toggled", _on_present_toggled)
-        works_button.connect("toggled", _on_works_toggled)
-
-        return content
-
-    def _build_wrapped_toggle_button(self, text):
-        button = Gtk.ToggleButton()
-        label = Gtk.Label(label=text)
-        label.set_wrap(True)
-        label.set_justify(Gtk.Justification.CENTER)
-        button.set_child(label)
-        return button
-
-    def _reason_is_filled(self, data):
-        if data.get("type") == "webcam_confirm":
-            resolved = data.get("resolved")
-            if resolved is None:
-                return False
-            if resolved or not data.get("needs_ir_choice"):
-                return True
-            return data.get("ir_resolution") is not None
-        return super()._reason_is_filled(data)
-
-    def _failed_codes(self):
-        """Overrides TogglePage._failed_codes -- a webcam_confirm reason
-        answered "Yes" (fixed by the lens cover/camera selection, not a
-        real defect) is dropped from the failure-code summary, same as
-        get_notes_entries drops it from the tracking sheet."""
-        codes = set()
-        for reason, (_, data) in self._reason_entries.items():
-            if data.get("type") == "webcam_confirm" and data.get("resolved"):
-                continue
-            code = self._reason_code(reason)
-            if code:
-                codes.add(code)
-        return sorted(codes, key=self._code_sort_key)
+    def get_result(self):
+        if self.webcam_status != "present":
+            return "N/A"
+        return super().get_result()
 
     def get_notes_entries(self):
-        """Overrides TogglePage.get_notes_entries -- a webcam_confirm
-        reason resolved as "Yes" isn't a real defect and is omitted
-        entirely (see _build_webcam_confirm); the flashing reason's IR
-        follow-up gets its own plain-English wording (WEBCAM_IR_PRESENT_NOTE/
-        WEBCAM_IR_WORKS_NOTE)."""
-        if self.passed is not False:
-            return []
-        if not self._reason_entries:
-            return [{"text": "Webcam: issue reported"}]
-        details = []
-        for reason, data in self._sorted_reason_items():
-            details.extend(self._webcam_reason_notes(reason, data))
-        if not details:
-            return []
-        return [{"text": ", ".join(details)}]
-
-    def _webcam_reason_notes(self, reason, data):
-        if data.get("type") != "webcam_confirm":
-            return [self._reason_label(reason)]
-        if data.get("resolved"):
-            return []
-        code = self._reason_code(reason)
-        if data.get("needs_ir_choice"):
-            resolution = data.get("ir_resolution")
-            if resolution == "ir_present":
-                return [f"{code}: {WEBCAM_IR_PRESENT_NOTE}"]
-            if resolution == "ir_works":
-                return [f"{code}: {WEBCAM_IR_WORKS_NOTE}"]
-        return [self._reason_label(reason)]
+        if self.webcam_status == "absent":
+            return [{"text": WEBCAM_NO_DEVICE_NOTE}]
+        if self.webcam_status == "ir_only":
+            return [{"text": WEBCAM_IR_ONLY_NOTE}]
+        return super().get_notes_entries()
 
 
 class UsbPortLocationMixin:
@@ -2424,8 +2387,9 @@ class KeyboardPage(TogglePage):
             code_prefix="KB",
             instructions=(
                 "Type the sample text below using every key listed at least once, "
-                "as well as Backspace, Period, and Enter, to confirm each key "
-                "registers correctly. "
+                "as well as Backspace, Period, Shift, and Enter, to confirm each key "
+                "registers correctly. All keys should respond accurately and "
+                "with a normal amount of effort."
             ),
         )
 
@@ -2443,11 +2407,10 @@ class KeyboardPage(TogglePage):
         self.period_pressed = False
         self.backspace_pressed = False
         self.enter_pressed = False
+        self.shift_pressed = False
         self._all_chars_typed = False
         self._no_issues_auto_triggered = False
         self.original_text = "The quick brown fox jumps over the lazy dog 1234567890"
-
-        template_group = Adw.PreferencesGroup()
 
         self.keyboard_template_buffer = Gtk.TextBuffer()
         self.keyboard_template_buffer.set_text(self.original_text)
@@ -2463,7 +2426,7 @@ class KeyboardPage(TogglePage):
         self.keyboard_template.add_css_class("transparent-textview")
 
         self.green_tag = self.keyboard_template_buffer.create_tag(
-            "green", foreground="green", weight=700
+            "green", foreground="#3fe35a", weight=700
         )
         self.gray_tag = self.keyboard_template_buffer.create_tag(
             "gray", foreground="#c0c0c0"
@@ -2471,6 +2434,11 @@ class KeyboardPage(TogglePage):
 
         self.ever_typed_chars = set()
         self.ever_typed_chars_lower = set()
+
+        self.shift_label = Gtk.Label(label="Shift")
+        self.shift_label.add_css_class("keyboard-key")
+        self.shift_label.set_valign(Gtk.Align.CENTER)
+        self.shift_label.set_margin_end(6)
 
         self.period_label = Gtk.Label(label="Period")
         self.period_label.add_css_class("keyboard-key")
@@ -2489,26 +2457,43 @@ class KeyboardPage(TogglePage):
 
         template_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         template_row.append(self.keyboard_template)
+        template_row.append(self.shift_label)
         template_row.append(self.period_label)
         template_row.append(self.backspace_label)
         template_row.append(self.enter_label)
         box.append(template_row)
 
-        self.keyboard_entry_row = Adw.EntryRow()
-        self.keyboard_entry_row.set_title("Type here:")
-        self.keyboard_entry_row.connect("changed", self._on_keyboard_changed)
-        _text = self.keyboard_entry_row.get_delegate()
-        if _text is not None:
-            _text.connect(
-                "paste-clipboard",
-                lambda w: GObject.signal_stop_emission_by_name(w, "paste-clipboard"),
-            )
+        input_label = Gtk.Label(label="Type here:")
+        input_label.set_xalign(0)
+        input_label.add_css_class("dim-label")
+        box.append(input_label)
+
+        self.keyboard_input_buffer = Gtk.TextBuffer()
+        self.keyboard_input_buffer.connect("changed", self._on_keyboard_changed)
+
+        self.keyboard_input_view = Gtk.TextView(buffer=self.keyboard_input_buffer)
+        self.keyboard_input_view.set_wrap_mode(Gtk.WrapMode.WORD_CHAR)
+        self.keyboard_input_view.set_top_margin(8)
+        self.keyboard_input_view.set_bottom_margin(8)
+        self.keyboard_input_view.set_left_margin(8)
+        self.keyboard_input_view.set_right_margin(8)
+        self.keyboard_input_view.connect(
+            "paste-clipboard",
+            lambda w: GObject.signal_stop_emission_by_name(w, "paste-clipboard"),
+        )
         _key_ctrl = Gtk.EventControllerKey()
         _key_ctrl.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
         _key_ctrl.connect("key-pressed", self._on_keyboard_key_pressed)
-        self.keyboard_entry_row.add_controller(_key_ctrl)
-        template_group.add(self.keyboard_entry_row)
-        box.append(template_group)
+        self.keyboard_input_view.add_controller(_key_ctrl)
+
+        input_scroller = Gtk.ScrolledWindow()
+        input_scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        input_scroller.set_min_content_height(80)
+        input_scroller.set_child(self.keyboard_input_view)
+
+        input_frame = Gtk.Frame()
+        input_frame.set_child(input_scroller)
+        box.append(input_frame)
 
         self.update_text_highlighting("")
 
@@ -2522,11 +2507,16 @@ class KeyboardPage(TogglePage):
         elif keyval in (Gdk.KEY_Return, Gdk.KEY_KP_Enter):
             self.enter_label.add_css_class("keyboard-key-passed")
             self.enter_pressed = True
+        elif keyval in (Gdk.KEY_Shift_L, Gdk.KEY_Shift_R):
+            self.shift_label.add_css_class("keyboard-key-passed")
+            self.shift_pressed = True
         self._check_typing_test_complete()
         return False
 
-    def _on_keyboard_changed(self, entry_row):
-        self.update_text_highlighting(entry_row.get_text())
+    def _on_keyboard_changed(self, buffer):
+        start = buffer.get_start_iter()
+        end = buffer.get_end_iter()
+        self.update_text_highlighting(buffer.get_text(start, end, False))
 
     def update_text_highlighting(self, typed_text):
         self.ever_typed_chars.update(typed_text)
@@ -2542,10 +2532,7 @@ class KeyboardPage(TogglePage):
             start_iter = self.keyboard_template_buffer.get_iter_at_offset(index)
             end_iter = self.keyboard_template_buffer.get_iter_at_offset(index + 1)
 
-            if index == 0:
-                matched = char in self.ever_typed_chars
-            else:
-                matched = char.lower() in self.ever_typed_chars_lower
+            matched = char.lower() in self.ever_typed_chars_lower
 
             if matched:
                 self.keyboard_template_buffer.apply_tag(
@@ -2562,7 +2549,7 @@ class KeyboardPage(TogglePage):
 
     def _check_typing_test_complete(self):
         """Every listed key must be typed at least once, plus Period,
-        Backspace, and Enter each pressed at least once, before the
+        Backspace, Shift, and Enter each pressed at least once, before the
         keyboard test counts as complete. "No" is only ever auto-selected
         the first time this becomes true -- if the tech has since clicked
         "Yes", further key presses must not silently flip it back to
@@ -2572,6 +2559,7 @@ class KeyboardPage(TogglePage):
             and self.period_pressed
             and self.backspace_pressed
             and self.enter_pressed
+            and self.shift_pressed
         ):
             return
         self.typing_test_complete = True
