@@ -242,6 +242,10 @@ class SortlyRegister(Adw.Bin):
             self._set_status("Invalid K-number format.", error=True)
             return
 
+        if not Utils.is_wifi_connected():
+            self._show_wifi_warning()
+            return
+
         try:
             api_key = get_api_key()
         except EnvironmentError as e:
@@ -309,6 +313,10 @@ class SortlyRegister(Adw.Bin):
         formatted = Utils.format_knumber(raw_value)
         if not formatted:
             self._set_status("Invalid K-number format.", error=True)
+            return
+
+        if not Utils.is_wifi_connected():
+            self._show_wifi_warning()
             return
 
         try:
@@ -471,6 +479,18 @@ class SortlyRegister(Adw.Bin):
                 row.set_subtitle(str(value))
             self.info_expander.add_row(row)
             self._info_rows.append(row)
+
+    def _show_wifi_warning(self):
+        dialog = Gtk.MessageDialog(
+            transient_for=self.get_root(),
+            modal=True,
+            message_type=Gtk.MessageType.WARNING,
+            buttons=Gtk.ButtonsType.OK,
+            text="Not connected to WiFi",
+            secondary_text="This laptop isn't connected to WiFi, so Sortly can't be reached. Connect to a network and try again.",
+        )
+        dialog.connect("response", lambda d, r: d.close())
+        dialog.present()
 
     def _set_status(self, message, error=False):
         self.status_label.set_label(message)

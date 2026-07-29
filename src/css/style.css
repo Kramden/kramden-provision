@@ -12,6 +12,21 @@
     color: #E95420; /* Text color */
 }
 
+.instructions-label {
+    color: white;
+    font-size: 1.2em;
+}
+
+.sub-question-label {
+    color: white;
+    font-size: 1.15em;
+    font-weight: bold;
+}
+
+.text-warning {
+    color: #e5a50a; /* Orange, matches .test-mode-banner */
+}
+
 /* Secure Erase styles */
 .destructive-banner {
     background-color: #c01c28;
@@ -57,4 +72,14 @@
 .keyboard-key-passed {
     border: 1px solid #3fe35a;
     color: #3fe35a;
+}
+
+.toggle-pass-active {
+    background-color: #3fe35a;
+    color: white;
+}
+
+.toggle-fail-active {
+    background-color: #E95420;
+    color: white;
 }

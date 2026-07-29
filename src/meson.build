@@ -82,6 +82,7 @@ sources = [
   'utils.py',
   'getlearngive.png',
   'landscape_dark.png',
+  'inspection_animation_placeholder.gif',
   'guide.py',
 ]
 

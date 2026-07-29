@@ -1,0 +1,2793 @@
+import glob
+import os
+import subprocess
+import sys
+import threading
+
+import gi
+
+gi.require_version("Adw", "1")
+gi.require_version("Gtk", "4.0")
+gi.require_version("GdkPixbuf", "2.0")
+from gi.repository import Adw, Gdk, GdkPixbuf, GLib, GObject, Gtk
+from utils import Utils
+
+CUSTOM_OPTION = "Custom..."
+
+# Placeholder option lists. Real content to be filled in later — these exist
+# only so the dropdowns/checklists have something selectable to preview the
+# layout with.
+PLACEHOLDER_REASONS = ["Reason option 1", "Reason option 2", "Reason option 3"]
+
+# Fixed Physical Defects defect-type list; a defect's tracking-sheet code
+# (PD1, PD2, ...) is just its 1-based position here -- see
+# CUSTOM_REASON_CODE_SUFFIX below.
+PHYSICAL_DEFECT_TYPES = [
+    "Hinge Broken",
+    "Loose Hinge",
+    "Screen Cracked",
+    "Dents",
+    "Deep Scratches",
+    "Peeling Paint",
+    "Cracks",
+    "Port Damaged",
+]
+# Hinge issues are self-explanatory with no meaningful location to ask for.
+PHYSICAL_NO_LOCATION_TYPES = {"Hinge Broken", "Loose Hinge"}
+# Marked the same way as a screen/touchscreen defect (see SCREEN_SECTIONS).
+PHYSICAL_SCREEN_SECTION_TYPES = {"Screen Cracked"}
+# Ask which part is affected, then where on that part (same sextant grid as
+# SCREEN_SECTIONS below -- see _build_section_picker).
+PHYSICAL_PART_LOCATION_TYPES = {"Dents", "Deep Scratches", "Peeling Paint", "Cracks"}
+PHYSICAL_AFFECTED_PARTS = ["Keyboard", "Case", "Screen", "Bezel", "Touchpad"]
+# Ask which port type, reusing the same location/port-# picker as the
+# dedicated USB-A/USB-C pages (see UsbPortLocationMixin). Only USB-A/USB-C
+# trigger the suppress-on-matching-page logic below since those are the only
+# port types with their own dedicated test page; "Other" additionally asks
+# for a free-text description of the port.
+PHYSICAL_PORT_DAMAGE_TYPES = {"Port Damaged"}
+PHYSICAL_PORT_TYPES = [
+    "USB-A",
+    "USB-C",
+    "Ethernet",
+    "HDMI",
+    "DP",
+    "Charging Port",
+    "Other",
+]
+
+PLACEHOLDER_INSTRUCTIONS = "(Instructions for this test will go here)"
+
+USB_A_DEFECT_TYPES = [
+    "USB Port is finicky, connection cuts in and out",
+    "USB Port does not work",
+    "USB Port is physically damage",
+]
+# Must match an entry in USB_A_DEFECT_TYPES exactly -- when Physical Defects'
+# "Port Damaged" is reported against a USB-A port, that same reason is
+# suppressed on UsbAPage's own dropdown so it isn't double reported (see
+# PhysicalDefectsPage._on_port_damage_type_changed).
+USB_A_PORT_DAMAGE_REASON = "USB Port is physically damage"
+# Tracking-sheet codes for USB-A reasons -- "finicky" and "does not work"
+# both just mean the port doesn't work right, so they share the default
+# UA1 code; only "physically damage" gets its own (UA2). Same "several
+# reasons, one code" pattern as KeyboardPage._reason_code.
+USB_A_REASON_CODES = {
+    "USB Port is finicky, connection cuts in and out": "UA1",
+    "USB Port does not work": "UA1",
+    "USB Port is physically damage": "UA2",
+}
+
+USB_C_DEFECT_TYPES = [
+    "USB-C Port is finicky, connection cuts in and out",
+    "USB-C Port does not work",
+    "USB-C Port is physically damage",
+    "USB-C Port works one way, but when flipping it upside-down, it doesn't work",
+]
+# Must match an entry in USB_C_DEFECT_TYPES exactly -- see
+# USB_A_PORT_DAMAGE_REASON above, same suppression but for UsbCPage.
+USB_C_PORT_DAMAGE_REASON = "USB-C Port is physically damage"
+# See USB_A_REASON_CODES above -- "finicky"/"does not work" share UC1, and
+# the upside-down failure (unique to USB-C) gets its own UC3.
+USB_C_REASON_CODES = {
+    "USB-C Port is finicky, connection cuts in and out": "UC1",
+    "USB-C Port does not work": "UC1",
+    "USB-C Port is physically damage": "UC2",
+    "USB-C Port works one way, but when flipping it upside-down, it doesn't work": "UC3",
+}
+
+USB_PORT_LOCATIONS = ["Left Side", "Right Side", "Back"]
+
+# "Audio" must be an exact defect-type option (not free text) so the tracking
+# sheet can key off it directly to fill in the "Sound:" field -- see
+# TogglePage.has_reason() and SpecCompleteV3._on_tracking_clicked.
+BROWSER_DEFECT_TYPES = ["Video", "Audio"]
+
+WIFI_DEFECT_TYPES = [
+    "Wi-Fi doesn't work",
+    "Wi-Fi is extremely slow",
+    "No WiFi Adapter Detected",
+]
+
+TOUCHPAD_DEFECT_TYPES = [
+    "Touchpad does not work at all",
+    "A problem with left or right click",
+    "Touchpad feels very tight",
+    "Something is wrong with how the cursor moves",
+]
+
+# "A problem with left or right click" expands into this pick-list instead
+# of the generic touchpad-location section picker. The tracking-sheet note
+# for this reason is "TP2 Touchpad click broken: <zone(s)>" -- the zone
+# names below are just the bit after the colon, not full sentences -- see
+# TouchpadPage.build_reason_locations/_touchpad_reason_notes.
+TOUCHPAD_CLICK_REASON = "A problem with left or right click"
+TOUCHPAD_CLICK_LABEL = "Touchpad click broken"
+TOUCHPAD_CLICK_ZONE_NOTES = {
+    "Top left click broken": "top left",
+    "Top right click broken": "top right",
+    "Bottom left click broken": "bottom left",
+    "Bottom right click broken": "bottom right",
+    "Pushing down on the touchpad to click does not work (and it is supposed to)": (
+        "physical click"
+    ),
+}
+TOUCHPAD_CLICK_ZONE_OPTIONS = list(TOUCHPAD_CLICK_ZONE_NOTES)
+
+# "Something is wrong with how the cursor moves" expands into this
+# pick-list. The tracking-sheet note is "TP4 Cursor moves strangely:
+# <behavior(s)>" -- see TOUCHPAD_CURSOR_NOTES/TouchpadPage._touchpad_reason_notes.
+TOUCHPAD_CURSOR_REASON = "Something is wrong with how the cursor moves"
+TOUCHPAD_CURSOR_LABEL = "Cursor moves strangely"
+TOUCHPAD_CURSOR_NOTES = {
+    "Cursor drags slowly": "drags slowly",
+    "Cursor moves on its own": "moves on its own",
+    "Cursor is too sensitive, it moves too fast": "too sensitive, moves too fast",
+}
+TOUCHPAD_CURSOR_OPTIONS = list(TOUCHPAD_CURSOR_NOTES)
+
+# Tracking-sheet note text for the touchpad reasons that don't expand into
+# a sub-picker -- see TouchpadPage._touchpad_reason_notes. Edit the values
+# here to change the wording that ends up on the tracking sheet (the code,
+# e.g. "TP1", is prepended automatically from reason_options position --
+# see CUSTOM_REASON_CODE_SUFFIX comment below).
+TOUCHPAD_REASON_NOTES = {
+    "Touchpad does not work at all": "Touchpad does not work",
+    "Touchpad feels very tight": "Touchpad feels tight",
+}
+
+SCREEN_DEFECT_TYPES = [
+    "Light Spots",
+    "Bruises",
+    "Deep Scratches",
+    "Dead Pixels",
+    "Keyboard imprints on the screen",
+    "Screen glitches out",
+    "Backlight failing",
+    "Screen broken",
+    "Screen not responding",
+]
+
+WEBCAM_DEFECT_TYPES = [
+    "The webcam reports a solid black screen",
+    "There are lines going across or down the webcam output",
+    "The Image is blurry",
+    "The video is very choppy with a low frame rate",
+    "Everything is black and white and flashing",
+]
+
+# These two webcam reasons have a common fix that's worth ruling out before
+# reporting them as a real defect -- see WebcamPage.build_reason_locations/
+# _build_webcam_confirm.
+WEBCAM_SOLID_BLACK_REASON = WEBCAM_DEFECT_TYPES[0]
+WEBCAM_FLASHING_REASON = WEBCAM_DEFECT_TYPES[4]
+
+WEBCAM_COVER_CHECK_PROMPT = (
+    "Please check along the top of the screen or near the webcam for a "
+    "small lever or switch. There is likely a built in cover blocking the "
+    "webcams view. Did this fix the issue?"
+)
+WEBCAM_WRONG_CAMERA_PROMPT = (
+    "The webcam the device is choosing by default may be the incorrect "
+    "one (instructions). If you need assistance, please ask a staff "
+    "member or Super Geek. Did this fix the issue?"
+)
+WEBCAM_IR_CHOICE_PROMPT = (
+    "Which of these best describes what a staff member or Super Geek confirmed?"
+)
+WEBCAM_IR_PRESENT_LABEL = (
+    "A staff member or Super Geek confirmed only an IR camera is present"
+)
+WEBCAM_IR_WORKS_LABEL = "A staff member or Super Geek confirmed only the IR camera works"
+WEBCAM_IR_PRESENT_NOTE = "Only IR camera present"
+WEBCAM_IR_WORKS_NOTE = "Webcam broken, Infrared camera works"
+
+TOUCHSCREEN_DEFECT_TYPES = [
+    "Touchscreen doesn't work",
+    "Touchscreen is inaccurate",
+    "Some parts of the touchscreen are not working",
+]
+
+# The keyboard's top-level failure-reason buttons. "Physical damage" isn't
+# one of the 9 fixed data codes below -- picking it expands into its own
+# pick-list (PHYSICAL_DAMAGE_CATEGORIES) whose individual categories carry
+# the real codes (KB3/KB4/KB5) -- see KeyboardPage.build_reason_locations,
+# KEYBOARD_REASON_CODES, and PHYSICAL_DAMAGE_CATEGORY_CODES below.
+KEYBOARD_DEFECT_TYPES = [
+    "Keyboard does not work",
+    "Keys do not work",
+    "Physical damage",
+    "Keys need additional pressure",
+    "International keyboard",
+    "Keys stick",
+    "Keys type the wrong keys",
+]
+
+# Tracking-sheet/failure-summary data codes for every keyboard reason
+# except "Physical damage" (see PHYSICAL_DAMAGE_CATEGORY_CODES for that
+# one) -- fixed explicitly here, rather than derived from each reason's
+# position in KEYBOARD_DEFECT_TYPES, since "Physical damage" occupies one
+# button but represents 3 codes (KB3/KB4/KB5), which would throw off
+# position-based numbering -- see KeyboardPage._reason_code.
+KEYBOARD_REASON_CODES = {
+    "Keyboard does not work": "KB1",
+    "Keys do not work": "KB2",
+    "Keys need additional pressure": "KB6",
+    "International keyboard": "KB7",
+    "Keys stick": "KB8",
+    "Keys type the wrong keys": "KB9",
+}
+
+# These two reasons apply to the whole keyboard with nothing to point at --
+# see KeyboardPage.build_reason_locations -- so they get no keyboard popup
+# at all, just added to the list like PhysicalDefectsPage/TouchpadPage's
+# no-location reasons. Every other reason above (and every "Physical
+# damage" category below) pops up the keyboard picker so the tech can mark
+# which specific keys are affected.
+KEYBOARD_NO_KEYS_REASONS = {
+    "Keyboard does not work",
+    "International keyboard",
+}
+
+# "Physical damage" expands into this pick-list instead of a single
+# keyboard popup -- see KeyboardPage.build_reason_locations. Each selected
+# category gets its own "Select Keys" popup. "Keys are scratched" has no
+# code of its own -- per user direction it's reported under the same KB4
+# code as "Keys are cracked" (see KeyboardPage._physical_damage_notes,
+# which merges their key sets together on the tracking sheet).
+KEYBOARD_PHYSICAL_DAMAGE_REASON = "Physical damage"
+PHYSICAL_DAMAGE_CATEGORIES = [
+    "Keys are worn through",
+    "Keys are cracked",
+    "Keys are scratched",
+    "Keys are missing",
+]
+PHYSICAL_DAMAGE_CATEGORY_CODES = {
+    "Keys are worn through": "KB5",
+    "Keys are cracked": "KB4",
+    "Keys are scratched": "KB4",
+    "Keys are missing": "KB3",
+}
+PHYSICAL_DAMAGE_CODE_LABELS = {
+    "KB5": "Keys worn through",
+    "KB4": "Keys cracked",
+    "KB3": "Keys missing",
+}
+
+SOUND_DEFECT_TYPES = [
+    "Sound does not work",
+    "Sound is crunchy",
+    "Sound is too quiet even with volume all the way up",
+]
+
+# Simplified keyboard layout used by the keyboard failure-location picker.
+KEYBOARD_LAYOUT = [
+    ["~", "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "=", "Backspace"],
+    ["Tab", "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P", "[", "]", "\\"],
+    ["CapsLock", "A", "S", "D", "F", "G", "H", "J", "K", "L", ";", "'", "Enter"],
+    ["LeftShift", "Z", "X", "C", "V", "B", "N", "M", ",", ".", "/", "RightShift"],
+    ["Fn", "LeftCtrl", "LeftAlt", "Space", "RightAlt", "RightCtrl"],
+]
+
+ALL_KEYBOARD_KEYS = [key for row in KEYBOARD_LAYOUT for key in row]
+ENTIRE_KEYBOARD_MARKER = "__ENTIRE_KEYBOARD__"
+
+# Tracking sheet "Notes & Cosmetics" entries report each failure reason as a
+# short parseable code (e.g. "KB2: Key(s) Sticking (F, G)") instead of a full
+# sentence. The number is just 1-based position of that reason string in the
+# page's reason_options list (KEYBOARD_DEFECT_TYPES, TOUCHPAD_DEFECT_TYPES,
+# etc.) or PHYSICAL_DEFECT_TYPES for Physical Defects -- so to add a new
+# code, add a new entry to that list (it gets the next number for free); to
+# change a code's wording, edit the string in place. A reason typed in via
+# the "Custom..." free-text box has no fixed slot, so it falls back to
+# "<PREFIX>O" instead of a number.
+CUSTOM_REASON_CODE_SUFFIX = "O"
+
+# The 6 regions of a laptop screen (3 across the top half, 3 across the
+# bottom half) used by the Screen/Touchscreen/Screen-Cracked defect-location
+# picker: the tech clicks whichever zones the issue appears in instead of
+# hand-drawing a mark, e.g. "Light Spots (Upper Right, Lower Middle)".
+SCREEN_SECTIONS = [
+    "Upper Left",
+    "Upper Middle",
+    "Upper Right",
+    "Lower Left",
+    "Lower Middle",
+    "Lower Right",
+]
+
+
+def _toggle_button_css(button):
+    if button.get_active():
+        button.add_css_class("toggle-fail-active")
+    else:
+        button.remove_css_class("toggle-fail-active")
+
+
+# Wording for the Yes/No question every page leads with (see TogglePage and
+# PhysicalDefectsPage below). To reword the question for every page at
+# once, edit the template here; to change what a single page calls itself
+# in that question, pass topic= to TogglePage.__init__ (or edit the
+# PhysicalDefectsPage topic below) instead of touching this template.
+DEFECT_QUESTION_TEMPLATE = "Did the {topic} work as expected?"
+
+
+def _scroll_to_bottom(scrolled_window):
+    """Scroll `scrolled_window` all the way down once the layout settles, so
+    content a button click just revealed (a panel, a newly-added entry row,
+    ...) is visible without the user having to remember to scroll for it.
+    Called twice: one idle pass catches instant layout changes (e.g. a
+    ListBox row append), and a delayed pass catches revealer/expander
+    animations, which take ~250ms to finish growing."""
+
+    def _do_scroll():
+        adjustment = scrolled_window.get_vadjustment()
+        if adjustment is not None:
+            adjustment.set_value(adjustment.get_upper() - adjustment.get_page_size())
+        return GLib.SOURCE_REMOVE
+
+    GLib.idle_add(_do_scroll)
+    GLib.timeout_add(260, _do_scroll)
+
+
+def _build_section_row(
+    title, options, select_all_label=None, columns=3, on_change=None
+):
+    """Build a plain Gtk.ListBoxRow holding a title, an optional "select
+    all" button, and a grid of multi-select toggle buttons for `options` --
+    the embedded, no-popup version of the old ScreenSectionDialog, reused
+    for every "click the affected location(s)" picker in this file (screen,
+    touchscreen, touchpad, physical-defect locations, ...). `on_change` is
+    called with the list of currently active options (in `options` order)
+    every time a button is toggled."""
+    row_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+    row_box.set_margin_top(8)
+    row_box.set_margin_bottom(8)
+    row_box.set_margin_start(12)
+    row_box.set_margin_end(12)
+
+    title_label = Gtk.Label(label=title)
+    title_label.set_halign(Gtk.Align.START)
+    title_label.add_css_class("dim-label")
+    row_box.append(title_label)
+
+    buttons = {}
+
+    def _on_toggle(button, option):
+        _toggle_button_css(button)
+        if on_change:
+            on_change([opt for opt in options if buttons[opt].get_active()])
+
+    if select_all_label:
+
+        def _on_select_all(button):
+            for b in buttons.values():
+                if not b.get_active():
+                    b.set_active(True)
+
+        select_all_button = Gtk.Button(label=select_all_label)
+        select_all_button.set_halign(Gtk.Align.START)
+        select_all_button.connect("clicked", _on_select_all)
+        row_box.append(select_all_button)
+
+    grid = Gtk.Grid()
+    grid.set_row_spacing(4)
+    grid.set_column_spacing(4)
+    for index, option in enumerate(options):
+        row, col = divmod(index, columns)
+        button = Gtk.ToggleButton(label=option)
+        button.set_size_request(90, 40)
+        button.connect("toggled", _on_toggle, option)
+        grid.attach(button, col, row, 1, 1)
+        buttons[option] = button
+    row_box.append(grid)
+
+    list_row = Gtk.ListBoxRow()
+    list_row.set_selectable(False)
+    list_row.set_activatable(False)
+    list_row.set_child(row_box)
+    return list_row
+
+
+def _build_toggle_button_grid(title, options, on_toggle, columns=3):
+    """Build a plain Gtk.Box holding a title and a grid of Gtk.ToggleButton
+    -- one per entry in `options` -- for picking item(s) from a fixed list
+    by clicking them directly instead of choosing one in a dropdown and
+    pressing a separate "Add" button. A button lights up (see
+    _toggle_button_css) when active; its toggled state IS the membership
+    state, so toggling it back off is how an already-picked item gets
+    un-picked -- no separate "Remove" affordance needed. `on_toggle(button,
+    option)` fires on every toggle. Returns (container_box, {option:
+    button}) so the caller can look up a button later (see
+    TogglePage.suppress_reason_option)."""
+    box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+
+    if title:
+        title_label = Gtk.Label(label=title)
+        title_label.set_halign(Gtk.Align.START)
+        title_label.add_css_class("sub-question-label")
+        box.append(title_label)
+
+    grid = Gtk.Grid()
+    grid.set_row_spacing(4)
+    grid.set_column_spacing(4)
+    buttons = {}
+    for index, option in enumerate(options):
+        row, col = divmod(index, columns)
+        button = Gtk.ToggleButton(label=option)
+        button.set_size_request(90, 40)
+        button.connect("toggled", on_toggle, option)
+        grid.attach(button, col, row, 1, 1)
+        buttons[option] = button
+    box.append(grid)
+    return box, buttons
+
+
+def _build_section_picker(
+    owner, entry_row, data=None, options=None, title="Location", select_all_label=None
+):
+    """Embed a "click the affected section(s)" picker directly into
+    `entry_row` (no popup window) and keep `data["selected"]` in sync as
+    the tech clicks buttons. Shared by ScreenPage, TouchscreenPage,
+    TouchpadPage, the generic default location picker, and Physical
+    Defects' "Screen Cracked"/dents-scratches-etc pickers. `owner` just
+    needs check_status(), called once a selection changes."""
+    options = options or SCREEN_SECTIONS
+    if data is None:
+        data = {"type": "sections", "selected": []}
+
+    def _on_change(selected):
+        data["selected"] = selected
+        owner.check_status()
+
+    list_row = _build_section_row(
+        title, options, select_all_label=select_all_label, on_change=_on_change
+    )
+    entry_row.add_row(list_row)
+    return data
+
+
+def _set_status(label, text, is_error=False, auto_clear_ms=None):
+    label.set_label(text)
+    if is_error:
+        label.add_css_class("text-error")
+    elif label.has_css_class("text-error"):
+        label.remove_css_class("text-error")
+    if auto_clear_ms:
+        GLib.timeout_add(auto_clear_ms, _clear_status_if_unchanged, label, text)
+
+
+def _clear_status_if_unchanged(label, expected_text):
+    # Only clear if nothing else has updated the label in the meantime.
+    if label.get_label() == expected_text:
+        label.set_label("")
+    return False
+
+
+# TEMPORARY: stand-in animation shown on every testing page until each page
+# gets its own real inspection-step gif. Remove this and its call sites once
+# actual per-page animations exist.
+GIF_PLACEHOLDER_PATH = os.path.join(
+    os.path.dirname(os.path.realpath(__file__)), "inspection_animation_placeholder.gif"
+)
+
+
+def _build_gif_placeholder_widget():
+    try:
+        animation = GdkPixbuf.PixbufAnimation.new_from_file(GIF_PLACEHOLDER_PATH)
+    except GLib.Error as e:
+        print(f"_build_gif_placeholder_widget: could not load placeholder gif: {e}")
+        return None
+
+    picture = Gtk.Picture()
+    picture.set_can_shrink(True)
+    picture.set_content_fit(Gtk.ContentFit.CONTAIN)
+    picture.set_size_request(-1, 200)
+
+    it = animation.get_iter(None)
+
+    def _advance():
+        it.advance(None)
+        picture.set_paintable(Gdk.Texture.new_for_pixbuf(it.get_pixbuf()))
+        delay = it.get_delay_time()
+        GLib.timeout_add(delay if delay > 0 else 100, _advance)
+        return False
+
+    picture.set_paintable(Gdk.Texture.new_for_pixbuf(it.get_pixbuf()))
+    GLib.timeout_add(it.get_delay_time() if it.get_delay_time() > 0 else 100, _advance)
+
+    return picture
+
+
+class KeyPickerDialog(Gtk.Window):
+    """Small popup showing a simplified keyboard layout so the user can click
+    the specific keys that failed, instead of picking from a generic preset
+    location list."""
+
+    def __init__(self, parent, initial_selection=None):
+        super().__init__(transient_for=parent, modal=True, title="Select Affected Keys")
+        self.set_default_size(480, 260)
+        self.selected_keys = set(initial_selection or [])
+        self.on_done_callback = None
+
+        header = Gtk.HeaderBar()
+        header.set_show_title_buttons(False)
+        cancel_button = Gtk.Button(label="Cancel")
+        cancel_button.connect("clicked", lambda b: self.close())
+        done_button = Gtk.Button(label="Done")
+        done_button.add_css_class("suggested-action")
+        done_button.connect("clicked", self._on_done)
+        header.pack_start(cancel_button)
+        header.pack_end(done_button)
+        self.set_titlebar(header)
+
+        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        content.set_margin_top(16)
+        content.set_margin_bottom(16)
+        content.set_margin_start(16)
+        content.set_margin_end(16)
+
+        instructions = Gtk.Label(
+            label="Click each key that failed to register or typed incorrectly."
+        )
+        instructions.set_wrap(True)
+        content.append(instructions)
+
+        select_all_button = Gtk.Button(label="Entire Keyboard Affected")
+        select_all_button.set_halign(Gtk.Align.START)
+        select_all_button.connect("clicked", self._on_select_all)
+        content.append(select_all_button)
+
+        self._buttons = {}
+        for row_keys in KEYBOARD_LAYOUT:
+            row_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
+            row_box.set_halign(Gtk.Align.CENTER)
+            for key in row_keys:
+                key_button = Gtk.ToggleButton(label=key)
+                if key == "Space":
+                    width = 140
+                elif len(key) > 5:
+                    width = 90
+                elif len(key) > 2:
+                    width = 60
+                else:
+                    width = 36
+                key_button.set_size_request(width, 36)
+                key_button.set_active(key in self.selected_keys)
+                if key_button.get_active():
+                    key_button.add_css_class("toggle-fail-active")
+                key_button.connect("toggled", self._on_key_toggled, key)
+                row_box.append(key_button)
+                self._buttons[key] = key_button
+            content.append(row_box)
+
+        self.set_child(content)
+
+    def _on_select_all(self, button):
+        for key_button in self._buttons.values():
+            if not key_button.get_active():
+                key_button.set_active(True)
+
+    def _on_key_toggled(self, button, key):
+        if button.get_active():
+            self.selected_keys.add(key)
+            button.add_css_class("toggle-fail-active")
+        else:
+            self.selected_keys.discard(key)
+            button.remove_css_class("toggle-fail-active")
+
+    def _on_done(self, button):
+        if self.on_done_callback:
+            if self._buttons and len(self.selected_keys) == len(self._buttons):
+                self.on_done_callback(ENTIRE_KEYBOARD_MARKER)
+            else:
+                self.on_done_callback(sorted(self.selected_keys))
+        self.close()
+
+
+class TogglePage(Adw.Bin):
+    """Base page: instructions placeholder, an optional subclass-provided test
+    action, and a Yes/No "any defects?" toggle. When "Yes" is active, the
+    user can add one or more failure reasons, each with its own set of
+    affected locations.
+    """
+
+    def __init__(
+        self,
+        key,
+        page_title,
+        row_title,
+        pass_label="Yes",
+        fail_label="No",
+        reason_options=None,
+        instructions=PLACEHOLDER_INSTRUCTIONS,
+        code_prefix=None,
+        topic=None,
+    ):
+        super().__init__()
+        self.key = key
+        self.title = page_title
+        self.skip = False
+        self.passed = None
+        self.state = None
+        # Set externally by spec_v3.py so the wizard's Next button can
+        # refresh (light up/dim, re-check completeness) the moment this
+        # page's pass/fail or reason details change, not just on navigation.
+        self.on_status_changed = None
+        self._reason_entries = {}
+        self.reason_options = reason_options or PLACEHOLDER_REASONS
+        # Reasons temporarily hidden from the dropdown because another page
+        # already reported them (see suppress_reason_option/
+        # restore_reason_option, used by PhysicalDefectsPage's port-damage
+        # picker).
+        self._suppressed_reasons = set()
+        # See CUSTOM_REASON_CODE_SUFFIX above for the tracking-sheet code
+        # scheme this drives (e.g. "KB2: ...").
+        self.code_prefix = code_prefix
+        # What this page calls itself in the "Are there any {topic} defects
+        # ..." question below -- defaults to row_title, but a subclass can
+        # pass its own (see WiFiPage, BrowserPage, UsbAPage/UsbCPage) when
+        # row_title doesn't read naturally in that sentence.
+        self.topic = topic or row_title
+
+        self.set_margin_top(24)
+        self.set_margin_bottom(24)
+        self.set_margin_start(24)
+        self.set_margin_end(24)
+
+        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
+
+        header = Gtk.Label(label=row_title)
+        header.add_css_class("title-3")
+        header.set_halign(Gtk.Align.START)
+        vbox.append(header)
+
+        # Instructions, specific to this page
+        instructions_label = Gtk.Label(label=instructions)
+        instructions_label.set_wrap(True)
+        instructions_label.set_justify(Gtk.Justification.CENTER)
+        instructions_label.set_halign(Gtk.Align.CENTER)
+        instructions_label.add_css_class("instructions-label")
+        vbox.append(instructions_label)
+
+        # TEMPORARY placeholder animation -- see _build_gif_placeholder_widget.
+        gif_placeholder = _build_gif_placeholder_widget()
+        if gif_placeholder is not None:
+            vbox.append(gif_placeholder)
+
+        # Hook for subclasses to add a launcher button, typing box, etc.
+        self.action_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        vbox.append(self.action_box)
+        self.build_action(self.action_box)
+
+        # Yes/No "any defects?" toggle
+        result_group = Adw.PreferencesGroup(title="Result")
+        toggle_row = Adw.ActionRow()
+        toggle_row.set_title(DEFECT_QUESTION_TEMPLATE.format(topic=self.topic))
+
+        toggle_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+        toggle_box.add_css_class("linked")
+        self.pass_button = Gtk.ToggleButton(label=pass_label)
+        self.fail_button = Gtk.ToggleButton(label=fail_label)
+        self.pass_button.set_valign(Gtk.Align.CENTER)
+        self.fail_button.set_valign(Gtk.Align.CENTER)
+        self.pass_button.connect("toggled", self._on_pass_toggled)
+        self.fail_button.connect("toggled", self._on_fail_toggled)
+        toggle_box.append(self.pass_button)
+        toggle_box.append(self.fail_button)
+        toggle_row.add_suffix(toggle_box)
+        result_group.add(toggle_row)
+        vbox.append(result_group)
+
+        self.pass_warning_label = Gtk.Label(label="")
+        self.pass_warning_label.set_xalign(0)
+        self.pass_warning_label.set_wrap(True)
+        self.pass_warning_label.add_css_class("text-error")
+        self.pass_warning_label.set_visible(False)
+        vbox.append(self.pass_warning_label)
+
+        # Failure reasons, revealed only when "Yes" is selected.
+        # Multiple reasons can be added, each with its own location detail.
+        self.reason_revealer = Gtk.Revealer()
+        self.reason_revealer.set_transition_type(Gtk.RevealerTransitionType.SLIDE_DOWN)
+
+        reasons_content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+
+        reason_buttons_box, self._reason_buttons = _build_toggle_button_grid(
+            "What about it did not work?",
+            self.reason_options + [CUSTOM_OPTION],
+            self._on_reason_button_toggled,
+        )
+        reasons_content.append(reason_buttons_box)
+
+        # Free-text entry, revealed only when "Custom..." is clicked above
+        self.custom_reason_revealer = Gtk.Revealer()
+        self.custom_reason_revealer.set_transition_type(
+            Gtk.RevealerTransitionType.SLIDE_DOWN
+        )
+        custom_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        custom_box.set_margin_start(12)
+        custom_box.set_margin_end(12)
+        custom_label = Gtk.Label(label="What isn't working?")
+        self.custom_reason_entry = Gtk.Entry()
+        self.custom_reason_entry.set_hexpand(True)
+        self.custom_reason_entry.connect("activate", self._on_add_custom_reason_clicked)
+        custom_add_button = Gtk.Button(label="Add")
+        custom_add_button.connect("clicked", self._on_add_custom_reason_clicked)
+        custom_box.append(custom_label)
+        custom_box.append(self.custom_reason_entry)
+        custom_box.append(custom_add_button)
+        self.custom_reason_revealer.set_child(custom_box)
+        self.custom_reason_revealer.set_reveal_child(False)
+        reasons_content.append(self.custom_reason_revealer)
+
+        self.reasons_list_box = Gtk.ListBox()
+        self.reasons_list_box.set_selection_mode(Gtk.SelectionMode.NONE)
+        self.reasons_list_box.add_css_class("boxed-list")
+        self.reasons_list_box.set_valign(Gtk.Align.START)
+        reasons_content.append(self.reasons_list_box)
+
+        self.reason_revealer.set_child(reasons_content)
+        self.reason_revealer.set_reveal_child(False)
+        vbox.append(self.reason_revealer)
+
+        vbox.set_vexpand(True)
+        vbox.set_hexpand(True)
+        vbox.set_valign(Gtk.Align.START)
+
+        self.scrolled = Gtk.ScrolledWindow()
+        self.scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        self.scrolled.set_vexpand(True)
+        self.scrolled.set_hexpand(True)
+        self.scrolled.set_child(vbox)
+        self.set_child(self.scrolled)
+
+    def build_action(self, box):
+        """Override in subclasses to add page-specific test controls."""
+        pass
+
+    def build_reason_locations(self, entry_row, reason):
+        """Override in subclasses to replace the default section picker
+        with a custom one (see KeyboardPage, UsbPortLocationMixin), or to
+        skip location entirely for reasons where it doesn't apply (see
+        BrowserPage, WebcamPage)."""
+        return _build_section_picker(self, entry_row, select_all_label="Select All")
+
+    def _can_mark_no_issues(self):
+        """Override in subclasses to require some condition (e.g. an actual
+        test being run) before "No" can be selected."""
+        return True
+
+    def _pass_blocked_message(self):
+        """Override alongside _can_mark_no_issues to explain why the button
+        was blocked."""
+        return "Please perform the test before marking it as having no issues."
+
+    def _on_pass_toggled(self, button):
+        if button.get_active():
+            if not self._can_mark_no_issues():
+                button.set_active(False)
+                _set_status(
+                    self.pass_warning_label, self._pass_blocked_message(), is_error=True
+                )
+                self.pass_warning_label.set_visible(True)
+                return
+            self.fail_button.set_active(False)
+            button.add_css_class("toggle-pass-active")
+            self.reason_revealer.set_reveal_child(False)
+            self.pass_warning_label.set_visible(False)
+            self.passed = True
+            self.check_status()
+        else:
+            button.remove_css_class("toggle-pass-active")
+            if not self.fail_button.get_active():
+                # Neither button is selected anymore -- back to untested.
+                self.passed = None
+                self.check_status()
+
+    def _on_fail_toggled(self, button):
+        if button.get_active():
+            self.pass_button.set_active(False)
+            button.add_css_class("toggle-fail-active")
+            self.reason_revealer.set_reveal_child(True)
+            self.pass_warning_label.set_visible(False)
+            self.passed = False
+            self.check_status()
+            _scroll_to_bottom(self.scrolled)
+        else:
+            button.remove_css_class("toggle-fail-active")
+            if not self.pass_button.get_active():
+                # Neither button is selected anymore -- back to untested.
+                self.reason_revealer.set_reveal_child(False)
+                self.passed = None
+                self.check_status()
+
+    def _on_reason_button_toggled(self, button, reason):
+        _toggle_button_css(button)
+        if reason == CUSTOM_OPTION:
+            self.custom_reason_revealer.set_reveal_child(button.get_active())
+            if button.get_active():
+                self.custom_reason_entry.grab_focus()
+                _scroll_to_bottom(self.scrolled)
+            return
+        if button.get_active():
+            self._add_reason(reason)
+        else:
+            self._remove_reason(reason)
+
+    def _on_add_custom_reason_clicked(self, widget):
+        reason = self.custom_reason_entry.get_text().strip()
+        if not reason:
+            return
+        self.custom_reason_entry.set_text("")
+        self._add_reason(reason, removable=True)
+        # Hides the custom entry box again (fires _on_reason_button_toggled).
+        self._reason_buttons[CUSTOM_OPTION].set_active(False)
+
+    def suppress_reason_option(self, reason):
+        """Grey out a preset reason's button because it's already been
+        reported elsewhere (e.g. Physical Defects' port-damage picker)."""
+        if reason not in self._suppressed_reasons:
+            self._suppressed_reasons.add(reason)
+            button = self._reason_buttons.get(reason)
+            if button is not None:
+                button.set_sensitive(False)
+
+    def restore_reason_option(self, reason):
+        if reason in self._suppressed_reasons:
+            self._suppressed_reasons.discard(reason)
+            button = self._reason_buttons.get(reason)
+            if button is not None:
+                button.set_sensitive(True)
+
+    def _add_reason(self, reason, removable=False):
+        if reason in self._reason_entries:
+            return
+
+        entry_row = Adw.ExpanderRow(title=reason)
+
+        # Preset reasons are un-added by toggling their button back off (see
+        # _on_reason_button_toggled); only free-typed ("Custom...") reasons
+        # have no corresponding button, so they get their own Remove action.
+        if removable:
+            remove_button = Gtk.Button(label="Remove")
+            remove_button.set_valign(Gtk.Align.CENTER)
+            remove_button.connect(
+                "clicked", self._on_remove_custom_reason_clicked, reason
+            )
+            entry_row.add_action(remove_button)
+
+        data = self.build_reason_locations(entry_row, reason)
+
+        entry_row.set_expanded(True)
+        self.reasons_list_box.append(entry_row)
+        self._reason_entries[reason] = (entry_row, data)
+        self.check_status()
+        _scroll_to_bottom(self.scrolled)
+
+    def _remove_reason(self, reason):
+        entry = self._reason_entries.pop(reason, None)
+        if entry is None:
+            return
+        entry_row, _ = entry
+        self.reasons_list_box.remove(entry_row)
+        self.check_status()
+
+    def _on_remove_custom_reason_clicked(self, button, reason):
+        self._remove_reason(reason)
+
+    def _locations_text(self, data):
+        kind = data.get("type")
+        if kind == "none":
+            return None
+        if kind == "keys":
+            keys = data.get("selected") or []
+            if keys == ENTIRE_KEYBOARD_MARKER:
+                return "Entire Keyboard"
+            return ", ".join(keys) if keys else "no keys specified"
+        if kind == "key_categories":
+            categories = data.get("categories") or {}
+            if not categories:
+                return "no damage type selected"
+            parts = []
+            for category, keys in categories.items():
+                if keys == ENTIRE_KEYBOARD_MARKER:
+                    key_text = "Entire Keyboard"
+                else:
+                    key_text = ", ".join(keys) if keys else "no keys specified"
+                parts.append(f"{category}: {key_text}")
+            return "; ".join(parts)
+        if kind == "sections":
+            selected = data.get("selected") or []
+            return ", ".join(selected) if selected else "no location marked"
+        if kind == "usb_port":
+            locations = data.get("locations") or []
+            if not locations:
+                return "no location specified"
+            port_numbers = data.get("port_numbers") or {}
+            parts = []
+            for location in locations:
+                port_num = port_numbers.get(location, "").strip()
+                parts.append(f"{location} (port #{port_num})" if port_num else location)
+            return ", ".join(parts)
+        return "no location specified"
+
+    def _reason_is_filled(self, data):
+        """Whether a given failure reason's location/detail was actually
+        filled in, not just added with defaults left blank. "Yes" pages
+        must have at least one fully-filled reason before they can
+        count as complete -- see is_complete()."""
+        kind = data.get("type")
+        if kind == "none":
+            return True
+        if kind == "keys":
+            selected = data.get("selected")
+            return selected == ENTIRE_KEYBOARD_MARKER or bool(selected)
+        if kind == "key_categories":
+            categories = data.get("categories") or {}
+            if not categories:
+                return False
+            return all(
+                keys == ENTIRE_KEYBOARD_MARKER or bool(keys)
+                for keys in categories.values()
+            )
+        if kind == "sections":
+            return bool(data.get("selected"))
+        if kind == "usb_port":
+            # The port number(s) are optional (only needed to disambiguate
+            # multiple same-side ports); at least one location must be
+            # picked for the reason to count as filled.
+            return bool(data.get("locations"))
+        return False
+
+    def is_complete(self):
+        if self.passed is None:
+            return False
+        if self.passed is False:
+            if not self._reason_entries:
+                return False
+            return all(
+                self._reason_is_filled(data)
+                for _, data in self._reason_entries.values()
+            )
+        return True
+
+    def has_reason(self, reason):
+        """Whether the given failure reason (exact text match) was added --
+        used by the tracking sheet to derive fields from a specific defect
+        type rather than the page's overall pass/fail (see BrowserPage)."""
+        return reason in self._reason_entries
+
+    def check_status(self):
+        if self.state is None:
+            return
+        state = self.state.get_value()
+        state[self.key] = bool(self.passed)
+        print(f"{self.key}:check_status {self.passed}")
+        if self.on_status_changed:
+            self.on_status_changed()
+
+    def _reason_code(self, reason):
+        """Short parseable code for a failure reason, e.g. "KB2" -- see the
+        CUSTOM_REASON_CODE_SUFFIX comment near the top of this file."""
+        if not self.code_prefix:
+            return None
+        try:
+            return f"{self.code_prefix}{self.reason_options.index(reason) + 1}"
+        except ValueError:
+            return f"{self.code_prefix}{CUSTOM_REASON_CODE_SUFFIX}"
+
+    def _reason_label(self, reason):
+        code = self._reason_code(reason)
+        return f"{code}: {reason}" if code else reason
+
+    def _code_sort_key(self, code):
+        """Numeric part of a code like "KB6" -> 6, so codes/notes always
+        sort in numeric order regardless of the order reasons were added.
+        A code that doesn't parse (e.g. the CUSTOM_REASON_CODE_SUFFIX
+        fallback, or None) sorts last."""
+        if not code or not self.code_prefix:
+            return 999
+        try:
+            return int(code[len(self.code_prefix) :])
+        except (TypeError, ValueError):
+            return 999
+
+    def _failed_codes(self):
+        """Data codes (e.g. "KB2") for every reported failure reason,
+        deduped and sorted in numeric order -- used for the compact Spec
+        Complete failure-summary row (get_failure_reasons) so it doesn't
+        repeat the full reason/location text already on the tracking
+        sheet. Override when a single reason can map to more than one
+        code (see KeyboardPage._failed_codes for "Physical damage")."""
+        codes = {self._reason_code(reason) for reason in self._reason_entries}
+        codes.discard(None)
+        return sorted(codes, key=self._code_sort_key)
+
+    def _sorted_reason_items(self):
+        """(reason, data) pairs from self._reason_entries sorted by each
+        reason's numeric data code (its position in reason_options) so the
+        tracking sheet always lists issues in code order (KB1, KB2, ...)
+        regardless of the order they were added in the app. Custom
+        free-text reasons have no fixed number (see CUSTOM_REASON_CODE_SUFFIX)
+        and sort after every numbered one, in the order they were added."""
+
+        def _sort_key(item):
+            reason, _ = item
+            try:
+                return (0, self.reason_options.index(reason))
+            except ValueError:
+                return (1, 0)
+
+        items = sorted(self._reason_entries.items(), key=_sort_key)
+        return [(reason, data) for reason, (entry_row, data) in items]
+
+    def get_failure_reasons(self):
+        """Reported reasons are summarized as just their data codes (e.g.
+        "Keyboard failed: KB1, KB4, KB9") rather than the full
+        reason/location text -- that detail already lives on the tracking
+        sheet (see get_notes_entries); this is just the compact Spec
+        Complete screen summary."""
+        if self.passed is False:
+            if not self._reason_entries:
+                return [f"{self.title} failed: no reason specified"]
+            codes = self._failed_codes()
+            if not codes:
+                return [f"{self.title} failed"]
+            return [f"{self.title} failed: " + ", ".join(codes)]
+        if self.passed is None:
+            return [f"{self.title} not completed"]
+        return []
+
+    def get_notes_entries(self):
+        """Each reported reason becomes its own coded detail (e.g. "KB2:
+        Key(s) Sticking (F, G)"), all joined onto a single line so multiple
+        issues on the same test read as one grouped note."""
+        if self.passed is not False:
+            return []
+        if not self._reason_entries:
+            return [{"text": f"{self.title}: issue reported"}]
+        details = []
+        for reason, data in self._sorted_reason_items():
+            label = self._reason_label(reason)
+            loc_text = self._locations_text(data)
+            if loc_text:
+                details.append(f"{label} ({loc_text})")
+            else:
+                details.append(label)
+        return [{"text": ", ".join(details)}]
+
+    def get_result(self):
+        if self.passed is None:
+            return "Untested"
+        return "Pass" if self.passed else "Fail"
+
+    def on_shown(self):
+        self.check_status()
+
+
+class PhysicalDefectsPage(Adw.Bin):
+    CODE_PREFIX = "PD"
+
+    def __init__(self):
+        super().__init__()
+        self.key = "PhysicalDefects"
+        self.title = "Physical Defects"
+        self.skip = False
+        self.has_defects = None
+        self.state = None
+        # Set externally by spec_v3.py -- see TogglePage.on_status_changed.
+        self.on_status_changed = None
+        self._defect_entries = {}
+        # Set externally by spec_v3.py so a "Port Damaged" defect can
+        # suppress the matching "Physically Damaged" reason on the right
+        # USB-A/USB-C page (see _on_port_damage_type_changed). USB-C may be
+        # None on devices without USB-C ports.
+        self.usb_a_page = None
+        self.usb_c_page = None
+
+        self.set_margin_top(24)
+        self.set_margin_bottom(24)
+        self.set_margin_start(24)
+        self.set_margin_end(24)
+
+        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
+
+        header = Gtk.Label(label="Physical Defects")
+        header.add_css_class("title-3")
+        header.set_halign(Gtk.Align.START)
+        vbox.append(header)
+
+        instructions_label = Gtk.Label(
+            label="Please inspect the machine for any physical damage. Make "
+            "sure to check the top, sides."
+        )
+        instructions_label.set_wrap(True)
+        instructions_label.set_justify(Gtk.Justification.CENTER)
+        instructions_label.set_halign(Gtk.Align.CENTER)
+        instructions_label.add_css_class("instructions-label")
+        vbox.append(instructions_label)
+
+        # TEMPORARY placeholder animation -- see _build_gif_placeholder_widget.
+        gif_placeholder = _build_gif_placeholder_widget()
+        if gif_placeholder is not None:
+            vbox.append(gif_placeholder)
+
+        result_group = Adw.PreferencesGroup(title="Result")
+        toggle_row = Adw.ActionRow()
+        toggle_row.set_title("Is the laptop in good physical condition? (FIXME)")
+
+        toggle_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+        toggle_box.add_css_class("linked")
+        self.no_defects_button = Gtk.ToggleButton(label="Yes")
+        self.defects_present_button = Gtk.ToggleButton(label="No")
+        self.no_defects_button.set_valign(Gtk.Align.CENTER)
+        self.defects_present_button.set_valign(Gtk.Align.CENTER)
+        self.no_defects_button.connect("toggled", self._on_no_defects_toggled)
+        self.defects_present_button.connect("toggled", self._on_defects_present_toggled)
+        toggle_box.append(self.no_defects_button)
+        toggle_box.append(self.defects_present_button)
+        toggle_row.add_suffix(toggle_box)
+        result_group.add(toggle_row)
+        vbox.append(result_group)
+
+        # Revealed only when "Yes" is selected
+        self.defects_revealer = Gtk.Revealer()
+        self.defects_revealer.set_transition_type(Gtk.RevealerTransitionType.SLIDE_DOWN)
+
+        defects_content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+
+        defect_buttons_box, self._defect_buttons = _build_toggle_button_grid(
+            "What type of damage is present? (Add all that apply)",
+            PHYSICAL_DEFECT_TYPES + [CUSTOM_OPTION],
+            self._on_defect_button_toggled,
+        )
+        defects_content.append(defect_buttons_box)
+
+        # Free-text entry, revealed only when "Custom..." is clicked above
+        self.custom_defect_revealer = Gtk.Revealer()
+        self.custom_defect_revealer.set_transition_type(
+            Gtk.RevealerTransitionType.SLIDE_DOWN
+        )
+        custom_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        custom_box.set_margin_start(12)
+        custom_box.set_margin_end(12)
+        custom_label = Gtk.Label(label="Describe the defect:")
+        self.custom_defect_entry = Gtk.Entry()
+        self.custom_defect_entry.set_hexpand(True)
+        self.custom_defect_entry.connect("activate", self._on_add_custom_defect_clicked)
+        custom_add_button = Gtk.Button(label="Add")
+        custom_add_button.connect("clicked", self._on_add_custom_defect_clicked)
+        custom_box.append(custom_label)
+        custom_box.append(self.custom_defect_entry)
+        custom_box.append(custom_add_button)
+        self.custom_defect_revealer.set_child(custom_box)
+        self.custom_defect_revealer.set_reveal_child(False)
+        defects_content.append(self.custom_defect_revealer)
+
+        self.defects_list_box = Gtk.ListBox()
+        self.defects_list_box.set_selection_mode(Gtk.SelectionMode.NONE)
+        self.defects_list_box.add_css_class("boxed-list")
+        self.defects_list_box.set_valign(Gtk.Align.START)
+        defects_content.append(self.defects_list_box)
+
+        self.defects_revealer.set_child(defects_content)
+        self.defects_revealer.set_reveal_child(False)
+        vbox.append(self.defects_revealer)
+
+        vbox.set_vexpand(True)
+        vbox.set_hexpand(True)
+        vbox.set_valign(Gtk.Align.START)
+
+        self.scrolled = Gtk.ScrolledWindow()
+        self.scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        self.scrolled.set_vexpand(True)
+        self.scrolled.set_hexpand(True)
+        self.scrolled.set_child(vbox)
+        self.set_child(self.scrolled)
+
+    def _on_no_defects_toggled(self, button):
+        if button.get_active():
+            self.defects_present_button.set_active(False)
+            button.add_css_class("toggle-pass-active")
+            self.defects_revealer.set_reveal_child(False)
+            self.has_defects = False
+            self.check_status()
+        else:
+            button.remove_css_class("toggle-pass-active")
+            if not self.defects_present_button.get_active():
+                # Neither button is selected anymore -- back to untested.
+                self.has_defects = None
+                self.check_status()
+
+    def _on_defects_present_toggled(self, button):
+        if button.get_active():
+            self.no_defects_button.set_active(False)
+            button.add_css_class("toggle-fail-active")
+            self.defects_revealer.set_reveal_child(True)
+            self.has_defects = True
+            self.check_status()
+            _scroll_to_bottom(self.scrolled)
+        else:
+            button.remove_css_class("toggle-fail-active")
+            if not self.no_defects_button.get_active():
+                # Neither button is selected anymore -- back to untested.
+                self.defects_revealer.set_reveal_child(False)
+                self.has_defects = None
+                self.check_status()
+
+    def _on_defect_button_toggled(self, button, defect_type):
+        _toggle_button_css(button)
+        if defect_type == CUSTOM_OPTION:
+            self.custom_defect_revealer.set_reveal_child(button.get_active())
+            if button.get_active():
+                self.custom_defect_entry.grab_focus()
+                _scroll_to_bottom(self.scrolled)
+            return
+        if button.get_active():
+            self._add_defect(defect_type)
+        else:
+            self._remove_defect(defect_type)
+
+    def _on_add_custom_defect_clicked(self, widget):
+        defect_type = self.custom_defect_entry.get_text().strip()
+        if not defect_type:
+            return
+        self.custom_defect_entry.set_text("")
+        self._add_defect(defect_type, removable=True)
+        # Hides the custom entry box again (fires _on_defect_button_toggled).
+        self._defect_buttons[CUSTOM_OPTION].set_active(False)
+
+    def _add_defect(self, defect_type, removable=False):
+        if defect_type in self._defect_entries:
+            return
+
+        entry_row = Adw.ExpanderRow(title=defect_type)
+
+        # Preset defect types are un-added by toggling their button back off
+        # (see _on_defect_button_toggled); only free-typed ("Custom...")
+        # defects have no corresponding button, so they get their own
+        # Remove action.
+        if removable:
+            remove_button = Gtk.Button(label="Remove")
+            remove_button.set_valign(Gtk.Align.CENTER)
+            remove_button.connect(
+                "clicked", self._on_remove_custom_defect_clicked, defect_type
+            )
+            entry_row.add_action(remove_button)
+
+        data = self._build_defect_details(defect_type, entry_row)
+
+        entry_row.set_expanded(True)
+        self.defects_list_box.append(entry_row)
+        self._defect_entries[defect_type] = (entry_row, data)
+        self.check_status()
+        _scroll_to_bottom(self.scrolled)
+
+    def _remove_defect(self, defect_type):
+        entry = self._defect_entries.pop(defect_type, None)
+        if entry is None:
+            return
+        entry_row, data = entry
+        self.defects_list_box.remove(entry_row)
+        if data and data.get("type") == "port_damage":
+            for port_type, page in data.get("_suppressed_pages", {}).items():
+                page.restore_reason_option(self._port_damage_reason_for_type(port_type))
+        self.check_status()
+
+    def _on_remove_custom_defect_clicked(self, button, defect_type):
+        self._remove_defect(defect_type)
+
+    def _build_defect_details(self, defect_type, entry_row):
+        if defect_type in PHYSICAL_NO_LOCATION_TYPES:
+            return {"type": "none"}
+
+        if defect_type in PHYSICAL_SCREEN_SECTION_TYPES:
+            return _build_section_picker(
+                self,
+                entry_row,
+                title="Location of crack",
+                select_all_label="Entire Screen",
+            )
+
+        if defect_type in PHYSICAL_PART_LOCATION_TYPES:
+            return self._build_part_location_picker(entry_row)
+
+        if defect_type in PHYSICAL_PORT_DAMAGE_TYPES:
+            return self._build_port_damage_picker(entry_row)
+
+        # Custom (typed-in) defect types fall back to a generic location picker.
+        return _build_section_picker(self, entry_row, select_all_label="Select All")
+
+    def _build_part_location_picker(self, entry_row):
+        # Each affected part gets its own independent location grid (rather
+        # than one grid shared across all of them), since e.g. a scratch on
+        # the Case and a scratch on the Screen aren't necessarily in the
+        # same sextant.
+        data = {"type": "part_location", "parts": [], "locations": {}}
+
+        locations_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        locations_list_row = Gtk.ListBoxRow()
+        locations_list_row.set_selectable(False)
+        locations_list_row.set_activatable(False)
+        locations_list_row.set_child(locations_box)
+
+        def _rebuild_part_location_rows(selected_parts):
+            child = locations_box.get_first_child()
+            while child is not None:
+                next_child = child.get_next_sibling()
+                locations_box.remove(child)
+                child = next_child
+            data["locations"] = {
+                part: locations
+                for part, locations in data["locations"].items()
+                if part in selected_parts
+            }
+            for part in selected_parts:
+
+                def _on_location_change(selected, part=part):
+                    data["locations"][part] = selected
+                    self.check_status()
+
+                part_row = _build_section_row(
+                    f"Location on {part}",
+                    SCREEN_SECTIONS,
+                    select_all_label="Select All",
+                    on_change=_on_location_change,
+                )
+                locations_box.append(part_row)
+
+        def _on_parts_change(selected):
+            data["parts"] = selected
+            _rebuild_part_location_rows(selected)
+            self.check_status()
+            _scroll_to_bottom(self.scrolled)
+
+        parts_row = _build_section_row(
+            "Affected part(s)",
+            PHYSICAL_AFFECTED_PARTS,
+            columns=len(PHYSICAL_AFFECTED_PARTS),
+            on_change=_on_parts_change,
+        )
+        entry_row.add_row(parts_row)
+        entry_row.add_row(locations_list_row)
+        return data
+
+    def _build_port_damage_picker(self, entry_row):
+        # Multiple port types can be damaged at once (e.g. a USB-A port and
+        # the charging port), each with its own set of affected location(s)
+        # and, per location, an optional port # -- same per-location Port #
+        # pattern as UsbPortLocationMixin.build_reason_locations, just
+        # nested one level deeper (per port type instead of a single type).
+        data = {
+            "type": "port_damage",
+            "types": [],
+            "locations": {},  # port_type -> [location, ...]
+            "port_numbers": {},  # port_type -> {location: port_num}
+            "custom_text": {},  # port_type ("Other") -> custom description
+            "_suppressed_pages": {},  # port_type -> page it's suppressed on
+        }
+
+        types_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
+        types_list_row = Gtk.ListBoxRow()
+        types_list_row.set_selectable(False)
+        types_list_row.set_activatable(False)
+        types_list_row.set_child(types_box)
+
+        def _rebuild_type_blocks(selected_types):
+            child = types_box.get_first_child()
+            while child is not None:
+                next_child = child.get_next_sibling()
+                types_box.remove(child)
+                child = next_child
+
+            for port_type in list(data["_suppressed_pages"].keys()):
+                if port_type not in selected_types:
+                    data["_suppressed_pages"].pop(port_type).restore_reason_option(
+                        self._port_damage_reason_for_type(port_type)
+                    )
+            data["locations"] = {
+                t: v for t, v in data["locations"].items() if t in selected_types
+            }
+            data["port_numbers"] = {
+                t: v for t, v in data["port_numbers"].items() if t in selected_types
+            }
+            data["custom_text"] = {
+                t: v for t, v in data["custom_text"].items() if t in selected_types
+            }
+
+            for port_type in selected_types:
+                block = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+
+                type_label = Gtk.Label(label=port_type)
+                type_label.set_halign(Gtk.Align.START)
+                type_label.add_css_class("heading")
+                block.append(type_label)
+
+                if port_type == "Other":
+                    custom_entry = Gtk.Entry()
+                    custom_entry.set_placeholder_text("Describe the port")
+                    custom_entry.set_text(data["custom_text"].get(port_type, ""))
+
+                    def _on_custom_changed(entry, port_type=port_type):
+                        data["custom_text"][port_type] = entry.get_text().strip()
+                        self.check_status()
+
+                    custom_entry.connect("changed", _on_custom_changed)
+                    block.append(custom_entry)
+
+                ports_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+
+                def _rebuild_ports(
+                    selected_locations, port_type=port_type, ports_box=ports_box
+                ):
+                    child = ports_box.get_first_child()
+                    while child is not None:
+                        next_child = child.get_next_sibling()
+                        ports_box.remove(child)
+                        child = next_child
+                    for location in selected_locations:
+                        port_row = Gtk.Box(
+                            orientation=Gtk.Orientation.HORIZONTAL, spacing=8
+                        )
+                        label = Gtk.Label(label=f"{location} Port #")
+                        label.set_halign(Gtk.Align.START)
+                        label.set_hexpand(True)
+                        num_entry = Gtk.Entry()
+                        num_entry.set_max_length(1)
+                        num_entry.set_placeholder_text("optional")
+                        num_entry.set_tooltip_text(
+                            "Only needed if there are multiple of this type on "
+                            "this side"
+                        )
+                        num_entry.set_input_purpose(Gtk.InputPurpose.DIGITS)
+                        num_entry.set_size_request(48, -1)
+                        num_entry.set_text(
+                            data["port_numbers"].get(port_type, {}).get(location, "")
+                        )
+                        num_entry.connect(
+                            "insert-text", self._on_port_number_insert_text
+                        )
+
+                        def _on_num_changed(
+                            entry, port_type=port_type, location=location
+                        ):
+                            data["port_numbers"].setdefault(port_type, {})[
+                                location
+                            ] = entry.get_text().strip()
+
+                        num_entry.connect("changed", _on_num_changed)
+                        port_row.append(label)
+                        port_row.append(num_entry)
+                        ports_box.append(port_row)
+
+                def _on_locations_change(
+                    selected, port_type=port_type, ports_box=ports_box
+                ):
+                    data["locations"][port_type] = selected
+                    data["port_numbers"][port_type] = {
+                        location: value
+                        for location, value in data["port_numbers"]
+                        .get(port_type, {})
+                        .items()
+                        if location in selected
+                    }
+                    _rebuild_ports(selected)
+                    self.check_status()
+                    _scroll_to_bottom(self.scrolled)
+
+                location_row = _build_section_row(
+                    "Location(s)",
+                    USB_PORT_LOCATIONS,
+                    columns=len(USB_PORT_LOCATIONS),
+                    on_change=_on_locations_change,
+                )
+                block.append(location_row)
+                block.append(ports_box)
+                _rebuild_ports(data["locations"].get(port_type, []))
+
+                types_box.append(block)
+
+                # Suppress the matching "physically damage" reason on the
+                # type's matching USB page right away so it isn't
+                # double-reported there too.
+                page = self._usb_page_for_type(port_type)
+                if page is not None and port_type not in data["_suppressed_pages"]:
+                    page.suppress_reason_option(self._port_damage_reason_for_type(port_type))
+                    data["_suppressed_pages"][port_type] = page
+
+        def _on_types_change(selected):
+            data["types"] = selected
+            _rebuild_type_blocks(selected)
+            self.check_status()
+            _scroll_to_bottom(self.scrolled)
+
+        types_row = _build_section_row(
+            "Port Type(s)",
+            PHYSICAL_PORT_TYPES,
+            columns=len(PHYSICAL_PORT_TYPES),
+            on_change=_on_types_change,
+        )
+        entry_row.add_row(types_row)
+        entry_row.add_row(types_list_row)
+
+        return data
+
+    def _usb_page_for_type(self, port_type):
+        if port_type == "USB-A":
+            return self.usb_a_page
+        if port_type == "USB-C":
+            return self.usb_c_page
+        return None
+
+    def _port_damage_reason_for_type(self, port_type):
+        if port_type == "USB-A":
+            return USB_A_PORT_DAMAGE_REASON
+        if port_type == "USB-C":
+            return USB_C_PORT_DAMAGE_REASON
+        return None
+
+    def _on_port_number_insert_text(self, entry, text, length, position):
+        if text and not text.isdigit():
+            GObject.signal_stop_emission_by_name(entry, "insert-text")
+
+    def _defect_is_filled(self, data):
+        """See TogglePage._reason_is_filled -- "Yes" requires at
+        least one fully-filled defect before it counts as complete."""
+        kind = data.get("type")
+        if kind == "none":
+            return True
+        if kind == "sections":
+            return bool(data.get("selected"))
+        if kind == "part_location":
+            parts = data.get("parts") or []
+            locations = data.get("locations") or {}
+            return bool(parts) and all(locations.get(part) for part in parts)
+        if kind == "port_damage":
+            # Every selected port type needs at least one location marked
+            # (port # itself stays optional -- only needed to disambiguate
+            # multiple same-side ports); "Other" additionally requires the
+            # custom port description to be filled in.
+            types = data.get("types") or []
+            if not types:
+                return False
+            locations = data.get("locations") or {}
+            custom_text = data.get("custom_text") or {}
+            for port_type in types:
+                if not locations.get(port_type):
+                    return False
+                if port_type == "Other" and not custom_text.get(port_type, "").strip():
+                    return False
+            return True
+        return False
+
+    def is_complete(self):
+        if self.has_defects is None:
+            return False
+        if self.has_defects:
+            if not self._defect_entries:
+                return False
+            return all(
+                self._defect_is_filled(data)
+                for _, data in self._defect_entries.values()
+            )
+        return True
+
+    def check_status(self):
+        if self.state is None:
+            return
+        state = self.state.get_value()
+        state[self.key] = self.has_defects is False
+        print(f"{self.key}:check_status {self.has_defects}")
+        if self.on_status_changed:
+            self.on_status_changed()
+
+    def _defect_code(self, defect_type):
+        """See CUSTOM_REASON_CODE_SUFFIX near the top of this file."""
+        try:
+            return f"{self.CODE_PREFIX}{PHYSICAL_DEFECT_TYPES.index(defect_type) + 1}"
+        except ValueError:
+            return f"{self.CODE_PREFIX}{CUSTOM_REASON_CODE_SUFFIX}"
+
+    def _sorted_defect_items(self):
+        """(defect_type, data) pairs sorted by numeric PD-code position so
+        the tracking sheet always lists defects in code order regardless
+        of the order they were added in the app -- see
+        TogglePage._sorted_reason_items."""
+
+        def _sort_key(item):
+            defect_type, _ = item
+            try:
+                return (0, PHYSICAL_DEFECT_TYPES.index(defect_type))
+            except ValueError:
+                return (1, 0)
+
+        items = sorted(self._defect_entries.items(), key=_sort_key)
+        return [(defect_type, data) for defect_type, (entry_row, data) in items]
+
+    def _code_sort_key(self, code):
+        """See TogglePage._code_sort_key -- numeric part of a "PDn" code."""
+        if not code:
+            return 999
+        try:
+            return int(code[len(self.CODE_PREFIX) :])
+        except (TypeError, ValueError):
+            return 999
+
+    def _defect_detail(self, defect_type, data):
+        label = f"{self._defect_code(defect_type)}: {defect_type}"
+        kind = data.get("type")
+
+        if kind == "none":
+            return label
+
+        if kind == "sections":
+            selected = data.get("selected") or []
+            loc_text = ", ".join(selected) if selected else "no location marked"
+            return f"{label} ({loc_text})"
+
+        if kind == "part_location":
+            parts = data.get("parts") or []
+            if not parts:
+                return f"{label} (no part specified)"
+            locations = data.get("locations") or {}
+            part_details = []
+            for part in parts:
+                selected = locations.get(part) or []
+                loc_text = ", ".join(selected) if selected else "no location specified"
+                part_details.append(f"{part}: {loc_text}")
+            return f"{label} ({'; '.join(part_details)})"
+
+        if kind == "port_damage":
+            types = data.get("types") or []
+            if not types:
+                return f"{label} (no port type specified)"
+            locations = data.get("locations") or {}
+            port_numbers = data.get("port_numbers") or {}
+            custom_text = data.get("custom_text") or {}
+            type_details = []
+            for port_type in types:
+                name = port_type
+                if port_type == "Other":
+                    custom = custom_text.get(port_type, "").strip()
+                    name = custom if custom else "Other"
+                locs = locations.get(port_type) or []
+                loc_parts = []
+                for location in locs:
+                    port_num = port_numbers.get(port_type, {}).get(location, "").strip()
+                    loc_parts.append(
+                        f"{location} (port #{port_num})" if port_num else location
+                    )
+                loc_text = (
+                    ", ".join(loc_parts) if loc_parts else "no location specified"
+                )
+                type_details.append(f"{name}: {loc_text}")
+            return f"{label} ({'; '.join(type_details)})"
+
+        return label
+
+    def get_failure_reasons(self):
+        """Reported defects are summarized as just their data codes (e.g.
+        "PD1, PD5") rather than the full defect/location text -- that
+        detail already lives on the tracking sheet (see get_notes_entries);
+        this is just the compact Spec Complete screen summary."""
+        if self.has_defects is None:
+            return ["Physical defects check not completed"]
+        if not self.has_defects:
+            return []
+        if not self._defect_entries:
+            return ["Physical defects present"]
+        codes = sorted(
+            {self._defect_code(defect_type) for defect_type in self._defect_entries},
+            key=self._code_sort_key,
+        )
+        if not codes:
+            return ["Physical defects present"]
+        return [", ".join(codes)]
+
+    def get_notes_entries(self):
+        """All reported defects are concatenated onto a single line (rather
+        than one line per defect type) so damages affecting the device read
+        as a single grouped note, e.g. "PD1: Hinge Broken, PD5: Deep
+        Scratches (Keyboard: Top, Left)"."""
+        if self.has_defects is not True:
+            return []
+        if not self._defect_entries:
+            return [{"text": "PD: issue reported"}]
+        details = [
+            self._defect_detail(defect_type, data)
+            for defect_type, data in self._sorted_defect_items()
+        ]
+        return [{"text": ", ".join(details)}]
+
+    def get_result(self):
+        if self.has_defects is None:
+            return "Untested"
+        return "Fail" if self.has_defects else "Pass"
+
+    def on_shown(self):
+        self.check_status()
+
+
+class WiFiPage(TogglePage):
+    def __init__(self):
+        super().__init__(
+            "WiFi",
+            "WiFi",
+            "WiFi Connectivity",
+            reason_options=WIFI_DEFECT_TYPES,
+            code_prefix="WF",
+            topic="WiFi",
+            instructions=(
+                "Connect to a Wi-Fi network and confirm the connection is "
+                "stable. This page is skipped automatically once a "
+                "connection is detected."
+            ),
+        )
+
+    def on_shown(self):
+        connected = Utils.is_wifi_connected()
+        self.skip = connected
+        if connected:
+            self.passed = True
+        if self.state is not None:
+            state = self.state.get_value()
+            state[self.key] = connected or bool(self.passed)
+        print(f"WiFi:on_shown connected={connected} skip={self.skip}")
+
+
+class TouchpadPage(TogglePage):
+    def __init__(self):
+        super().__init__(
+            "Touchpad",
+            "Touchpad",
+            "Touchpad",
+            reason_options=TOUCHPAD_DEFECT_TYPES,
+            code_prefix="TP",
+            instructions=(
+                "When testing the touchpad, please make sure to test all left"
+                " and right click buttons. Also ensure when moving"
+                " your finger across the touchpad that the"
+                " cursor moves cleanly and accurately. "
+            ),
+        )
+
+    def build_reason_locations(self, entry_row, reason):
+        if reason == TOUCHPAD_CLICK_REASON:
+            return _build_section_picker(
+                self,
+                entry_row,
+                options=TOUCHPAD_CLICK_ZONE_OPTIONS,
+                title="Which click(s) are broken?",
+            )
+        if reason == TOUCHPAD_CURSOR_REASON:
+            return _build_section_picker(
+                self,
+                entry_row,
+                options=TOUCHPAD_CURSOR_OPTIONS,
+                title="What's the cursor doing wrong?",
+            )
+        # "Touchpad does not work at all" / "Touchpad feels very tight"
+        # apply to the whole touchpad -- no location to narrow down. Any
+        # custom free-text reason gets no location picker either, to keep
+        # custom entries simple.
+        return {"type": "none"}
+
+    def get_notes_entries(self):
+        """Overrides TogglePage.get_notes_entries -- touchpad reasons get
+        their own plain-English wording (see TOUCHPAD_REASON_NOTES /
+        TOUCHPAD_CLICK_ZONE_NOTES / TOUCHPAD_CURSOR_NOTES above), still
+        prefixed with their "TP<n>" data code (see _reason_code) so the
+        tracking sheet stays consistent with every other test's notes."""
+        if self.passed is not False:
+            return []
+        if not self._reason_entries:
+            return [{"text": "Touchpad: issue reported"}]
+        details = []
+        for reason, data in self._sorted_reason_items():
+            details.extend(self._touchpad_reason_notes(reason, data))
+        return [{"text": ", ".join(details)}]
+
+    def _touchpad_reason_notes(self, reason, data):
+        code = self._reason_code(reason)
+        if reason == TOUCHPAD_CLICK_REASON:
+            selected = data.get("selected") or []
+            zones = [TOUCHPAD_CLICK_ZONE_NOTES[zone] for zone in selected]
+            suffix = f": {', '.join(zones)}" if zones else ""
+            return [f"{code} {TOUCHPAD_CLICK_LABEL}{suffix}"]
+        if reason == TOUCHPAD_CURSOR_REASON:
+            selected = data.get("selected") or []
+            behaviors = [TOUCHPAD_CURSOR_NOTES[opt] for opt in selected]
+            suffix = f": {', '.join(behaviors)}" if behaviors else ""
+            return [f"{code} {TOUCHPAD_CURSOR_LABEL}{suffix}"]
+        if reason in TOUCHPAD_REASON_NOTES:
+            return [f"{code} {TOUCHPAD_REASON_NOTES[reason]}"]
+        # Custom free-text reason -- fall back to the generic coded label
+        # (already includes a code, e.g. "TPO: some custom text").
+        return [self._reason_label(reason)]
+
+
+class ScreenSectionMixin:
+    """Shared "click the affected screen section(s)" picker, used by both
+    ScreenPage and TouchscreenPage. See _build_section_picker."""
+
+    # Reasons that apply to the whole screen with no meaningful location to
+    # ask for -- see TouchpadPage.build_reason_locations for a similar
+    # "some reasons need no location" pattern.
+    NO_LOCATION_REASONS = set()
+
+    def build_reason_locations(self, entry_row, reason):
+        if reason in self.NO_LOCATION_REASONS:
+            return {"type": "none"}
+        return _build_section_picker(
+            self,
+            entry_row,
+            title="Location on screen",
+            select_all_label="Entire Screen",
+        )
+
+
+class ScreenPage(ScreenSectionMixin, TogglePage):
+    # These two reasons apply to the whole screen with nothing to point at.
+    NO_LOCATION_REASONS = {"Screen broken", "Screen not responding"}
+
+    def __init__(self):
+        super().__init__(
+            "ScreenTest",
+            "Screen",
+            "Screen",
+            reason_options=SCREEN_DEFECT_TYPES,
+            code_prefix="SC",
+            instructions=(
+                "Click below to launch the screen test pattern and check "
+                "for dead pixels, discoloration, flickering, and light spots. "
+                "During the screen test, please make sure to wipe down the "
+                "screen with a slightly damp rag to help tell apart real "
+                "damage and dirtiness. (Please never spray directly onto the "
+                "screen)"
+            ),
+        )
+        self.utils = Utils()
+
+    def build_action(self, box):
+        launch_row = Adw.ActionRow()
+        launch_row.set_title("Launch the screen test pattern")
+        launch_button = Gtk.Button(label="Click Here")
+        launch_button.set_valign(Gtk.Align.CENTER)
+        launch_button.connect("clicked", self._on_launch_clicked)
+        launch_row.add_suffix(launch_button)
+        group = Adw.PreferencesGroup()
+        group.add(launch_row)
+        box.append(group)
+
+        self.launch_status = Gtk.Label(label="")
+        self.launch_status.set_xalign(0)
+        self.launch_status.set_wrap(True)
+        box.append(self.launch_status)
+
+    def _on_launch_clicked(self, button):
+        _set_status(self.launch_status, "Launching screen test...", auto_clear_ms=4000)
+        try:
+            process = subprocess.Popen(
+                ["screen-test"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+        except OSError as exc:
+            _set_status(
+                self.launch_status,
+                f"Could not launch screen-test: {exc}",
+                is_error=True,
+            )
+            return
+        GLib.timeout_add(400, self._check_launch_result, process)
+
+    def _check_launch_result(self, process):
+        rc = process.poll()
+        if rc is not None and rc != 0:
+            stderr = ""
+            if process.stderr is not None:
+                stderr = process.stderr.read().decode(errors="replace").strip()
+            message = f"screen-test exited immediately (code {rc})"
+            if stderr:
+                message += f": {stderr}"
+            _set_status(self.launch_status, message, is_error=True)
+        return False
+
+
+class BrowserPage(TogglePage):
+    def __init__(self):
+        super().__init__(
+            "Browser",
+            "Browser",
+            "Browser (video and audio playback)",
+            reason_options=BROWSER_DEFECT_TYPES,
+            code_prefix="BR",
+            topic="video/audio playback",
+            instructions=(
+                "Click below to open a test video in Firefox and confirm both "
+                "video playback and audio play correctly."
+            ),
+        )
+        self.utils = Utils()
+
+    def build_action(self, box):
+        launch_row = Adw.ActionRow()
+        launch_row.set_title("Open the test video in a browser")
+        launch_button = Gtk.Button(label="Click Here")
+        launch_button.set_valign(Gtk.Align.CENTER)
+        launch_button.connect("clicked", self._on_launch_clicked)
+        launch_row.add_suffix(launch_button)
+        group = Adw.PreferencesGroup()
+        group.add(launch_row)
+        box.append(group)
+
+        self.launch_status = Gtk.Label(label="")
+        self.launch_status.set_xalign(0)
+        self.launch_status.set_wrap(True)
+        box.append(self.launch_status)
+
+    def _on_launch_clicked(self, button):
+        _set_status(self.launch_status, "Opening browser...", auto_clear_ms=4000)
+        self.utils.launch_app("xdg-open https://vimeo.com/116979416")
+
+    def build_reason_locations(self, entry_row, reason):
+        return {"type": "none"}
+
+
+class WebcamPage(TogglePage):
+    def __init__(self):
+        super().__init__(
+            "WebCam",
+            "Webcam",
+            "Webcam",
+            reason_options=WEBCAM_DEFECT_TYPES,
+            code_prefix="WC",
+            instructions=(
+                "Click below to open the webcam test. During it, ensure the "
+                "picture is clear and accurate."
+            ),
+        )
+        self.utils = Utils()
+
+    def build_action(self, box):
+        launch_row = Adw.ActionRow()
+        launch_row.set_title("Open the webcam viewer")
+        launch_button = Gtk.Button(label="Click Here")
+        launch_button.set_valign(Gtk.Align.CENTER)
+        launch_button.connect("clicked", self._on_launch_clicked)
+        launch_row.add_suffix(launch_button)
+        group = Adw.PreferencesGroup()
+        group.add(launch_row)
+        box.append(group)
+
+        self.launch_status = Gtk.Label(label="")
+        self.launch_status.set_xalign(0)
+        self.launch_status.set_wrap(True)
+        box.append(self.launch_status)
+
+    def _find_non_ir_video_device(self):
+        ir_keywords = ["infrared", "ir camera", "windows hello", "ir sensor"]
+        for video_path in sorted(glob.glob("/dev/video*")):
+            name_file = f"/sys/class/video4linux/{os.path.basename(video_path)}/name"
+            try:
+                with open(name_file) as f:
+                    name = f.read().strip().lower()
+                if not any(kw in name for kw in ir_keywords):
+                    return video_path
+            except OSError:
+                pass
+        return None
+
+    def _on_launch_clicked(self, button):
+        if self.utils.file_exists_and_executable("/usr/bin/guvcview"):
+            device = self._find_non_ir_video_device()
+            cmd = f"guvcview --device={device}" if device else "guvcview"
+            _set_status(self.launch_status, "Launching guvcview...", auto_clear_ms=4000)
+            self.utils.launch_app(cmd)
+        elif self.utils.file_exists_and_executable("/usr/bin/cheese"):
+            _set_status(self.launch_status, "Launching cheese...", auto_clear_ms=4000)
+            self.utils.launch_app("cheese")
+        elif self.utils.file_exists_and_executable("/usr/bin/snapshot"):
+            _set_status(self.launch_status, "Launching snapshot...", auto_clear_ms=4000)
+            self.utils.launch_app("snapshot")
+        else:
+            _set_status(
+                self.launch_status,
+                "No webcam viewer (guvcview/cheese/snapshot) found on this system",
+                is_error=True,
+            )
+
+    def build_reason_locations(self, entry_row, reason):
+        if reason == WEBCAM_SOLID_BLACK_REASON:
+            return self._build_webcam_confirm(entry_row, WEBCAM_COVER_CHECK_PROMPT)
+        if reason == WEBCAM_FLASHING_REASON:
+            return self._build_webcam_confirm(
+                entry_row,
+                WEBCAM_WRONG_CAMERA_PROMPT,
+                build_followup=self._build_ir_choice_content,
+            )
+        return {"type": "none"}
+
+    def _build_webcam_confirm(self, entry_row, prompt, build_followup=None):
+        """Common "did this fix it?" row for the two webcam reasons that
+        have a known non-defect cause (a physical lens cover, or the wrong
+        camera being selected by default) -- see WEBCAM_SOLID_BLACK_REASON/
+        WEBCAM_FLASHING_REASON. "Yes" means it wasn't a real defect at all
+        (see get_notes_entries/_failed_codes, which drop it from the
+        tracking sheet); "No" reports it as a defect, or -- for the
+        flashing reason -- reveals a further IR-camera choice
+        (build_followup). Yes/No stay toggleable (not locked in after the
+        first click) so the tech can freely change their answer."""
+        data = {
+            "type": "webcam_confirm",
+            "resolved": None,
+            "needs_ir_choice": build_followup is not None,
+            "ir_resolution": None,
+        }
+
+        row = Adw.ActionRow(title=prompt)
+        row.set_title_lines(0)
+
+        button_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+        button_box.add_css_class("linked")
+        yes_button = Gtk.ToggleButton(label="Yes")
+        no_button = Gtk.ToggleButton(label="No")
+        yes_button.set_valign(Gtk.Align.CENTER)
+        no_button.set_valign(Gtk.Align.CENTER)
+        button_box.append(yes_button)
+        button_box.append(no_button)
+        row.add_suffix(button_box)
+        entry_row.add_row(row)
+
+        followup_revealer = None
+        if build_followup is not None:
+            followup_revealer = Gtk.Revealer()
+            followup_revealer.set_transition_type(Gtk.RevealerTransitionType.SLIDE_DOWN)
+            followup_row = Gtk.ListBoxRow()
+            followup_row.set_selectable(False)
+            followup_row.set_activatable(False)
+            followup_row.set_child(build_followup(data))
+            followup_revealer.set_child(followup_row)
+            followup_revealer.set_reveal_child(False)
+            entry_row.add_row(followup_revealer)
+
+        def _sync(resolved):
+            data["resolved"] = resolved
+            if followup_revealer is not None:
+                followup_revealer.set_reveal_child(resolved is False)
+            self.check_status()
+
+        def _on_yes_toggled(button):
+            if button.get_active():
+                no_button.set_active(False)
+                button.add_css_class("toggle-pass-active")
+                _sync(True)
+            else:
+                button.remove_css_class("toggle-pass-active")
+                if not no_button.get_active():
+                    _sync(None)
+
+        def _on_no_toggled(button):
+            if button.get_active():
+                yes_button.set_active(False)
+                button.add_css_class("toggle-fail-active")
+                _sync(False)
+            else:
+                button.remove_css_class("toggle-fail-active")
+                if not yes_button.get_active():
+                    _sync(None)
+
+        yes_button.connect("toggled", _on_yes_toggled)
+        no_button.connect("toggled", _on_no_toggled)
+
+        return data
+
+    def _build_ir_choice_content(self, data):
+        """Follow-up content revealed when the wrong-camera fix didn't
+        resolve the flashing reason -- a staff member/Super Geek must
+        physically confirm which IR-camera situation applies (see
+        WEBCAM_IR_PRESENT_LABEL/WEBCAM_IR_WORKS_LABEL). Stays toggleable,
+        same as the Yes/No question above."""
+        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+
+        prompt_label = Gtk.Label(label=WEBCAM_IR_CHOICE_PROMPT)
+        prompt_label.set_wrap(True)
+        prompt_label.set_justify(Gtk.Justification.CENTER)
+        prompt_label.set_halign(Gtk.Align.CENTER)
+        content.append(prompt_label)
+
+        present_button = self._build_wrapped_toggle_button(WEBCAM_IR_PRESENT_LABEL)
+        works_button = self._build_wrapped_toggle_button(WEBCAM_IR_WORKS_LABEL)
+        content.append(present_button)
+        content.append(works_button)
+
+        def _on_present_toggled(button):
+            if button.get_active():
+                works_button.set_active(False)
+                button.add_css_class("toggle-fail-active")
+                data["ir_resolution"] = "ir_present"
+            else:
+                button.remove_css_class("toggle-fail-active")
+                if not works_button.get_active():
+                    data["ir_resolution"] = None
+            self.check_status()
+
+        def _on_works_toggled(button):
+            if button.get_active():
+                present_button.set_active(False)
+                button.add_css_class("toggle-fail-active")
+                data["ir_resolution"] = "ir_works"
+            else:
+                button.remove_css_class("toggle-fail-active")
+                if not present_button.get_active():
+                    data["ir_resolution"] = None
+            self.check_status()
+
+        present_button.connect("toggled", _on_present_toggled)
+        works_button.connect("toggled", _on_works_toggled)
+
+        return content
+
+    def _build_wrapped_toggle_button(self, text):
+        button = Gtk.ToggleButton()
+        label = Gtk.Label(label=text)
+        label.set_wrap(True)
+        label.set_justify(Gtk.Justification.CENTER)
+        button.set_child(label)
+        return button
+
+    def _reason_is_filled(self, data):
+        if data.get("type") == "webcam_confirm":
+            resolved = data.get("resolved")
+            if resolved is None:
+                return False
+            if resolved or not data.get("needs_ir_choice"):
+                return True
+            return data.get("ir_resolution") is not None
+        return super()._reason_is_filled(data)
+
+    def _failed_codes(self):
+        """Overrides TogglePage._failed_codes -- a webcam_confirm reason
+        answered "Yes" (fixed by the lens cover/camera selection, not a
+        real defect) is dropped from the failure-code summary, same as
+        get_notes_entries drops it from the tracking sheet."""
+        codes = set()
+        for reason, (_, data) in self._reason_entries.items():
+            if data.get("type") == "webcam_confirm" and data.get("resolved"):
+                continue
+            code = self._reason_code(reason)
+            if code:
+                codes.add(code)
+        return sorted(codes, key=self._code_sort_key)
+
+    def get_notes_entries(self):
+        """Overrides TogglePage.get_notes_entries -- a webcam_confirm
+        reason resolved as "Yes" isn't a real defect and is omitted
+        entirely (see _build_webcam_confirm); the flashing reason's IR
+        follow-up gets its own plain-English wording (WEBCAM_IR_PRESENT_NOTE/
+        WEBCAM_IR_WORKS_NOTE)."""
+        if self.passed is not False:
+            return []
+        if not self._reason_entries:
+            return [{"text": "Webcam: issue reported"}]
+        details = []
+        for reason, data in self._sorted_reason_items():
+            details.extend(self._webcam_reason_notes(reason, data))
+        if not details:
+            return []
+        return [{"text": ", ".join(details)}]
+
+    def _webcam_reason_notes(self, reason, data):
+        if data.get("type") != "webcam_confirm":
+            return [self._reason_label(reason)]
+        if data.get("resolved"):
+            return []
+        code = self._reason_code(reason)
+        if data.get("needs_ir_choice"):
+            resolution = data.get("ir_resolution")
+            if resolution == "ir_present":
+                return [f"{code}: {WEBCAM_IR_PRESENT_NOTE}"]
+            if resolution == "ir_works":
+                return [f"{code}: {WEBCAM_IR_WORKS_NOTE}"]
+        return [self._reason_label(reason)]
+
+
+class UsbPortLocationMixin:
+    """Shared "pick a location + optional port number" builder for the split
+    USB-A / USB-C pages below -- each page only ever reports on its own port
+    type, so (unlike the old combined UsbPortsPage) there's no USB-A/USB-C
+    dropdown to pick here."""
+
+    def build_reason_locations(self, entry_row, reason):
+        data = {"type": "usb_port", "locations": [], "port_numbers": {}}
+
+        ports_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        ports_list_row = Gtk.ListBoxRow()
+        ports_list_row.set_selectable(False)
+        ports_list_row.set_activatable(False)
+        ports_list_row.set_child(ports_box)
+
+        def _on_port_number_changed(entry, location):
+            data["port_numbers"][location] = entry.get_text().strip()
+
+        def _rebuild_port_number_rows(selected):
+            child = ports_box.get_first_child()
+            while child is not None:
+                next_child = child.get_next_sibling()
+                ports_box.remove(child)
+                child = next_child
+            for location in selected:
+                port_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+                label = Gtk.Label(label=f"{location} Port #")
+                label.set_halign(Gtk.Align.START)
+                label.set_hexpand(True)
+                entry = Gtk.Entry()
+                entry.set_max_length(1)
+                entry.set_placeholder_text("optional")
+                entry.set_tooltip_text(
+                    "Only needed if there are multiple of this type on this side"
+                )
+                entry.set_input_purpose(Gtk.InputPurpose.DIGITS)
+                entry.set_size_request(48, -1)
+                entry.set_text(data["port_numbers"].get(location, ""))
+                entry.connect("insert-text", self._on_port_number_insert_text)
+                entry.connect("changed", _on_port_number_changed, location)
+                port_row.append(label)
+                port_row.append(entry)
+                ports_box.append(port_row)
+
+        def _on_locations_change(selected):
+            data["locations"] = selected
+            data["port_numbers"] = {
+                location: value
+                for location, value in data["port_numbers"].items()
+                if location in selected
+            }
+            _rebuild_port_number_rows(selected)
+            self.check_status()
+            _scroll_to_bottom(self.scrolled)
+
+        location_row = _build_section_row(
+            "Location(s)",
+            USB_PORT_LOCATIONS,
+            columns=len(USB_PORT_LOCATIONS),
+            on_change=_on_locations_change,
+        )
+        entry_row.add_row(location_row)
+        entry_row.add_row(ports_list_row)
+
+        return data
+
+    def _on_port_number_insert_text(self, entry, text, length, position):
+        if text and not text.isdigit():
+            GObject.signal_stop_emission_by_name(entry, "insert-text")
+
+
+class UsbAPage(UsbPortLocationMixin, TogglePage):
+    def __init__(self):
+        super().__init__(
+            "USBA",
+            "USB-A Ports",
+            "USB-A Ports",
+            reason_options=USB_A_DEFECT_TYPES,
+            code_prefix="UA",
+            topic="USB-A port",
+            instructions=(
+                "Using a USB mouse, please plug the mouse into each USB-A port "
+                "and move it around, ensuring that the cursor moves around on "
+                "screen. If there are multiple USB-A ports on the same side of "
+                "the device, specify a number to indicate this. USB ports "
+                "closer to the screen hinge are lower numbers (starting with 0) "
+                "and increase with distance from the hinge. USB ports on the "
+                "back of the laptop will increase as they move from left to right."
+            ),
+        )
+
+    def _reason_code(self, reason):
+        return USB_A_REASON_CODES.get(reason) or super()._reason_code(reason)
+
+
+class UsbCPage(UsbPortLocationMixin, TogglePage):
+    def __init__(self):
+        super().__init__(
+            "USBC",
+            "USB-C Ports",
+            "USB-C Ports",
+            reason_options=USB_C_DEFECT_TYPES,
+            code_prefix="UC",
+            topic="USB-C port",
+            instructions=(
+                "Using a provided USB-C dock and USB mouse, plug into each "
+                "USB-C port and move the mouse around, ensuring that the "
+                "cursor moves around on screen. Also flip the USB-C plug on "
+                "the dock around and plug into the port to ensure it works "
+                "both ways. If there are multiple USB-C ports on the same "
+                "side of the device, specify a number to indicate this. USB "
+                "ports closer to the screen hinge are lower numbers (starting "
+                "with 0) and increase with distance from the hinge. USB ports "
+                "on the back of the laptop will increase as they move from "
+                "left to right."
+            ),
+        )
+
+    def _reason_code(self, reason):
+        return USB_C_REASON_CODES.get(reason) or super()._reason_code(reason)
+
+
+class TouchscreenPage(ScreenSectionMixin, TogglePage):
+    # Only "Some parts of the touchscreen are not working" (and custom
+    # entries, which never match a preset reason) need a location -- the
+    # other two reasons apply to the whole touchscreen with nothing to
+    # point at.
+    NO_LOCATION_REASONS = {"Touchscreen doesn't work", "Touchscreen is inaccurate"}
+
+    def __init__(self):
+        super().__init__(
+            "Touchscreen",
+            "Touchscreen",
+            "Touchscreen",
+            reason_options=TOUCHSCREEN_DEFECT_TYPES,
+            code_prefix="TS",
+            instructions=(
+                "Click below to launch the touchscreen test. During it, "
+                "please tap each grey dot with your finger."
+            ),
+        )
+
+    def build_action(self, box):
+        launch_row = Adw.ActionRow()
+        launch_row.set_title("Run the fullscreen touchscreen test")
+        self.launch_button = Gtk.Button(label="Click Here")
+        self.launch_button.set_valign(Gtk.Align.CENTER)
+        self.launch_button.connect("clicked", self._on_launch_clicked)
+        launch_row.add_suffix(self.launch_button)
+        group = Adw.PreferencesGroup()
+        group.add(launch_row)
+        box.append(group)
+
+    def _on_launch_clicked(self, button):
+        # The touchscreen test runs in a subprocess. Touch event delivery
+        # in GTK/GDK has been observed to SIGSEGV after a USB pointer
+        # device is unplugged; isolating the test in its own process
+        # means such a crash only fails the test rather than killing the
+        # provisioning app.
+        button.set_sensitive(False)
+        self.pass_button.set_sensitive(False)
+        self.fail_button.set_sensitive(False)
+
+        runner = os.path.join(
+            os.path.dirname(os.path.realpath(__file__)),
+            "touchscreen_test_runner.py",
+        )
+
+        def _run():
+            try:
+                result = subprocess.run(
+                    [sys.executable, runner],
+                    capture_output=True,
+                    text=True,
+                    timeout=600,
+                )
+                if result.returncode != 0:
+                    print(f"Touchscreen test subprocess exited rc={result.returncode}")
+                    if result.stderr:
+                        print(result.stderr)
+                    passed = False
+                else:
+                    passed = result.stdout.strip().endswith("pass")
+            except Exception as exc:
+                print(f"Touchscreen test subprocess error: {exc}")
+                passed = False
+            GLib.idle_add(self._on_test_complete, passed, button)
+
+        threading.Thread(target=_run, daemon=True).start()
+
+    def _on_test_complete(self, passed, click_button):
+        self.pass_button.set_sensitive(True)
+        self.fail_button.set_sensitive(True)
+        click_button.set_sensitive(True)
+        if passed:
+            self.pass_button.set_active(True)
+        else:
+            self.fail_button.set_active(True)
+        return False
+
+
+class KeyboardPage(TogglePage):
+    def __init__(self):
+        super().__init__(
+            "Keyboard",
+            "Keyboard",
+            "Keyboard",
+            reason_options=KEYBOARD_DEFECT_TYPES,
+            code_prefix="KB",
+            instructions=(
+                "Type the sample text below using every key listed at least once, "
+                "as well as Backspace, Period, and Enter, to confirm each key "
+                "registers correctly. "
+            ),
+        )
+
+    def _can_mark_no_issues(self):
+        return self.typing_test_complete
+
+    def _pass_blocked_message(self):
+        return (
+            "Please perform the keyboard test before verifying it is in "
+            "working condition."
+        )
+
+    def build_action(self, box):
+        self.typing_test_complete = False
+        self.period_pressed = False
+        self.backspace_pressed = False
+        self.enter_pressed = False
+        self._all_chars_typed = False
+        self._no_issues_auto_triggered = False
+        self.original_text = "The quick brown fox jumps over the lazy dog 1234567890"
+
+        template_group = Adw.PreferencesGroup()
+
+        self.keyboard_template_buffer = Gtk.TextBuffer()
+        self.keyboard_template_buffer.set_text(self.original_text)
+        self.keyboard_template = Gtk.TextView(buffer=self.keyboard_template_buffer)
+        self.keyboard_template.set_editable(False)
+        self.keyboard_template.set_cursor_visible(False)
+        self.keyboard_template.set_wrap_mode(Gtk.WrapMode.NONE)
+        self.keyboard_template.set_hexpand(True)
+        self.keyboard_template.set_margin_top(12)
+        self.keyboard_template.set_margin_bottom(12)
+        self.keyboard_template.set_margin_start(12)
+        self.keyboard_template.set_margin_end(12)
+        self.keyboard_template.add_css_class("transparent-textview")
+
+        self.green_tag = self.keyboard_template_buffer.create_tag(
+            "green", foreground="green", weight=700
+        )
+        self.gray_tag = self.keyboard_template_buffer.create_tag(
+            "gray", foreground="#c0c0c0"
+        )
+
+        self.ever_typed_chars = set()
+        self.ever_typed_chars_lower = set()
+
+        self.period_label = Gtk.Label(label="Period")
+        self.period_label.add_css_class("keyboard-key")
+        self.period_label.set_valign(Gtk.Align.CENTER)
+        self.period_label.set_margin_end(6)
+
+        self.backspace_label = Gtk.Label(label="Backspace")
+        self.backspace_label.add_css_class("keyboard-key")
+        self.backspace_label.set_valign(Gtk.Align.CENTER)
+        self.backspace_label.set_margin_end(6)
+
+        self.enter_label = Gtk.Label(label="Enter")
+        self.enter_label.add_css_class("keyboard-key")
+        self.enter_label.set_valign(Gtk.Align.CENTER)
+        self.enter_label.set_margin_end(12)
+
+        template_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        template_row.append(self.keyboard_template)
+        template_row.append(self.period_label)
+        template_row.append(self.backspace_label)
+        template_row.append(self.enter_label)
+        box.append(template_row)
+
+        self.keyboard_entry_row = Adw.EntryRow()
+        self.keyboard_entry_row.set_title("Type here:")
+        self.keyboard_entry_row.connect("changed", self._on_keyboard_changed)
+        _text = self.keyboard_entry_row.get_delegate()
+        if _text is not None:
+            _text.connect(
+                "paste-clipboard",
+                lambda w: GObject.signal_stop_emission_by_name(w, "paste-clipboard"),
+            )
+        _key_ctrl = Gtk.EventControllerKey()
+        _key_ctrl.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        _key_ctrl.connect("key-pressed", self._on_keyboard_key_pressed)
+        self.keyboard_entry_row.add_controller(_key_ctrl)
+        template_group.add(self.keyboard_entry_row)
+        box.append(template_group)
+
+        self.update_text_highlighting("")
+
+    def _on_keyboard_key_pressed(self, controller, keyval, keycode, state):
+        if keyval == Gdk.KEY_BackSpace:
+            self.backspace_label.add_css_class("keyboard-key-passed")
+            self.backspace_pressed = True
+        elif keyval == Gdk.KEY_period:
+            self.period_label.add_css_class("keyboard-key-passed")
+            self.period_pressed = True
+        elif keyval in (Gdk.KEY_Return, Gdk.KEY_KP_Enter):
+            self.enter_label.add_css_class("keyboard-key-passed")
+            self.enter_pressed = True
+        self._check_typing_test_complete()
+        return False
+
+    def _on_keyboard_changed(self, entry_row):
+        self.update_text_highlighting(entry_row.get_text())
+
+    def update_text_highlighting(self, typed_text):
+        self.ever_typed_chars.update(typed_text)
+        self.ever_typed_chars_lower.update(c.lower() for c in typed_text)
+
+        start = self.keyboard_template_buffer.get_start_iter()
+        end = self.keyboard_template_buffer.get_end_iter()
+        self.keyboard_template_buffer.remove_all_tags(start, end)
+
+        all_chars_typed = True
+
+        for index, char in enumerate(self.original_text):
+            start_iter = self.keyboard_template_buffer.get_iter_at_offset(index)
+            end_iter = self.keyboard_template_buffer.get_iter_at_offset(index + 1)
+
+            if index == 0:
+                matched = char in self.ever_typed_chars
+            else:
+                matched = char.lower() in self.ever_typed_chars_lower
+
+            if matched:
+                self.keyboard_template_buffer.apply_tag(
+                    self.green_tag, start_iter, end_iter
+                )
+            else:
+                self.keyboard_template_buffer.apply_tag(
+                    self.gray_tag, start_iter, end_iter
+                )
+                all_chars_typed = False
+
+        self._all_chars_typed = all_chars_typed
+        self._check_typing_test_complete()
+
+    def _check_typing_test_complete(self):
+        """Every listed key must be typed at least once, plus Period,
+        Backspace, and Enter each pressed at least once, before the
+        keyboard test counts as complete. "No" is only ever auto-selected
+        the first time this becomes true -- if the tech has since clicked
+        "Yes", further key presses must not silently flip it back to
+        "No"."""
+        if not (
+            self._all_chars_typed
+            and self.period_pressed
+            and self.backspace_pressed
+            and self.enter_pressed
+        ):
+            return
+        self.typing_test_complete = True
+        if not self._no_issues_auto_triggered:
+            self._no_issues_auto_triggered = True
+            print("KeyboardPage:keyboard_test_completed")
+            self.pass_button.set_active(True)
+
+    def _reason_code(self, reason):
+        """Overrides TogglePage._reason_code -- every keyboard reason
+        except "Physical damage" has a fixed code from KEYBOARD_REASON_CODES
+        (position-based numbering doesn't work here since "Physical
+        damage" occupies one button but represents 3 codes). "Physical
+        damage" itself gets no code (its categories carry their own, see
+        PHYSICAL_DAMAGE_CATEGORY_CODES/_physical_damage_notes); a custom
+        free-text reason falls back to the generic numberless code."""
+        if reason == KEYBOARD_PHYSICAL_DAMAGE_REASON:
+            return None
+        if reason in KEYBOARD_REASON_CODES:
+            return KEYBOARD_REASON_CODES[reason]
+        return super()._reason_code(reason)
+
+    def build_reason_locations(self, entry_row, reason):
+        if reason == KEYBOARD_PHYSICAL_DAMAGE_REASON:
+            return self._build_physical_damage_picker(entry_row)
+        if reason in KEYBOARD_NO_KEYS_REASONS:
+            # Applies to the whole keyboard -- nothing to point at, just
+            # add the reason to the list (see KEYBOARD_NO_KEYS_REASONS).
+            return {"type": "none"}
+        return self._build_single_keys_picker(entry_row)
+
+    def _build_single_keys_picker(self, entry_row):
+        data = {"type": "keys", "selected": []}
+
+        status_row = Adw.ActionRow(title="Affected keys")
+        status_label = Gtk.Label(label="No keys selected")
+        status_label.add_css_class("dim-label")
+        pick_button = Gtk.Button(label="Select Keys")
+        pick_button.set_valign(Gtk.Align.CENTER)
+        pick_button.connect("clicked", self._on_pick_keys_clicked, data, status_label)
+        status_row.add_suffix(status_label)
+        status_row.add_suffix(pick_button)
+        entry_row.add_row(status_row)
+
+        # Ask which keys are affected right away, as soon as the reason is added.
+        GLib.idle_add(self._on_pick_keys_clicked, pick_button, data, status_label)
+
+        return data
+
+    def _on_pick_keys_clicked(self, button, data, status_label):
+        root = self.get_root()
+        selected = data["selected"]
+        initial = ALL_KEYBOARD_KEYS if selected == ENTIRE_KEYBOARD_MARKER else selected
+        dialog = KeyPickerDialog(root, initial_selection=initial)
+
+        def _on_done(selected_keys):
+            data["selected"] = selected_keys
+            if selected_keys == ENTIRE_KEYBOARD_MARKER:
+                status_label.set_label("Entire Keyboard")
+            else:
+                status_label.set_label(
+                    ", ".join(selected_keys) if selected_keys else "No keys selected"
+                )
+            self.check_status()
+
+        dialog.on_done_callback = _on_done
+        dialog.present()
+        return False
+
+    def _build_physical_damage_picker(self, entry_row):
+        """ "Physical damage" doesn't point at a single set of keys -- the
+        tech first picks which category/categories of damage apply
+        (PHYSICAL_DAMAGE_CATEGORIES), and each category selected gets its
+        own "Select Keys" popup (e.g. which keys are worn through vs. which
+        are cracked) -- see the "key_categories" cases in
+        TogglePage._locations_text/_reason_is_filled."""
+        data = {"type": "key_categories", "categories": {}}
+        status_widgets = {}
+
+        def _on_category_toggled(button, category):
+            status_row, status_label, pick_button = status_widgets[category]
+            if button.get_active():
+                status_row.set_visible(True)
+                data["categories"].setdefault(category, [])
+                # Ask which keys are affected right away, as soon as the
+                # category is picked.
+                GLib.idle_add(
+                    self._on_pick_category_keys_clicked,
+                    pick_button,
+                    category,
+                    data,
+                    status_label,
+                )
+            else:
+                status_row.set_visible(False)
+                data["categories"].pop(category, None)
+            self.check_status()
+
+        grid_box, _buttons = _build_toggle_button_grid(
+            "What type of damage is present? (Add all that apply)",
+            PHYSICAL_DAMAGE_CATEGORIES,
+            _on_category_toggled,
+            columns=2,
+        )
+        grid_row = Gtk.ListBoxRow()
+        grid_row.set_selectable(False)
+        grid_row.set_activatable(False)
+        grid_row.set_child(grid_box)
+        entry_row.add_row(grid_row)
+
+        for category in PHYSICAL_DAMAGE_CATEGORIES:
+            status_row = Adw.ActionRow(title=category)
+            status_label = Gtk.Label(label="No keys selected")
+            status_label.add_css_class("dim-label")
+            pick_button = Gtk.Button(label="Select Keys")
+            pick_button.set_valign(Gtk.Align.CENTER)
+            pick_button.connect(
+                "clicked",
+                self._on_pick_category_keys_clicked,
+                category,
+                data,
+                status_label,
+            )
+            status_row.add_suffix(status_label)
+            status_row.add_suffix(pick_button)
+            status_row.set_visible(False)
+            entry_row.add_row(status_row)
+            status_widgets[category] = (status_row, status_label, pick_button)
+
+        return data
+
+    def _on_pick_category_keys_clicked(self, button, category, data, status_label):
+        root = self.get_root()
+        selected = data["categories"].get(category, [])
+        initial = ALL_KEYBOARD_KEYS if selected == ENTIRE_KEYBOARD_MARKER else selected
+        dialog = KeyPickerDialog(root, initial_selection=initial)
+
+        def _on_done(selected_keys):
+            data["categories"][category] = selected_keys
+            if selected_keys == ENTIRE_KEYBOARD_MARKER:
+                status_label.set_label("Entire Keyboard")
+            else:
+                status_label.set_label(
+                    ", ".join(selected_keys) if selected_keys else "No keys selected"
+                )
+            self.check_status()
+
+        dialog.on_done_callback = _on_done
+        dialog.present()
+        return False
+
+    def get_notes_entries(self):
+        """Overrides TogglePage.get_notes_entries -- tracking-sheet notes
+        read "<code> <reason> (<keys>)" (e.g. "KB2 Keys do not work (F,
+        G)"), or just "<code> <reason>" for the two reasons with no keys to
+        list (see KEYBOARD_NO_KEYS_REASONS). "Physical damage" contributes
+        one entry per real code its categories map to (see
+        _physical_damage_notes). Entries always come out in KB1, KB2, ...
+        order regardless of the order reasons/categories were added."""
+        if self.passed is not False:
+            return []
+        if not self._reason_entries:
+            return [{"text": "Keyboard: issue reported"}]
+        entries = []
+        for reason, (entry_row, data) in self._reason_entries.items():
+            if reason == KEYBOARD_PHYSICAL_DAMAGE_REASON:
+                entries.extend(self._physical_damage_notes(data))
+                continue
+            code = self._reason_code(reason)
+            if data.get("type") == "none":
+                entries.append((code, f"{code} {reason}"))
+            else:
+                loc_text = self._locations_text(data)
+                entries.append((code, f"{code} {reason} ({loc_text})"))
+        entries.sort(key=lambda entry: self._code_sort_key(entry[0]))
+        return [{"text": ", ".join(text for _, text in entries)}]
+
+    def _failed_codes(self):
+        """Overrides TogglePage._failed_codes -- "Physical damage" has no
+        code of its own, so it contributes whichever real codes its
+        selected categories map to (see _physical_damage_notes) instead of
+        being skipped entirely."""
+        codes = set()
+        for reason, (entry_row, data) in self._reason_entries.items():
+            if reason == KEYBOARD_PHYSICAL_DAMAGE_REASON:
+                codes.update(code for code, _ in self._physical_damage_notes(data))
+            else:
+                code = self._reason_code(reason)
+                if code:
+                    codes.add(code)
+        return sorted(codes, key=self._code_sort_key)
+
+    def _physical_damage_notes(self, data):
+        """ "Physical damage" doesn't have its own code -- each selected
+        category reports under its own real KB code instead (see
+        PHYSICAL_DAMAGE_CATEGORY_CODES). "Keys are scratched" has no code
+        of its own; per user direction it merges into the same KB4 entry
+        as "Keys are cracked" (their key sets are combined)."""
+        categories = data.get("categories") or {}
+        code_keys = {}
+        for category, keys in categories.items():
+            code = PHYSICAL_DAMAGE_CATEGORY_CODES[category]
+            existing = code_keys.setdefault(code, [])
+            if keys == ENTIRE_KEYBOARD_MARKER or existing == ENTIRE_KEYBOARD_MARKER:
+                code_keys[code] = ENTIRE_KEYBOARD_MARKER
+            else:
+                for key in keys:
+                    if key not in existing:
+                        existing.append(key)
+
+        notes = []
+        for code, keys in code_keys.items():
+            label = PHYSICAL_DAMAGE_CODE_LABELS[code]
+            if keys == ENTIRE_KEYBOARD_MARKER:
+                key_text = "Entire Keyboard"
+            else:
+                key_text = ", ".join(keys) if keys else "no keys specified"
+            notes.append((code, f"{code} {label} ({key_text})"))
+        return notes

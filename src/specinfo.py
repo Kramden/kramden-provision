@@ -8,6 +8,17 @@ from gi.repository import Adw, GLib, Gtk
 from loading_capture import StdoutCapture
 from utils import Utils
 
+# Ordered so each reason's 1-based position is its tracking-sheet note code
+# (e.g. "SI1: BIOS password is set"). To add a new System Info check, add its
+# failure-reason string here (in get_failure_reasons() too) -- it gets the
+# next number for free; edit a string in place to change its wording.
+SPEC_INFO_REASONS = [
+    "BIOS password is set",
+    "Asset info present on device",
+    "Computrace/Absolute is active",
+    "Disk configuration needs review",
+]
+
 
 class SpecInfo(Adw.Bin):
     def __init__(self):
@@ -479,6 +490,18 @@ class SpecInfo(Adw.Bin):
         if self.has_disks and not self.disk_override:
             reasons.append("Disk configuration needs review")
         return reasons
+
+    def get_notes_entries(self):
+        """Same reasons as get_failure_reasons(), coded for the tracking
+        sheet's Notes & Cosmetics box (e.g. "SI1: BIOS password is set")."""
+        entries = []
+        for reason in self.get_failure_reasons():
+            try:
+                code = f"SI{SPEC_INFO_REASONS.index(reason) + 1}"
+            except ValueError:
+                code = "SIX"
+            entries.append({"text": f"{code}: {reason}"})
+        return entries
 
     def _add_override_button(self, parent_row, dialog_title, on_accepted):
         """Add an Override button to the given row. Returns the button."""
