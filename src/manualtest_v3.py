@@ -28,9 +28,23 @@ PHYSICAL_DEFECT_TYPES = [
     "Peeling Paint",
     "Cracks",
     "Broken Part",
+    "Feet Coming Off/Missing From Device",
 ]
-# Hinge issues are self-explanatory with no meaningful location to ask for.
-PHYSICAL_NO_LOCATION_TYPES = {"Hinge Broken", "Loose Hinge"}
+# Fixed code overrides for defect types whose position in the list above
+# doesn't match their tracking-sheet code (see
+# PhysicalDefectsPage._defect_code) -- e.g. "Feet Coming Off/Missing From
+# Device" is PD08 by convention rather than the PD06 its list position
+# would otherwise imply, since PD06/PD07 are reserved.
+PHYSICAL_DEFECT_CODES = {
+    "Feet Coming Off/Missing From Device": "PD08",
+}
+# Hinge/feet issues are self-explanatory with no meaningful location to ask
+# for.
+PHYSICAL_NO_LOCATION_TYPES = {
+    "Hinge Broken",
+    "Loose Hinge",
+    "Feet Coming Off/Missing From Device",
+}
 # Marked the same way as a screen/touchscreen defect (see SCREEN_SECTIONS).
 PHYSICAL_SCREEN_SECTION_TYPES = {"Screen Cracked"}
 # Ask which part is affected, then where on that part (same sextant grid as
@@ -136,7 +150,20 @@ TOUCHPAD_DEFECT_TYPES = [
     "A problem with left or right click",
     "Touchpad looks as if it is bulging out",
     "Something is wrong with how the cursor moves",
+    "Part of the touchpad doesn't work",
 ]
+
+# "Part of the touchpad doesn't work" pops up the same 6-section grid used
+# for screen/touchscreen locations (see SCREEN_SECTIONS) so the tech can
+# mark which part is dead -- see TouchpadPage.build_reason_locations. It
+# gets a fixed TP09 code (see TOUCHPAD_REASON_CODES/TouchpadPage._reason_code)
+# rather than the position-based TP05 its slot in the list above would
+# otherwise imply, since TP05/TP06 are already taken by the cursor
+# sub-reasons (see TOUCHPAD_CURSOR_CODES).
+TOUCHPAD_PARTIAL_REASON = "Part of the touchpad doesn't work"
+TOUCHPAD_REASON_CODES = {
+    TOUCHPAD_PARTIAL_REASON: "TP09",
+}
 
 # "A problem with left or right click" expands into "Left click"/"Right
 # click"/"Touchpad click" instead of the generic touchpad-location section
@@ -191,6 +218,7 @@ TOUCHPAD_CURSOR_OPTIONS = list(TOUCHPAD_CURSOR_CODES)
 TOUCHPAD_REASON_NOTES = {
     "Touchpad does not work at all": "Touchpad broken",
     "Touchpad looks as if it is bulging out": "Touchpad bulging",
+    TOUCHPAD_PARTIAL_REASON: "Part of touchpad not working",
 }
 
 SCREEN_DEFECT_TYPES = [
@@ -2456,7 +2484,12 @@ class PhysicalDefectsPage(Adw.Bin):
             self.on_status_changed()
 
     def _defect_code(self, defect_type):
-        """See CUSTOM_REASON_CODE_SUFFIX near the top of this file."""
+        """See CUSTOM_REASON_CODE_SUFFIX near the top of this file. Most
+        codes are just the defect's 1-based position in
+        PHYSICAL_DEFECT_TYPES, but PHYSICAL_DEFECT_CODES overrides that for
+        defect types whose code doesn't match their list position."""
+        if defect_type in PHYSICAL_DEFECT_CODES:
+            return PHYSICAL_DEFECT_CODES[defect_type]
         try:
             return (
                 f"{self.CODE_PREFIX}{PHYSICAL_DEFECT_TYPES.index(defect_type) + 1:02d}"
@@ -2657,6 +2690,9 @@ class WiFiPage(TogglePage):
             state[self.key] = connected or bool(self.passed)
         print(f"WiFi:on_shown connected={connected} skip={self.skip}")
 
+    def build_reason_locations(self, entry_row, reason):
+        return {"type": "none"}
+
 
 class TouchpadPage(TogglePage):
     def __init__(self):
@@ -2683,6 +2719,12 @@ class TouchpadPage(TogglePage):
                 entry_row,
                 options=TOUCHPAD_CURSOR_OPTIONS,
                 title="What's the cursor doing wrong?",
+            )
+        if reason == TOUCHPAD_PARTIAL_REASON:
+            return _build_section_picker(
+                self,
+                entry_row,
+                title="Which part of the touchpad doesn't work?",
             )
         # "Touchpad does not work at all" / "Touchpad feels very tight"
         # apply to the whole touchpad -- no location to narrow down. Any
@@ -2796,11 +2838,16 @@ class TouchpadPage(TogglePage):
     def _reason_code(self, reason):
         """Overrides TogglePage._reason_code -- "A problem with left or
         right click" and "Something is wrong with how the cursor moves"
-        get no single code of their own (see class docstring above);
-        every other touchpad reason keeps the default position-based
-        code."""
+        get no single code of their own (see class docstring above).
+        "Part of the touchpad doesn't work" gets a fixed code from
+        TOUCHPAD_REASON_CODES rather than its position in
+        TOUCHPAD_DEFECT_TYPES, since TP04-TP08 are already spoken for by
+        the click/cursor sub-reasons. Every other touchpad reason keeps
+        the default position-based code."""
         if reason in (TOUCHPAD_CLICK_REASON, TOUCHPAD_CURSOR_REASON):
             return None
+        if reason in TOUCHPAD_REASON_CODES:
+            return TOUCHPAD_REASON_CODES[reason]
         return super()._reason_code(reason)
 
     def _touchpad_click_notes(self, data):
@@ -2846,6 +2893,11 @@ class TouchpadPage(TogglePage):
         if reason == TOUCHPAD_CURSOR_REASON:
             return self._touchpad_cursor_notes(data)
         code = self._reason_code(reason)
+        if reason == TOUCHPAD_PARTIAL_REASON:
+            loc_text = self._locations_text(data)
+            label = TOUCHPAD_REASON_NOTES[reason]
+            text = f"{code} {label}: {loc_text}" if loc_text else f"{code} {label}"
+            return [(code, text)]
         if reason in TOUCHPAD_REASON_NOTES:
             return [(code, f"{code} {TOUCHPAD_REASON_NOTES[reason]}")]
         # Custom free-text reason -- fall back to the generic coded label

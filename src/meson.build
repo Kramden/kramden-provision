@@ -68,6 +68,7 @@ sources = [
   'observable.py',
   'osloadcomplete.py',
   'osload.py',
+  'screen_section_picker_runner.py',
   'sortly.py',
   'loading_capture.py',
   'sortly_register.py',

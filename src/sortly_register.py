@@ -254,7 +254,7 @@ class SortlyRegister(Adw.Bin):
             self._set_status("Invalid K-number format.", error=True)
             return
 
-        if not Utils.is_wifi_connected():
+        if not Utils.is_network_connected():
             self._show_wifi_warning()
             return
 
@@ -327,7 +327,7 @@ class SortlyRegister(Adw.Bin):
             self._set_status("Invalid K-number format.", error=True)
             return
 
-        if not Utils.is_wifi_connected():
+        if not Utils.is_network_connected():
             self._show_wifi_warning()
             return
 
@@ -538,8 +538,8 @@ class SortlyRegister(Adw.Bin):
             modal=True,
             message_type=Gtk.MessageType.WARNING,
             buttons=Gtk.ButtonsType.OK,
-            text="Not connected to WiFi",
-            secondary_text="This laptop isn't connected to WiFi, so Sortly can't be reached. Connect to a network and try again.",
+            text="Not connected to a network",
+            secondary_text="This laptop isn't connected to WiFi or Ethernet, so Sortly can't be reached. Connect to a network and try again.",
         )
         dialog.connect("response", lambda d, r: d.close())
         dialog.present()
