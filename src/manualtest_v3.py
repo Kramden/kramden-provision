@@ -2647,6 +2647,9 @@ class WiFiPage(TogglePage):
             state[self.key] = connected or bool(self.passed)
         print(f"WiFi:on_shown connected={connected} skip={self.skip}")
 
+    def build_reason_locations(self, entry_row, reason):
+        return {"type": "none"}
+
 
 class TouchpadPage(TogglePage):
     def __init__(self):

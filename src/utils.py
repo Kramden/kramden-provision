@@ -1016,6 +1016,30 @@ class Utils:
             return False
 
     @staticmethod
+    def is_network_connected():
+        """Whether any network device (WiFi or Ethernet) currently has an
+        active connection -- used to gate features that just need internet
+        access, where Ethernet should count just as much as WiFi."""
+        try:
+            result = subprocess.run(
+                ["nmcli", "-t", "-f", "TYPE,STATE", "device"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            for line in result.stdout.strip().splitlines():
+                parts = line.split(":")
+                if (
+                    len(parts) == 2
+                    and parts[0] in ("wifi", "ethernet")
+                    and parts[1] == "connected"
+                ):
+                    return True
+            return False
+        except Exception:
+            return False
+
+    @staticmethod
     def has_usb_c():
         """Whether this device exposes any USB-C (Type-C) ports, used to
         decide whether the USB-C manual test page should be shown at all.
