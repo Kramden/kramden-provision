@@ -75,7 +75,15 @@ jobs:
 
             # Version suffix is added here, at upload time, and never
             # committed back to the repo (per PR #126 discussion).
-            dch --local "+${series}${REVISION}" \
+            #
+            # Use --newversion (not --local) to set the exact version: dch's
+            # --local unconditionally appends its own "1" counter to the
+            # suffix whenever the current version doesn't already contain it
+            # (see debchange.pl: `$end .= $opt_l . "1"`), which doubled up
+            # with our own $REVISION digit and produced e.g. "+noble11"
+            # instead of "+noble1".
+            base_version=$(dpkg-parsechangelog -S Version)
+            dch --newversion "${base_version}+${series}${REVISION}" \
               --distribution "$series" --force-distribution \
               "Rebuild for $series."
 
