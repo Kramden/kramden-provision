@@ -186,6 +186,19 @@ class SpecCompleteV3(Adw.Bin):
         else:
             self._generate_tracking_sheet()
 
+    def _gather_datacodes(self):
+        """Every manual test page's failure data codes (e.g. "KB02",
+        "SC08"), concatenated across all pages into one comma-separated
+        string with no spaces (e.g. "KB02,SC08,UA02") -- the format fed to
+        SortlyRegister.report_datacodes(). Pages that passed, weren't
+        tested, or have no get_datacodes() (SpecInfo isn't a manual test
+        page) contribute nothing."""
+        codes = []
+        for page in self.manual_test_pages:
+            if hasattr(page, "get_datacodes"):
+                codes.extend(page.get_datacodes())
+        return ",".join(codes)
+
     def _generate_tracking_sheet(self):
         knumber = ""
         if self.sortly_register:
@@ -219,6 +232,9 @@ class SpecCompleteV3(Adw.Bin):
 
         if self.specinfo is not None:
             notes_entries.extend(self.specinfo.get_notes_entries())
+
+        if self.sortly_register:
+            self.sortly_register.report_datacodes(self._gather_datacodes())
 
         self.tracking_button.set_sensitive(False)
         if not knumber:

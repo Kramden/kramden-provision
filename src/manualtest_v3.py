@@ -1282,6 +1282,17 @@ class TogglePage(Adw.Bin):
             return [f"{self.title} not completed"]
         return []
 
+    def get_datacodes(self):
+        """Data codes (e.g. "KB02") this page is reporting, for the
+        machine-wide Data Codes string sent to Sortly -- see
+        SpecCompleteV3._gather_datacodes. Same codes as
+        get_failure_reasons' compact summary, just without the
+        "<title> failed:" wrapper, and empty whenever this page passed,
+        wasn't tested, or failed with no reason recorded."""
+        if self.passed is not False:
+            return []
+        return self._failed_codes()
+
     def get_notes_entries(self):
         """Each reported reason becomes its own coded detail (e.g. "KB02:
         Key(s) Sticking (F, G)"), all joined onto a single line so multiple
@@ -2514,20 +2525,15 @@ class PhysicalDefectsPage(Adw.Bin):
 
         return label
 
-    def get_failure_reasons(self):
-        """Reported defects are summarized as just their data codes (e.g.
-        "PD01, PD05") rather than the full defect/location text -- that
-        detail already lives on the tracking sheet (see get_notes_entries);
-        this is just the compact Spec Complete screen summary. "Broken
-        Part" is left out entirely when everything selected under it was
-        handed off to a dedicated test page -- see
-        _broken_part_has_own_content."""
-        if self.has_defects is None:
-            return ["Physical defects check not completed"]
-        if not self.has_defects:
+    def _failed_codes(self):
+        """Data codes (e.g. "PD01") for every reported defect, deduped and
+        sorted in numeric order -- shared by get_failure_reasons' compact
+        summary and get_datacodes' feed to the Sortly Data Codes string
+        (see SpecCompleteV3._gather_datacodes). "Broken Part" is left out
+        entirely when everything selected under it was handed off to a
+        dedicated test page -- see _broken_part_has_own_content."""
+        if not self.has_defects or not self._defect_entries:
             return []
-        if not self._defect_entries:
-            return ["Physical defects present"]
         codes = set()
         for defect_type, (entry_row, data) in self._defect_entries.items():
             if defect_type == "Broken Part" and not self._broken_part_has_own_content(
@@ -2535,10 +2541,28 @@ class PhysicalDefectsPage(Adw.Bin):
             ):
                 continue
             codes.add(self._defect_code(defect_type))
-        codes = sorted(codes, key=self._code_sort_key)
+        return sorted(codes, key=self._code_sort_key)
+
+    def get_failure_reasons(self):
+        """Reported defects are summarized as just their data codes (e.g.
+        "PD01, PD05") rather than the full defect/location text -- that
+        detail already lives on the tracking sheet (see get_notes_entries);
+        this is just the compact Spec Complete screen summary."""
+        if self.has_defects is None:
+            return ["Physical defects check not completed"]
+        if not self.has_defects:
+            return []
+        if not self._defect_entries:
+            return ["Physical defects present"]
+        codes = self._failed_codes()
         if not codes:
             return ["Physical defects present"]
         return [", ".join(codes)]
+
+    def get_datacodes(self):
+        """See TogglePage.get_datacodes -- same Data Codes feed, computed
+        from _failed_codes() above."""
+        return self._failed_codes()
 
     def get_notes_entries(self):
         """All reported defects are concatenated onto a single line (rather
