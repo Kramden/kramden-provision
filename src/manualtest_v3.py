@@ -3209,7 +3209,8 @@ class UsbCPage(UsbPortLocationMixin, TogglePage):
                 "Use a provided USB-C dock and USB mouse to test each USB-C "
                 "port. Also, plug into each USB-C port upside-down and test "
                 "it that way as well. If the only USB-C port present is the "
-                "charing port, then you may select yes and move on."
+                "charging port, then you may select yes and move on. Place tape "
+                "over any defective USB-C ports and report it below."
             ),
         )
 
@@ -3333,7 +3334,7 @@ class KeyboardPage(TogglePage):
         self.shift_pressed = False
         self._all_chars_typed = False
         self._no_issues_auto_triggered = False
-        self.original_text = "The quick brown fox jumps over the lazy dog 1234567890"
+        self.original_text = "The quick brown fox jumps over the lazy dog. 1234567890"
 
         self.keyboard_template_buffer = Gtk.TextBuffer()
         self.keyboard_template_buffer.set_text(self.original_text)
