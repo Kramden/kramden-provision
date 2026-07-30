@@ -89,7 +89,7 @@ jobs:
 
             debuild -S -k"$KEYID"
 
-            dput kramden-ppa ../*_source.changes
+            dput kramden-ppa ../*${series}*_source.changes
 
             cd "$GITHUB_WORKSPACE"
             echo "::endgroup::"
