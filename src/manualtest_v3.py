@@ -643,6 +643,25 @@ def _rebuild_port_number_rows(
         ports_box.append(port_row)
 
 
+def _build_note_row(text):
+    """Plain, non-interactive Gtk.ListBoxRow holding a wrapped label -- for
+    informational notes embedded in an expander row alongside (or instead
+    of) a location picker (see WebcamPage.build_reason_locations)."""
+    label = Gtk.Label(label=text)
+    label.set_xalign(0)
+    label.set_wrap(True)
+    label.add_css_class("dim-label")
+    label.set_margin_top(8)
+    label.set_margin_bottom(8)
+    label.set_margin_start(12)
+    label.set_margin_end(12)
+    row = Gtk.ListBoxRow()
+    row.set_selectable(False)
+    row.set_activatable(False)
+    row.set_child(label)
+    return row
+
+
 def _set_status(label, text, is_error=False, auto_clear_ms=None):
     label.set_label(text)
     if is_error:
@@ -1281,6 +1300,17 @@ class TogglePage(Adw.Bin):
         if self.passed is None:
             return [f"{self.title} not completed"]
         return []
+
+    def get_datacodes(self):
+        """Data codes (e.g. "KB02") this page is reporting, for the
+        machine-wide Data Codes string sent to Sortly -- see
+        SpecCompleteV3._gather_datacodes. Same codes as
+        get_failure_reasons' compact summary, just without the
+        "<title> failed:" wrapper, and empty whenever this page passed,
+        wasn't tested, or failed with no reason recorded."""
+        if self.passed is not False:
+            return []
+        return self._failed_codes()
 
     def get_notes_entries(self):
         """Each reported reason becomes its own coded detail (e.g. "KB02:
@@ -2514,20 +2544,15 @@ class PhysicalDefectsPage(Adw.Bin):
 
         return label
 
-    def get_failure_reasons(self):
-        """Reported defects are summarized as just their data codes (e.g.
-        "PD01, PD05") rather than the full defect/location text -- that
-        detail already lives on the tracking sheet (see get_notes_entries);
-        this is just the compact Spec Complete screen summary. "Broken
-        Part" is left out entirely when everything selected under it was
-        handed off to a dedicated test page -- see
-        _broken_part_has_own_content."""
-        if self.has_defects is None:
-            return ["Physical defects check not completed"]
-        if not self.has_defects:
+    def _failed_codes(self):
+        """Data codes (e.g. "PD01") for every reported defect, deduped and
+        sorted in numeric order -- shared by get_failure_reasons' compact
+        summary and get_datacodes' feed to the Sortly Data Codes string
+        (see SpecCompleteV3._gather_datacodes). "Broken Part" is left out
+        entirely when everything selected under it was handed off to a
+        dedicated test page -- see _broken_part_has_own_content."""
+        if not self.has_defects or not self._defect_entries:
             return []
-        if not self._defect_entries:
-            return ["Physical defects present"]
         codes = set()
         for defect_type, (entry_row, data) in self._defect_entries.items():
             if defect_type == "Broken Part" and not self._broken_part_has_own_content(
@@ -2535,10 +2560,28 @@ class PhysicalDefectsPage(Adw.Bin):
             ):
                 continue
             codes.add(self._defect_code(defect_type))
-        codes = sorted(codes, key=self._code_sort_key)
+        return sorted(codes, key=self._code_sort_key)
+
+    def get_failure_reasons(self):
+        """Reported defects are summarized as just their data codes (e.g.
+        "PD01, PD05") rather than the full defect/location text -- that
+        detail already lives on the tracking sheet (see get_notes_entries);
+        this is just the compact Spec Complete screen summary."""
+        if self.has_defects is None:
+            return ["Physical defects check not completed"]
+        if not self.has_defects:
+            return []
+        if not self._defect_entries:
+            return ["Physical defects present"]
+        codes = self._failed_codes()
         if not codes:
             return ["Physical defects present"]
         return [", ".join(codes)]
+
+    def get_datacodes(self):
+        """See TogglePage.get_datacodes -- same Data Codes feed, computed
+        from _failed_codes() above."""
+        return self._failed_codes()
 
     def get_notes_entries(self):
         """All reported defects are concatenated onto a single line (rather
@@ -3036,6 +3079,16 @@ class WebcamPage(TogglePage):
 
     def build_reason_locations(self, entry_row, reason):
         # No webcam defect has a meaningful location to narrow down.
+        if reason == WEBCAM_DEFECT_TYPES[1]:  # "...solid black screen"
+            # Many laptops have a physical privacy shutter over the camera
+            # lens -- easy to mistake for a dead webcam if it's slid shut.
+            entry_row.add_row(
+                _build_note_row(
+                    "Before reporting this: check for a physical camera "
+                    "cover with a moveable switch, and make sure it is "
+                    "slid open."
+                )
+            )
         return {"type": "none"}
 
     def get_result(self):
@@ -3156,7 +3209,8 @@ class UsbCPage(UsbPortLocationMixin, TogglePage):
                 "Use a provided USB-C dock and USB mouse to test each USB-C "
                 "port. Also, plug into each USB-C port upside-down and test "
                 "it that way as well. If the only USB-C port present is the "
-                "charing port, then you may select yes and move on."
+                "charging port, then you may select yes and move on. Place tape "
+                "over any defective USB-C ports and report it below."
             ),
         )
 
@@ -3280,7 +3334,7 @@ class KeyboardPage(TogglePage):
         self.shift_pressed = False
         self._all_chars_typed = False
         self._no_issues_auto_triggered = False
-        self.original_text = "The quick brown fox jumps over the lazy dog 1234567890"
+        self.original_text = "The quick brown fox jumps over the lazy dog. 1234567890"
 
         self.keyboard_template_buffer = Gtk.TextBuffer()
         self.keyboard_template_buffer.set_text(self.original_text)
