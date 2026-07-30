@@ -14,6 +14,7 @@ import sys
 import os
 import threading
 from datetime import date
+from xml.sax.saxutils import escape
 
 try:
     from reportlab.lib.pagesizes import A5
@@ -336,12 +337,17 @@ def generate_tracking_sheet(
     spec_passed=None,
     manual_test_results=None,
     notes_entries=None,
+    initials=None,
 ):
     """Generate a single-page portrait PDF tracking sheet for a computer.
 
     notes_entries, if given, is a list of {"text": str} dicts (see
     manualtest_v3.TogglePage.get_notes_entries) that are pre-filled into the
     "Notes & Cosmetics" box.
+
+    initials, if given, is the tech's initials (collected via a dialog when
+    they click "Review Tracking Sheet") and is printed next to "Initials:"
+    in the header instead of leaving it blank for handwriting.
     """
     if output_path is None:
         if item_name:
@@ -471,8 +477,9 @@ def generate_tracking_sheet(
     elements = []
 
     # ===== Header: Generated/Initials (left) + K-Number (right) =====
+    initials_display = escape(initials) if initials else "__________"
     meta_para = Paragraph(
-        f"Generated {date.today().strftime('%m-%d-%Y')}<br/>Initials: __________",
+        f"Generated {date.today().strftime('%m-%d-%Y')}<br/>Initials: {initials_display}",
         meta_style,
     )
     knum_para = Paragraph(item_name or "_____________", knum_style)

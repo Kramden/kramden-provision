@@ -124,6 +124,7 @@ class SpecCompleteV3(Adw.Bin):
         self.tracking_button.connect("clicked", self._on_tracking_clicked)
         self._tracking_output_path = None
         self._tracking_ready_to_print = False
+        self._tracking_initials = ""
         # Both must happen at least once (in order) before is_complete()
         # allows the wizard's "Complete" button to be clicked -- see
         # is_complete() and on_shown() below.
@@ -184,7 +185,46 @@ class SpecCompleteV3(Adw.Bin):
         if self._tracking_ready_to_print:
             self._print_tracking_sheet()
         else:
-            self._generate_tracking_sheet()
+            self._prompt_for_initials()
+
+    def _prompt_for_initials(self):
+        dialog = Adw.MessageDialog(
+            transient_for=self.get_root(),
+            heading="Type Initials Here",
+            body="Enter your initials to print on the tracking sheet.",
+        )
+        dialog.add_response("cancel", "Cancel")
+        dialog.add_response("continue", "Continue")
+        dialog.set_response_appearance("continue", Adw.ResponseAppearance.SUGGESTED)
+        dialog.set_default_response("continue")
+        dialog.set_close_response("cancel")
+
+        entry = Gtk.Entry()
+        entry.set_placeholder_text("Initials")
+        entry.set_halign(Gtk.Align.CENTER)
+        entry.set_max_length(10)
+        dialog.set_extra_child(entry)
+
+        dialog.set_response_enabled("continue", False)
+        entry.connect(
+            "changed",
+            lambda e: dialog.set_response_enabled(
+                "continue", bool(e.get_text().strip())
+            ),
+        )
+        entry.connect(
+            "activate",
+            lambda e: dialog.response("continue") if e.get_text().strip() else None,
+        )
+
+        dialog.connect("response", self._on_initials_response, entry)
+        dialog.present()
+
+    def _on_initials_response(self, dialog, response, entry):
+        if response != "continue":
+            return
+        self._tracking_initials = entry.get_text().strip()
+        self._generate_tracking_sheet()
 
     def _gather_datacodes(self):
         """Every manual test page's failure data codes (e.g. "KB02",
@@ -263,6 +303,7 @@ class SpecCompleteV3(Adw.Bin):
                 spec_passed=spec_passed,
                 manual_test_results=manual_test_results,
                 notes_entries=notes_entries,
+                initials=self._tracking_initials,
             )
             GLib.idle_add(self._on_generate_complete, output_path, None)
         except Exception as e:
@@ -527,6 +568,7 @@ class SpecCompleteV3(Adw.Bin):
         self._tracking_ready_to_print = False
         self._tracking_reviewed = False
         self._tracking_printed = False
+        self._tracking_initials = ""
         self.tracking_button.set_label("Review Tracking Sheet")
         self.tracking_button.remove_css_class("button-green")
         self.tracking_button.add_css_class("suggested-action")
