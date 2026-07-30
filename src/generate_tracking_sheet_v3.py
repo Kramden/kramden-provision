@@ -496,22 +496,20 @@ def generate_tracking_sheet(
 
     # ===== Spec grid: RAM/Storage/CPU, Model/Bat0, Graphics/Bat1 =====
     batteries = system_info.get("Batteries") or {}
-    battery_names = list(batteries.keys())
 
-    def battery_cell(index):
-        if index >= len(battery_names):
-            return "", ""
-        name = battery_names[index]
+    # Bat0 is always shown explicitly: a BAT1-only machine or one with no
+    # battery at all (e.g. a desktop) should call out the missing primary
+    # battery rather than silently shifting BAT1 into the Bat0 slot.
+    bat0_label = "Bat0:"
+    bat0_value = f"{batteries['BAT0']}%" if "BAT0" in batteries else "NONE"
+
+    other_batteries = [(name, cap) for name, cap in batteries.items() if name != "BAT0"]
+    if other_batteries:
+        name, cap = other_batteries[0]
         label = "Bat" + name[3:] if name.upper().startswith("BAT") else name
-        return f"{label}:", f"{batteries[name]}%"
-
-    bat0_label, bat0_value = battery_cell(0)
-    bat1_label, bat1_value = battery_cell(1)
-
-    # No batteries at all (e.g. a desktop) is worth calling out explicitly
-    # rather than leaving the Bat0 field blank.
-    if not battery_names:
-        bat0_label, bat0_value = "Bat0:", "NONE"
+        bat1_label, bat1_value = f"{label}:", f"{cap}%"
+    else:
+        bat1_label, bat1_value = "", ""
 
     ram_value = f"{system_info.get('RAM', '')}GB"
 
@@ -597,7 +595,7 @@ def generate_tracking_sheet(
 
     # When there's no second battery, drop the Bat1 label/value columns and
     # hand the freed width to the Graphics value column instead.
-    if len(battery_names) < 2:
+    if not bat1_value:
         graphics_row_widths = [
             spec_label_col0,
             usable_width - spec_label_col0,
