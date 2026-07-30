@@ -643,6 +643,25 @@ def _rebuild_port_number_rows(
         ports_box.append(port_row)
 
 
+def _build_note_row(text):
+    """Plain, non-interactive Gtk.ListBoxRow holding a wrapped label -- for
+    informational notes embedded in an expander row alongside (or instead
+    of) a location picker (see WebcamPage.build_reason_locations)."""
+    label = Gtk.Label(label=text)
+    label.set_xalign(0)
+    label.set_wrap(True)
+    label.add_css_class("dim-label")
+    label.set_margin_top(8)
+    label.set_margin_bottom(8)
+    label.set_margin_start(12)
+    label.set_margin_end(12)
+    row = Gtk.ListBoxRow()
+    row.set_selectable(False)
+    row.set_activatable(False)
+    row.set_child(label)
+    return row
+
+
 def _set_status(label, text, is_error=False, auto_clear_ms=None):
     label.set_label(text)
     if is_error:
@@ -3060,6 +3079,16 @@ class WebcamPage(TogglePage):
 
     def build_reason_locations(self, entry_row, reason):
         # No webcam defect has a meaningful location to narrow down.
+        if reason == WEBCAM_DEFECT_TYPES[1]:  # "...solid black screen"
+            # Many laptops have a physical privacy shutter over the camera
+            # lens -- easy to mistake for a dead webcam if it's slid shut.
+            entry_row.add_row(
+                _build_note_row(
+                    "Before reporting this: check for a physical camera "
+                    "cover with a moveable switch, and make sure it is "
+                    "slid open."
+                )
+            )
         return {"type": "none"}
 
     def get_result(self):
