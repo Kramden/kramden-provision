@@ -32,7 +32,7 @@ class WizardWindow(Gtk.ApplicationWindow):
         super().__init__(application=app, title="Kramden - Spec (v3)")
 
         self.set_icon_name("kramden")
-        self.set_default_size(800, 800)
+        self.set_default_size(1000, 900)
         self._monitors_model = None
         self._monitor_signal_handler = None
         display = Gdk.Display.get_default()
@@ -181,8 +181,8 @@ class WizardWindow(Gtk.ApplicationWindow):
     def _apply_monitor_size(self, monitor):
         geo = monitor.get_geometry()
         self.set_default_size(
-            min(800, int(geo.width * 0.8)),
-            min(800, int(geo.height * 0.8)),
+            min(1000, int(geo.width * 0.8)),
+            min(900, int(geo.height * 0.8)),
         )
 
     def _on_monitors_changed(self, monitors, position, removed, added):

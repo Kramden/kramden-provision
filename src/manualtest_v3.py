@@ -119,7 +119,7 @@ USB_C_DEFECT_TYPES = [
     "USB-C Port is finicky, connection cuts in and out",
     "USB-C Port does not work",
     "USB-C Port is physically damage",
-    "USB-C Port works one way, but when flipping it upside-down, it doesn't work",
+    "USB-C Port only works one way",
 ]
 # Must match an entry in USB_C_DEFECT_TYPES exactly -- see
 # USB_A_PORT_DAMAGE_REASON above, same suppression but for UsbCPage.
@@ -130,7 +130,7 @@ USB_C_REASON_CODES = {
     "USB-C Port is finicky, connection cuts in and out": "UC01",
     "USB-C Port does not work": "UC01",
     "USB-C Port is physically damage": "UC02",
-    "USB-C Port works one way, but when flipping it upside-down, it doesn't work": "UC03",
+    "USB-C Port only works one way": "UC03",
 }
 
 USB_PORT_LOCATIONS = ["Left Side", "Right Side", "Back"]
@@ -242,9 +242,9 @@ SCREEN_BROKEN_REASON = "Screen broken"
 WEBCAM_DEFECT_TYPES = [
     "The webcam does not work at all",
     "The webcam reports a solid black screen",
-    "There are lines going across or down the webcam output",
+    "Lines going across or down webcam output",
     "The Image is blurry",
-    "The video is very choppy with a low frame rate",
+    "The video is choppy with low frame rate",
     "Everything is monochrome and flashing",
     "No webcam device found",
 ]

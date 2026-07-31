@@ -125,6 +125,11 @@ class SpecCompleteV3(Adw.Bin):
         self._tracking_output_path = None
         self._tracking_ready_to_print = False
         self._tracking_initials = ""
+        # Set once the tech has clicked "Print Tracking Sheet" at least
+        # once, so a subsequent click (e.g. because the sheet hasn't come
+        # out yet) prompts for confirmation instead of silently queuing
+        # another print job -- see _on_tracking_clicked().
+        self._tracking_print_requested = False
         # Both must happen at least once (in order) before is_complete()
         # allows the wizard's "Complete" button to be clicked -- see
         # is_complete() and on_shown() below.
@@ -183,9 +188,42 @@ class SpecCompleteV3(Adw.Bin):
 
     def _on_tracking_clicked(self, button):
         if self._tracking_ready_to_print:
-            self._print_tracking_sheet()
+            if self._tracking_print_requested:
+                self._prompt_reprint_confirmation()
+            else:
+                self._print_tracking_sheet()
         else:
             self._prompt_for_initials()
+
+    def _prompt_reprint_confirmation(self):
+        dialog = Adw.MessageDialog(
+            transient_for=self.get_root(),
+            heading="Print Again?",
+            body=(
+                "Please wait up to 10 seconds for the tracking sheet to "
+                "print before trying again. If you are sure you want to "
+                "print again, click the button below.\n\n"
+                "If the printer is not receiving your print request, "
+                "please take a mental note of any failures, or write a "
+                "note so you don't forget, and restart the laptop. Fill "
+                "out all of the manual test pages just like before, and "
+                "retry printing. If it still doesn't work, find a Super "
+                "Geek or Staff Member to help you."
+            ),
+        )
+        dialog.add_response("cancel", "Cancel")
+        dialog.add_response("print_again", "Print Again")
+        dialog.set_response_appearance(
+            "print_again", Adw.ResponseAppearance.SUGGESTED
+        )
+        dialog.set_default_response("cancel")
+        dialog.set_close_response("cancel")
+        dialog.connect("response", self._on_reprint_confirmation_response)
+        dialog.present()
+
+    def _on_reprint_confirmation_response(self, dialog, response):
+        if response == "print_again":
+            self._print_tracking_sheet()
 
     def _prompt_for_initials(self):
         dialog = Adw.MessageDialog(
@@ -218,10 +256,16 @@ class SpecCompleteV3(Adw.Bin):
         )
 
         dialog.connect("response", self._on_initials_response, entry)
+        # Without this, keyboard focus stays on the "Review Tracking Sheet"
+        # button that was just clicked to open this dialog, so pressing
+        # Enter re-triggers that button instead of submitting the initials.
+        self.tracking_button.set_sensitive(False)
         dialog.present()
+        entry.grab_focus()
 
     def _on_initials_response(self, dialog, response, entry):
         if response != "continue":
+            self.tracking_button.set_sensitive(True)
             return
         self._tracking_initials = entry.get_text().strip()
         self._generate_tracking_sheet()
@@ -489,6 +533,7 @@ class SpecCompleteV3(Adw.Bin):
         if not output_path:
             return
 
+        self._tracking_print_requested = True
         self.tracking_button.set_sensitive(False)
         self.tracking_status.set_label("Printing...")
         if self.tracking_status.has_css_class("text-error"):
@@ -568,6 +613,7 @@ class SpecCompleteV3(Adw.Bin):
         self._tracking_ready_to_print = False
         self._tracking_reviewed = False
         self._tracking_printed = False
+        self._tracking_print_requested = False
         self._tracking_initials = ""
         self.tracking_button.set_label("Review Tracking Sheet")
         self.tracking_button.remove_css_class("button-green")
