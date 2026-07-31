@@ -58,11 +58,12 @@ PHYSICAL_AFFECTED_PARTS = [
     "On one of the sides of the laptop (including the back or front)",
     "One or multiple corners",
 ]
-# Ask which port type, reusing the same location/port-# picker as the
-# dedicated USB-A/USB-C pages (see UsbPortLocationMixin). Only USB-A/USB-C
-# trigger the suppress-on-matching-page logic below since those are the only
-# port types with their own dedicated test page; "Other" additionally asks
-# for a free-text description of the port.
+# Ask which port type, reusing the same location picker as the dedicated
+# USB-A/USB-C pages (see UsbPortLocationMixin), plus its own optional
+# per-location port-# field. Only USB-A/USB-C trigger the
+# suppress-on-matching-page logic below since those are the only port types
+# with their own dedicated test page; "Other" additionally asks for a
+# free-text description of the port.
 PHYSICAL_PORT_DAMAGE_TYPES = {"Port Damaged"}
 PHYSICAL_PORT_TYPES = [
     "USB-A",
@@ -331,6 +332,7 @@ SOUND_DEFECT_TYPES = [
     "Sound does not work",
     "Sound is crunchy",
     "Sound is too quiet even with volume all the way up",
+    "Dummy Output/No Audio Device Detected",
 ]
 
 # Simplified keyboard layout used by the keyboard failure-location picker.
@@ -1011,7 +1013,10 @@ class TogglePage(Adw.Bin):
         with a custom one (see KeyboardPage, UsbPortLocationMixin), or to
         skip location entirely for reasons where it doesn't apply (see
         BrowserPage, WebcamPage)."""
-        return _build_section_picker(self, entry_row, select_all_label="Select All")
+        title = "Location" if reason in self.reason_options else "Location (optional)"
+        return _build_section_picker(
+            self, entry_row, title=title, select_all_label="Select All"
+        )
 
     def _can_mark_no_issues(self):
         """Override in subclasses to require some condition (e.g. an actual
@@ -1118,6 +1123,11 @@ class TogglePage(Adw.Bin):
             entry_row.add_action(remove_button)
 
         data = self.build_reason_locations(entry_row, reason)
+        if removable:
+            # Free-typed ("Custom...") reasons keep their location picker
+            # for convenience, but since there's no preset text to fall
+            # back on, don't force a location pick just to report them.
+            data["location_optional"] = True
 
         entry_row.set_expanded(True)
         self.reasons_list_box.append(entry_row)
@@ -1164,12 +1174,7 @@ class TogglePage(Adw.Bin):
             locations = data.get("locations") or []
             if not locations:
                 return "no location specified"
-            port_numbers = data.get("port_numbers") or {}
-            parts = []
-            for location in locations:
-                port_num = port_numbers.get(location, "").strip()
-                parts.append(f"{location} (port #{port_num})" if port_num else location)
-            return ", ".join(parts)
+            return ", ".join(locations)
         if kind == "click_sides":
             # See TouchpadPage._build_click_picker -- "Touchpad click" has
             # no location, "Left click"/"Right click" each have their own
@@ -1210,12 +1215,9 @@ class TogglePage(Adw.Bin):
                 for keys in categories.values()
             )
         if kind == "sections":
-            return bool(data.get("selected"))
+            return data.get("location_optional") or bool(data.get("selected"))
         if kind == "usb_port":
-            # The port number(s) are optional (only needed to disambiguate
-            # multiple same-side ports); at least one location must be
-            # picked for the reason to count as filled.
-            return bool(data.get("locations"))
+            return data.get("location_optional") or bool(data.get("locations"))
         if kind == "click_sides":
             # At least one side must be picked, and every side that needs
             # a Top/Bottom location (see TOUCHPAD_CLICK_SIDES_WITH_LOCATION)
@@ -1573,6 +1575,11 @@ class PhysicalDefectsPage(Adw.Bin):
             entry_row.add_action(remove_button)
 
         data = self._build_defect_details(defect_type, entry_row)
+        if removable:
+            # Free-typed ("Custom...") defects keep their location picker
+            # for convenience, but since there's no preset text to fall
+            # back on, don't force a location pick just to report them.
+            data["location_optional"] = True
 
         entry_row.set_expanded(True)
         self.defects_list_box.append(entry_row)
@@ -1618,8 +1625,11 @@ class PhysicalDefectsPage(Adw.Bin):
         if defect_type in PHYSICAL_BROKEN_PART_TYPES:
             return self._build_broken_part_picker(entry_row)
 
-        # Custom (typed-in) defect types fall back to a generic location picker.
-        return _build_section_picker(self, entry_row, select_all_label="Select All")
+        # Custom (typed-in) defect types fall back to a generic location
+        # picker; unlike preset defects, picking a location here is optional.
+        return _build_section_picker(
+            self, entry_row, title="Location (optional)", select_all_label="Select All"
+        )
 
     def _build_part_location_picker(self, entry_row):
         # Each affected part gets its own independent location grid (rather
@@ -2431,7 +2441,7 @@ class PhysicalDefectsPage(Adw.Bin):
         if kind == "none":
             return True
         if kind == "sections":
-            return bool(data.get("selected"))
+            return data.get("location_optional") or bool(data.get("selected"))
         if kind == "part_location":
             parts = data.get("parts") or []
             locations = data.get("locations") or {}
@@ -2932,10 +2942,15 @@ class ScreenSectionMixin:
     def build_reason_locations(self, entry_row, reason):
         if reason in self.NO_LOCATION_REASONS:
             return {"type": "none"}
+        title = (
+            "Location on screen"
+            if reason in self.reason_options
+            else "Location on screen (optional)"
+        )
         return _build_section_picker(
             self,
             entry_row,
-            title="Location on screen",
+            title=title,
             select_all_label="Entire Screen",
             fullscreen=True,
         )
@@ -3054,6 +3069,13 @@ class BrowserPage(TogglePage):
         self.utils.launch_app("xdg-open https://vimeo.com/116979416")
 
     def build_reason_locations(self, entry_row, reason):
+        if reason == "Audio":
+            return _build_section_picker(
+                self,
+                entry_row,
+                options=SOUND_DEFECT_TYPES,
+                title="What's wrong with the sound?",
+            )
         return {"type": "none"}
 
 
@@ -3157,74 +3179,31 @@ class WebcamPage(TogglePage):
 
 
 class UsbPortLocationMixin:
-    """Shared "pick a location + optional port number" builder for the split
-    USB-A / USB-C pages below -- each page only ever reports on its own port
-    type, so (unlike the old combined UsbPortsPage) there's no USB-A/USB-C
-    dropdown to pick here."""
+    """Shared "pick a location" builder for the split USB-A / USB-C pages
+    below -- each page only ever reports on its own port type, so (unlike
+    the old combined UsbPortsPage) there's no USB-A/USB-C dropdown to pick
+    here."""
 
     def build_reason_locations(self, entry_row, reason):
-        data = {"type": "usb_port", "locations": [], "port_numbers": {}}
-
-        ports_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
-        ports_list_row = Gtk.ListBoxRow()
-        ports_list_row.set_selectable(False)
-        ports_list_row.set_activatable(False)
-        ports_list_row.set_child(ports_box)
-
-        def _on_port_number_changed(entry, location):
-            data["port_numbers"][location] = entry.get_text().strip()
-
-        def _rebuild_port_number_rows(selected):
-            child = ports_box.get_first_child()
-            while child is not None:
-                next_child = child.get_next_sibling()
-                ports_box.remove(child)
-                child = next_child
-            for location in selected:
-                port_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-                label = Gtk.Label(label=f"{location} Port #")
-                label.set_halign(Gtk.Align.START)
-                label.set_hexpand(True)
-                entry = Gtk.Entry()
-                entry.set_max_length(1)
-                entry.set_placeholder_text("optional")
-                entry.set_tooltip_text(
-                    "Only needed if there are multiple of this type on this side"
-                )
-                entry.set_input_purpose(Gtk.InputPurpose.DIGITS)
-                entry.set_size_request(48, -1)
-                entry.set_text(data["port_numbers"].get(location, ""))
-                entry.connect("insert-text", self._on_port_number_insert_text)
-                entry.connect("changed", _on_port_number_changed, location)
-                port_row.append(label)
-                port_row.append(entry)
-                ports_box.append(port_row)
+        data = {"type": "usb_port", "locations": []}
 
         def _on_locations_change(selected):
             data["locations"] = selected
-            data["port_numbers"] = {
-                location: value
-                for location, value in data["port_numbers"].items()
-                if location in selected
-            }
-            _rebuild_port_number_rows(selected)
             self.check_status()
             _scroll_to_bottom(self.scrolled)
 
+        title = (
+            "Location(s)" if reason in self.reason_options else "Location(s) (optional)"
+        )
         location_row = _build_section_row(
-            "Location(s)",
+            title,
             USB_PORT_LOCATIONS,
             columns=len(USB_PORT_LOCATIONS),
             on_change=_on_locations_change,
         )
         entry_row.add_row(location_row)
-        entry_row.add_row(ports_list_row)
 
         return data
-
-    def _on_port_number_insert_text(self, entry, text, length, position):
-        if text and not text.isdigit():
-            GObject.signal_stop_emission_by_name(entry, "insert-text")
 
 
 class UsbAPage(UsbPortLocationMixin, TogglePage):
