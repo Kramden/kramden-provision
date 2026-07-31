@@ -21,6 +21,18 @@ from sortly import (
     sortly_error_message,
 )
 
+# Master switch for reporting each manual test page's data codes (e.g.
+# "KB02,SC08,UA02" -- see SpecCompleteV3._gather_datacodes) back to Sortly
+# as a follow-up update after the initial registration on this page. Off
+# for now so spec_v3 sends Sortly exactly the same fields spec.py does;
+# flip to True once Sortly has a "Data Codes" custom attribute ready to
+# receive it -- see report_datacodes() below.
+REPORT_DATACODES_TO_SORTLY = False
+
+# Must match the custom attribute's name on the Sortly item exactly --
+# update_item() silently skips any field name it doesn't recognize.
+SORTLY_DATACODES_FIELD = "Data Codes"
+
 
 class SortlyRegister(Adw.Bin):
     def __init__(self):
@@ -444,6 +456,46 @@ class SortlyRegister(Adw.Bin):
             self._set_status(f"Failed: {error}", error=True)
             self.register_button.set_sensitive(True)
             self.knumber_entry.set_sensitive(True)
+
+    def report_datacodes(self, datacodes):
+        """Push the machine's aggregated data-codes string to Sortly as a
+        follow-up update to the item registered on this page. Called from
+        SpecCompleteV3 once every manual test page has reported in --
+        those results don't exist yet when _do_register() runs at the
+        start of the wizard, so this fires later instead.
+
+        A no-op while REPORT_DATACODES_TO_SORTLY is False (see top of
+        file), and also if this page's own registration never succeeded
+        (no item to update) or produced no codes to report.
+        """
+        if not REPORT_DATACODES_TO_SORTLY:
+            return
+        if not datacodes or not self._existing_item:
+            return
+
+        try:
+            api_key = get_api_key()
+        except EnvironmentError as e:
+            print(f"Skipping data codes report: {e}")
+            return
+
+        item_id = self._existing_item["id"]
+        thread = threading.Thread(
+            target=self._report_datacodes_thread,
+            args=(api_key, item_id, datacodes),
+            daemon=True,
+        )
+        thread.start()
+
+    def _report_datacodes_thread(self, api_key, item_id, datacodes):
+        try:
+            success = update_item(
+                api_key, item_id, {SORTLY_DATACODES_FIELD: datacodes}
+            )
+            if not success:
+                print("Failed to report data codes to Sortly.")
+        except Exception as e:
+            print(f"Failed to report data codes to Sortly: {sortly_error_message(e)}")
 
     def _populate_system_info(self):
         if not self._system_info:
