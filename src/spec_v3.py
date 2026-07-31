@@ -63,8 +63,8 @@ class WizardWindow(Gtk.ApplicationWindow):
         has_touchscreen = Utils.has_touchscreen()
         if has_touchscreen:
             initial_state["Touchscreen"] = False
-        has_usb_c = Utils.has_usb_c()
-        if has_usb_c:
+        show_usb_c_page = Utils.should_show_usb_c_page()
+        if show_usb_c_page:
             initial_state["USBC"] = False
         self.observable_property = ObservableProperty(initial_state)
         # Create and add an observer
@@ -110,7 +110,7 @@ class WizardWindow(Gtk.ApplicationWindow):
         browser = BrowserPage()
         webcam = WebcamPage()
         usb_a = UsbAPage()
-        usb_c_pages = [UsbCPage()] if has_usb_c else []
+        usb_c_pages = [UsbCPage()] if show_usb_c_page else []
         physical_defects.usb_a_page = usb_a
         physical_defects.usb_c_page = usb_c_pages[0] if usb_c_pages else None
         physical_defects.keyboard_page = keyboard

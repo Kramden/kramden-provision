@@ -3247,9 +3247,8 @@ class UsbCPage(UsbPortLocationMixin, TogglePage):
             instructions=(
                 "Use a provided USB-C dock and USB mouse to test each USB-C "
                 "port. Also, plug into each USB-C port upside-down and test "
-                "it that way as well. If the only USB-C port present is the "
-                "charging port, then you may select yes and move on. Place tape "
-                "over any defective USB-C ports and report it below."
+                "it that way as well. Place tape over any defective USB-C "
+                "ports and report it below."
             ),
         )
 

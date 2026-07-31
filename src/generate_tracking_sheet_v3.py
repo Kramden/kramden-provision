@@ -683,9 +683,10 @@ def generate_tracking_sheet(
     def usb_result_cell():
         """USB-A and USB-C are separate manual test pages (see
         manualtest_v3.UsbAPage/UsbCPage) but share one "USB:" cell here.
-        "USBC" is only present in manual_test_results on devices with a
-        USB-C port (see spec_v3.py's has_usb_c() gating), mirroring the
-        Touchscreen key's presence-means-applicable convention above."""
+        "USBC" is only present in manual_test_results on devices where the
+        USB-C page was shown (see spec_v3.py's Utils.should_show_usb_c_page()
+        gating), mirroring the Touchscreen key's presence-means-applicable
+        convention above."""
         segments = [("A", test_value("USBA"))]
         if "USBC" in mt:
             segments.append(("C", test_value("USBC")))
