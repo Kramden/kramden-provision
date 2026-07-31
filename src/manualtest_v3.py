@@ -119,7 +119,7 @@ USB_C_DEFECT_TYPES = [
     "USB-C Port is finicky, connection cuts in and out",
     "USB-C Port does not work",
     "USB-C Port is physically damage",
-    "USB-C Port works one way, but when flipping it upside-down, it doesn't work",
+    "USB-C Port only works one way",
 ]
 # Must match an entry in USB_C_DEFECT_TYPES exactly -- see
 # USB_A_PORT_DAMAGE_REASON above, same suppression but for UsbCPage.
@@ -130,7 +130,7 @@ USB_C_REASON_CODES = {
     "USB-C Port is finicky, connection cuts in and out": "UC01",
     "USB-C Port does not work": "UC01",
     "USB-C Port is physically damage": "UC02",
-    "USB-C Port works one way, but when flipping it upside-down, it doesn't work": "UC03",
+    "USB-C Port only works one way": "UC03",
 }
 
 USB_PORT_LOCATIONS = ["Left Side", "Right Side", "Back"]
@@ -242,9 +242,9 @@ SCREEN_BROKEN_REASON = "Screen broken"
 WEBCAM_DEFECT_TYPES = [
     "The webcam does not work at all",
     "The webcam reports a solid black screen",
-    "There are lines going across or down the webcam output",
+    "Lines going across or down webcam output",
     "The Image is blurry",
-    "The video is very choppy with a low frame rate",
+    "The video is choppy with low frame rate",
     "Everything is monochrome and flashing",
     "No webcam device found",
 ]
@@ -998,7 +998,11 @@ class TogglePage(Adw.Bin):
         vbox.set_valign(Gtk.Align.START)
 
         self.scrolled = Gtk.ScrolledWindow()
-        self.scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        # Horizontal scrolling (rather than NEVER) keeps any unexpectedly
+        # wide content -- e.g. a long button grid -- from forcing the whole
+        # window wider than the screen; it scrolls instead of pushing the
+        # window's minimum size out.
+        self.scrolled.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
         self.scrolled.set_vexpand(True)
         self.scrolled.set_hexpand(True)
         self.scrolled.set_child(vbox)
@@ -1498,7 +1502,11 @@ class PhysicalDefectsPage(Adw.Bin):
         vbox.set_valign(Gtk.Align.START)
 
         self.scrolled = Gtk.ScrolledWindow()
-        self.scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        # Horizontal scrolling (rather than NEVER) keeps any unexpectedly
+        # wide content -- e.g. a long button grid -- from forcing the whole
+        # window wider than the screen; it scrolls instead of pushing the
+        # window's minimum size out.
+        self.scrolled.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
         self.scrolled.set_vexpand(True)
         self.scrolled.set_hexpand(True)
         self.scrolled.set_child(vbox)
@@ -1678,7 +1686,7 @@ class PhysicalDefectsPage(Adw.Bin):
         parts_row = _build_section_row(
             f"Where is/are the {entry_row.get_title()}(s)?",
             PHYSICAL_AFFECTED_PARTS,
-            columns=len(PHYSICAL_AFFECTED_PARTS),
+            columns=3,
             on_change=_on_parts_change,
         )
         entry_row.add_row(parts_row)
@@ -3239,9 +3247,8 @@ class UsbCPage(UsbPortLocationMixin, TogglePage):
             instructions=(
                 "Use a provided USB-C dock and USB mouse to test each USB-C "
                 "port. Also, plug into each USB-C port upside-down and test "
-                "it that way as well. If the only USB-C port present is the "
-                "charging port, then you may select yes and move on. Place tape "
-                "over any defective USB-C ports and report it below."
+                "it that way as well. Place tape over any defective USB-C "
+                "ports and report it below."
             ),
         )
 

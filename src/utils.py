@@ -1040,22 +1040,78 @@ class Utils:
             return False
 
     @staticmethod
+    def _typec_port_names():
+        """Names of actual Type-C port entries under /sys/class/typec/ (e.g.
+        "port0", "port1") -- excludes the "portN-partner"/"portN-cable"/
+        "portN-plugN" entries the kernel adds alongside a port once
+        something is attached to it, which aren't ports themselves and would
+        otherwise inflate a naive substring-match count.
+
+        Raises OSError if /sys/class/typec/ can't be listed at all (missing
+        directory, permissions, or a kernel/live-image with no typec driver
+        loaded for this hardware)."""
+        entries = os.listdir("/sys/class/typec/")
+        return [e for e in entries if re.fullmatch(r"port\d+", e)]
+
+    @staticmethod
+    def usb_c_port_count():
+        """Number of physical Type-C ports reported by the kernel, or 0 if
+        that can't be determined (see _typec_port_names)."""
+        try:
+            return len(Utils._typec_port_names())
+        except OSError as e:
+            print(f"usb_c_port_count: error reading /sys/class/typec/: {e}")
+            return 0
+
+    @staticmethod
+    def _has_usb_pd_power_supply():
+        """Whether any /sys/class/power_supply/ entry advertises USB Power
+        Delivery / Type-C support via its "usb_type" attribute (e.g.
+        "[C] PD PD_PPS"). Some Type-C charging paths (notably UCSI-based
+        ones) show up here even when no /sys/class/typec/ port ever
+        registers, so this is used as a fallback signal when the typec
+        class can't be read at all."""
+        try:
+            entries = os.listdir("/sys/class/power_supply/")
+        except OSError:
+            return False
+        pd_tokens = {"C", "PD", "PD_DRP", "PD_PPS"}
+        for entry in entries:
+            try:
+                with open(f"/sys/class/power_supply/{entry}/usb_type", "r") as f:
+                    tokens = f.read().strip().replace("[", " ").replace("]", " ").split()
+            except OSError:
+                continue
+            if pd_tokens.intersection(tokens):
+                return True
+        return False
+
+    @staticmethod
     def has_usb_c():
         """Whether this device exposes any USB-C (Type-C) ports, used to
         decide whether the USB-C manual test page should be shown at all.
 
         /sys/class/typec/ has one entry per Type-C port (e.g. "port0") when
-        the kernel's typec class is populated. If it can't be read at all
-        (missing directory, permissions, older kernel without the typec
-        class), fail open and show the page rather than silently skipping a
-        real port.
+        the kernel's typec class is populated, which is the authoritative
+        signal when it's readable at all -- including when it's readable
+        and empty (a real "no ports" answer, not a failure).
+
+        When it can't be read at all (missing directory, permissions, or a
+        kernel/live-image with no typec driver loaded), there is no sysfs
+        signal that proves the device truly has zero Type-C ports -- that
+        state is indistinguishable from "has USB-C but undetected by this
+        kernel". In practice, though, it overwhelmingly means "no USB-C
+        hardware", so treat it as such rather than failing open, and only
+        fall back to showing the page if a power supply separately reports
+        USB-PD/Type-C charging capability (see _has_usb_pd_power_supply),
+        which can appear even without a registered typec port.
         """
         try:
-            entries = os.listdir("/sys/class/typec/")
+            port_names = Utils._typec_port_names()
         except OSError as e:
             print(f"has_usb_c: error reading /sys/class/typec/: {e}")
-            return True
-        return any("port" in entry for entry in entries)
+            return Utils._has_usb_pd_power_supply()
+        return len(port_names) > 0
 
     @staticmethod
     def get_charging_port_status():
@@ -1159,6 +1215,33 @@ class Utils:
                 continue
 
         return primary_read_succeeded
+
+    @staticmethod
+    def should_show_usb_c_page():
+        """Whether the USB-C manual test page should be shown at all.
+
+        A device with no USB-C ports never shows it. A device with USB-C
+        ports that also has a separate primary (Mains/barrel) charging port
+        always shows it, since the USB-C port(s) aren't otherwise exercised
+        during provisioning. A device with two or more USB-C ports also
+        always shows it, since even without a separate primary port, having
+        several means at least one of them isn't required for charging and
+        could be silently broken.
+
+        The one case it's skipped: exactly one USB-C port, and it's the
+        device's only charging port (no primary port, and a secondary USB
+        charging path is confirmed present) -- that port is already
+        exercised just by powering the device on for provisioning, so
+        there's nothing left to manually verify.
+        """
+        if not Utils.has_usb_c():
+            return False
+        if Utils.usb_c_port_count() != 1:
+            return True
+        status = Utils.get_charging_port_status()
+        if status["has_primary_port"] or not status["has_secondary_port"]:
+            return True
+        return False
 
     KRAMDEN_EFIVAR_GUID = "9a8e2042-75d4-4d70-9890-6a8437367c1f"
     KRAMDEN_EFIVAR_PATH = (
