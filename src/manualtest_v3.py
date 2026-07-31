@@ -977,7 +977,11 @@ class TogglePage(Adw.Bin):
         vbox.set_valign(Gtk.Align.START)
 
         self.scrolled = Gtk.ScrolledWindow()
-        self.scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        # Horizontal scrolling (rather than NEVER) keeps any unexpectedly
+        # wide content -- e.g. a long button grid -- from forcing the whole
+        # window wider than the screen; it scrolls instead of pushing the
+        # window's minimum size out.
+        self.scrolled.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
         self.scrolled.set_vexpand(True)
         self.scrolled.set_hexpand(True)
         self.scrolled.set_child(vbox)
@@ -1466,7 +1470,11 @@ class PhysicalDefectsPage(Adw.Bin):
         vbox.set_valign(Gtk.Align.START)
 
         self.scrolled = Gtk.ScrolledWindow()
-        self.scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        # Horizontal scrolling (rather than NEVER) keeps any unexpectedly
+        # wide content -- e.g. a long button grid -- from forcing the whole
+        # window wider than the screen; it scrolls instead of pushing the
+        # window's minimum size out.
+        self.scrolled.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
         self.scrolled.set_vexpand(True)
         self.scrolled.set_hexpand(True)
         self.scrolled.set_child(vbox)
@@ -1638,7 +1646,7 @@ class PhysicalDefectsPage(Adw.Bin):
         parts_row = _build_section_row(
             f"Where is/are the {entry_row.get_title()}(s)?",
             PHYSICAL_AFFECTED_PARTS,
-            columns=len(PHYSICAL_AFFECTED_PARTS),
+            columns=3,
             on_change=_on_parts_change,
         )
         entry_row.add_row(parts_row)
