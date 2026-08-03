@@ -264,9 +264,9 @@ class SpecCompleteV3(Adw.Bin):
         if self.tracking_status.has_css_class("text-error"):
             self.tracking_status.remove_css_class("text-error")
 
-        codes = self._gather_datacodes()
+        notes = self._gather_sortly_notes()
         self.sortly_register.report_datacodes(
-            codes, on_complete=self._on_sortly_report_complete
+            notes, on_complete=self._on_sortly_report_complete
         )
 
     def _on_sortly_report_complete(self, success, error):
@@ -455,18 +455,21 @@ class SpecCompleteV3(Adw.Bin):
         self._tracking_initials = entry.get_text().strip()
         self._generate_tracking_sheet()
 
-    def _gather_datacodes(self):
-        """Every manual test page's failure data codes (e.g. "KB02",
-        "SC08"), concatenated across all pages into one comma-separated
-        string with no spaces (e.g. "KB02,SC08,UA02") -- the format fed to
+    def _gather_sortly_notes(self):
+        """Every manual test page's failure reasons, formatted for
+        Sortly's "Speccing Notes" custom attribute (see
+        manualtest_v3.TogglePage.get_sortly_entries/_sortly_entry) and
+        concatenated across all pages into one "/"-joined string with no
+        spaces around any delimiter, e.g. "KB01|Certain keys do not
+        work:A,B/TP01|Touchpad does not work at all" -- the format fed to
         SortlyRegister.report_datacodes(). Pages that passed, weren't
-        tested, or have no get_datacodes() (SpecInfo isn't a manual test
-        page) contribute nothing."""
-        codes = []
+        tested, or have no get_sortly_entries() (SpecInfo isn't a manual
+        test page) contribute nothing."""
+        entries = []
         for page in self.manual_test_pages:
-            if hasattr(page, "get_datacodes"):
-                codes.extend(page.get_datacodes())
-        return ",".join(codes)
+            if hasattr(page, "get_sortly_entries"):
+                entries.extend(page.get_sortly_entries())
+        return "/".join(entries)
 
     def _generate_tracking_sheet(self):
         knumber = ""
@@ -503,7 +506,7 @@ class SpecCompleteV3(Adw.Bin):
             notes_entries.extend(self.specinfo.get_notes_entries())
 
         if self.sortly_register:
-            self.sortly_register.report_datacodes(self._gather_datacodes())
+            self.sortly_register.report_datacodes(self._gather_sortly_notes())
 
         self.tracking_button.set_sensitive(False)
         if not knumber:

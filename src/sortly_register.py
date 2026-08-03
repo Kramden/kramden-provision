@@ -22,12 +22,11 @@ from sortly import (
     sortly_error_message,
 )
 
-# Master switch for reporting each manual test page's data codes (e.g.
-# "KB02,SC08,UA02" -- see SpecCompleteV3._gather_datacodes) back to Sortly
-# as a follow-up update after the initial registration on this page. Off
-# for now so spec_v3 sends Sortly exactly the same fields spec.py does;
-# flip to True once Sortly has a "Speccing Notes" custom attribute ready to
-# receive it -- see report_datacodes() below.
+# Master switch for reporting each manual test page's failure reasons (e.g.
+# "KB02|Certain keys do not work:A,B/TP01|Touchpad does not work at all" --
+# see SpecCompleteV3._gather_sortly_notes) back to Sortly as a follow-up
+# update after the initial registration on this page -- see
+# report_datacodes() below.
 REPORT_DATACODES_TO_SORTLY = True
 
 # Must match the custom attribute's name on the Sortly item exactly --
@@ -474,11 +473,13 @@ class SortlyRegister(Adw.Bin):
             self.knumber_entry.set_sensitive(True)
 
     def report_datacodes(self, datacodes, on_complete=None):
-        """Push the machine's aggregated data-codes string to Sortly as a
-        follow-up update to the item registered on this page. Called from
-        SpecCompleteV3 once every manual test page has reported in --
-        those results don't exist yet when _do_register() runs at the
-        start of the wizard, so this fires later instead.
+        """Push the machine's aggregated Sortly notes string (see
+        SpecCompleteV3._gather_sortly_notes/manualtest_v3._sortly_entry for
+        the "<code>|<description>[:<locations>]" format, entries joined by
+        "/") to Sortly as a follow-up update to the item registered on this
+        page. Called from SpecCompleteV3 once every manual test page has
+        reported in -- those results don't exist yet when _do_register()
+        runs at the start of the wizard, so this fires later instead.
 
         `on_complete`, if given, is called as `on_complete(success, error)`
         -- via GLib.idle_add once the background request finishes, so it's
