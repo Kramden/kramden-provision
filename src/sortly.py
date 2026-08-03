@@ -393,7 +393,10 @@ def update_item(api_key, item_id, updates_dict):
         raw_json = response.json()
     except (requests.RequestException, ValueError) as e:
         print(f"Error fetching item: {e}")
-        return False, f"Could not fetch the record from Sortly: {sortly_error_message(e)}"
+        return (
+            False,
+            f"Could not fetch the record from Sortly: {sortly_error_message(e)}",
+        )
 
     item_data = raw_json.get("data", raw_json)
     current_attrs = item_data.get("custom_attribute_values", [])
