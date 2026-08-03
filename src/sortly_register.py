@@ -593,11 +593,16 @@ class SortlyRegister(Adw.Bin):
             # A bare "YYYY-MM-DD" string gets rejected by Sortly with
             # "must be a datetime instance" -- this custom attribute is
             # provisioned on Sortly's side as a full Date & Time type, so
-            # it needs a complete ISO 8601 datetime (midnight UTC), not
-            # just a date.
-            spec_datetime = datetime.combine(spec_date, time.min).isoformat(
-                timespec="milliseconds"
-            ) + "Z"
+            # it needs a complete ISO 8601 datetime. Tag it with this
+            # machine's actual UTC offset via astimezone() rather than
+            # hardcoding "Z" -- midnight local time mislabeled as midnight
+            # UTC lands on the previous day once Sortly converts it back
+            # for display in any timezone behind UTC.
+            spec_datetime = (
+                datetime.combine(spec_date, time.min)
+                .astimezone()
+                .isoformat(timespec="milliseconds")
+            )
             success, error = update_item(
                 api_key,
                 item_id,
