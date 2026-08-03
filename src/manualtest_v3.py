@@ -12,8 +12,6 @@ gi.require_version("GdkPixbuf", "2.0")
 from gi.repository import Adw, Gdk, GdkPixbuf, GLib, GObject, Gtk
 from utils import Utils
 
-CUSTOM_OPTION = "Custom..."
-
 # Placeholder option lists. Real content to be filled in later — these exist
 # only so the dropdowns/checklists have something selectable to preview the
 # layout with.
@@ -28,28 +26,39 @@ PHYSICAL_DEFECT_TYPES = [
     "Peeling Paint",
     "Cracks",
     "Broken Part",
-    "Feet Coming Off/Missing From Device",
+    "Laptop feet coming off",
+    "Heavy Scuffing",
 ]
 # Fixed code overrides for defect types whose position in the list above
 # doesn't match their tracking-sheet code (see
-# PhysicalDefectsPage._defect_code) -- e.g. "Feet Coming Off/Missing From
-# Device" is PD08 by convention rather than the PD06 its list position
-# would otherwise imply, since PD06/PD07 are reserved.
+# PhysicalDefectsPage._defect_code) -- PD01/PD02/PD07/PDOP are reserved for
+# the Hinge Broken/Loose Hinge/Port Damaged sub-types nested inside "Broken
+# Part" instead (see BROKEN_PART_HINGE_CODES/BROKEN_PART_PORT_CODE/
+# BROKEN_PART_PORT_OTHER_CODE below), so every top-level type here needs an
+# explicit code rather than one derived from its list position.
 PHYSICAL_DEFECT_CODES = {
-    "Feet Coming Off/Missing From Device": "PD08",
+    "Dents": "PD03",
+    "Deep Scratches": "PD04",
+    "Peeling Paint": "PD05",
+    "Cracks": "PD06",
+    "Latop feet coming off": "PD08",
+    "Heavy Scuffing": "PD09",
 }
-# Hinge/feet issues are self-explanatory with no meaningful location to ask
-# for.
+# Feet issues are self-explanatory with no meaningful location to ask for.
 PHYSICAL_NO_LOCATION_TYPES = {
-    "Hinge Broken",
-    "Loose Hinge",
     "Feet Coming Off/Missing From Device",
 }
 # Marked the same way as a screen/touchscreen defect (see SCREEN_SECTIONS).
 PHYSICAL_SCREEN_SECTION_TYPES = {"Screen Cracked"}
 # Ask which part is affected, then where on that part (same sextant grid as
 # SCREEN_SECTIONS below -- see _build_section_picker).
-PHYSICAL_PART_LOCATION_TYPES = {"Dents", "Deep Scratches", "Peeling Paint", "Cracks"}
+PHYSICAL_PART_LOCATION_TYPES = {
+    "Dents",
+    "Deep Scratches",
+    "Peeling Paint",
+    "Cracks",
+    "Heavy Scuffing",
+}
 PHYSICAL_AFFECTED_PARTS = [
     "Top of the lid",
     "The Bezel (Around the screen)",
@@ -62,36 +71,58 @@ PHYSICAL_AFFECTED_PARTS = [
 # USB-A/USB-C pages (see UsbPortLocationMixin), plus its own optional
 # per-location port-# field. Only USB-A/USB-C trigger the
 # suppress-on-matching-page logic below since those are the only port types
-# with their own dedicated test page; "Other" additionally asks for a
-# free-text description of the port.
+# with their own dedicated test page; PHYSICAL_PORT_OTHER_TYPE additionally
+# asks for a free-text description of the port.
 PHYSICAL_PORT_DAMAGE_TYPES = {"Port Damaged"}
+PHYSICAL_PORT_OTHER_TYPE = "Some other broken port"
 PHYSICAL_PORT_TYPES = [
     "USB-A",
     "USB-C",
     "Ethernet",
     "HDMI",
-    "DP",
+    "Display Port",
     "Charging Port",
-    "Other",
+    PHYSICAL_PORT_OTHER_TYPE,
 ]
 
 # "Broken Part" hands off Keys/Screen/USB-A/USB-C sub-reports to their own
 # dedicated test page (its own datacode) instead of Physical Defects --
 # see PhysicalDefectsPage._build_broken_part_picker/_delegate_broken_part.
-# "Hinge" and "Other" have no dedicated page and stay Physical-Defects-coded.
+# "Hinge Broken"/"Loose Hinge"/"Port physically broken" (for a non-USB
+# port)/BROKEN_PART_OTHER_TYPE have no dedicated page, but still each get
+# their own real PD code instead of one generic "Broken Part" code for the
+# whole entry --
+# see BROKEN_PART_HINGE_CODES/BROKEN_PART_PORT_CODE/
+# BROKEN_PART_PORT_OTHER_CODE below and
+# PhysicalDefectsPage._broken_part_codes_and_details.
 PHYSICAL_BROKEN_PART_TYPES = {"Broken Part"}
 BROKEN_PART_KEYS_TYPE = "Keys have physical damage"
 BROKEN_PART_PORT_TYPE = "Port physically broken"
-BROKEN_PART_HINGE_TYPE = "Hinge"
+BROKEN_PART_HINGE_BROKEN_TYPE = "Hinge broken"
+BROKEN_PART_LOOSE_HINGE_TYPE = "Very loose hinge"
 BROKEN_PART_SCREEN_TYPE = "Screen"
-BROKEN_PART_OTHER_TYPE = "Other"
+BROKEN_PART_OTHER_TYPE = "Some other broken part"
 BROKEN_PART_SUB_TYPES = [
     BROKEN_PART_KEYS_TYPE,
     BROKEN_PART_PORT_TYPE,
-    BROKEN_PART_HINGE_TYPE,
+    BROKEN_PART_HINGE_BROKEN_TYPE,
+    BROKEN_PART_LOOSE_HINGE_TYPE,
     BROKEN_PART_SCREEN_TYPE,
     BROKEN_PART_OTHER_TYPE,
 ]
+# Fixed tracking-sheet codes for the Hinge Broken/Loose Hinge sub-types --
+# see PhysicalDefectsPage._broken_part_codes_and_details.
+BROKEN_PART_HINGE_CODES = {
+    BROKEN_PART_HINGE_BROKEN_TYPE: "PD01",
+    BROKEN_PART_LOOSE_HINGE_TYPE: "PD02",
+}
+# Fixed tracking-sheet codes for "Port physically broken" on a port with no
+# dedicated test page (i.e. not USB-A/USB-C, which delegate to UA02/UC02
+# instead) -- PD07 for a named port type, PDOP for "Other" (a
+# custom-described port), same "preset vs custom" code split as
+# CUSTOM_REASON_CODE_SUFFIX elsewhere in this file.
+BROKEN_PART_PORT_CODE = "PD07"
+BROKEN_PART_PORT_OTHER_CODE = "PDOP"
 
 PLACEHOLDER_INSTRUCTIONS = "(Instructions for this test will go here)"
 
@@ -255,9 +286,9 @@ WEBCAM_NO_DEVICE_NOTE = "No webcam present"
 WEBCAM_IR_ONLY_NOTE = "IR camera only, no webcam present"
 
 TOUCHSCREEN_DEFECT_TYPES = [
-    "Areas of the touchscreen aren't working",
-    "Where I touch is not where it registers",
     "The touchscreen doesn't work at all",
+    "Where I touch is not where it registers",
+    "Areas of the touchscreen aren't working",
     "The cursor freaks out when I touch the screen",
 ]
 
@@ -305,10 +336,8 @@ KEYBOARD_NO_KEYS_REASONS = {
 
 # "Physical damage" expands into this pick-list instead of a single
 # keyboard popup -- see KeyboardPage.build_reason_locations. Each selected
-# category gets its own "Select Keys" popup. "Keys are scratched" has no
-# code of its own -- per user direction it's reported under the same KB04
-# code as "Keys are cracked" (see KeyboardPage._physical_damage_notes,
-# which merges their key sets together on the tracking sheet).
+# category gets its own "Select Keys" popup and its own real code (see
+# PHYSICAL_DAMAGE_CATEGORY_CODES/PHYSICAL_DAMAGE_CODE_LABELS below).
 KEYBOARD_PHYSICAL_DAMAGE_REASON = "Physical damage"
 PHYSICAL_DAMAGE_CATEGORIES = [
     "Keys are worn through",
@@ -325,15 +354,40 @@ PHYSICAL_DAMAGE_CATEGORY_CODES = {
 PHYSICAL_DAMAGE_CODE_LABELS = {
     "KB05": "Keys worn through",
     "KB04": "Keys cracked",
+    "KB10": "Keys scratched",
     "KB03": "Keys missing",
 }
 
+# Tracking sheet "Notes & Cosmetics" entries report each failure reason as a
+# short parseable code (e.g. "KB02: Key(s) Sticking (F, G)") instead of a full
+# sentence. The number is just 1-based position of that reason string in the
+# page's reason_options list (KEYBOARD_DEFECT_TYPES, TOUCHPAD_DEFECT_TYPES,
+# etc.) or PHYSICAL_DEFECT_TYPES for Physical Defects -- so to add a new
+# code, add a new entry to that list (it gets the next number for free); to
+# change a code's wording, edit the string in place. A reason typed in via
+# the "Custom..." free-text box has no fixed slot, so it falls back to
+# "<PREFIX>O" instead of a number.
+CUSTOM_REASON_CODE_SUFFIX = "OT"
+
+# Sound sub-picker embedded in Browser's "Audio" reason (see
+# BrowserPage.build_reason_locations) -- its own "SD" code namespace,
+# distinct from Browser's own "BR" prefix (see
+# BrowserPage._sound_reason_notes/_failed_codes/_code_sort_key). Any
+# selection that doesn't match SOUND_REASON_CODES (there's currently no way
+# to add one, since this picker has no free-text entry) falls back to
+# SOUND_CUSTOM_CODE, same "OT" suffix pattern as CUSTOM_REASON_CODE_SUFFIX.
 SOUND_DEFECT_TYPES = [
     "Sound does not work",
     "Sound is crunchy",
-    "Sound is too quiet even with volume all the way up",
-    "Dummy Output/No Audio Device Detected",
+    "No audio device/dummy output detected",
 ]
+SOUND_CODE_PREFIX = "SD"
+SOUND_REASON_CODES = {
+    "Sound does not work": "SD01",
+    "Sound is crunchy": "SD02",
+    "No audio device/dummy output detected": "SD03",
+}
+SOUND_CUSTOM_CODE = f"{SOUND_CODE_PREFIX}{CUSTOM_REASON_CODE_SUFFIX}"
 
 # Simplified keyboard layout used by the keyboard failure-location picker.
 KEYBOARD_LAYOUT = [
@@ -346,17 +400,6 @@ KEYBOARD_LAYOUT = [
 
 ALL_KEYBOARD_KEYS = [key for row in KEYBOARD_LAYOUT for key in row]
 ENTIRE_KEYBOARD_MARKER = "__ENTIRE_KEYBOARD__"
-
-# Tracking sheet "Notes & Cosmetics" entries report each failure reason as a
-# short parseable code (e.g. "KB02: Key(s) Sticking (F, G)") instead of a full
-# sentence. The number is just 1-based position of that reason string in the
-# page's reason_options list (KEYBOARD_DEFECT_TYPES, TOUCHPAD_DEFECT_TYPES,
-# etc.) or PHYSICAL_DEFECT_TYPES for Physical Defects -- so to add a new
-# code, add a new entry to that list (it gets the next number for free); to
-# change a code's wording, edit the string in place. A reason typed in via
-# the "Custom..." free-text box has no fixed slot, so it falls back to
-# "<PREFIX>O" instead of a number.
-CUSTOM_REASON_CODE_SUFFIX = "OT"
 
 # The 6 regions of a laptop screen (3 across the top half, 3 across the
 # bottom half) used by the Screen/Touchscreen/Screen-Cracked defect-location
@@ -872,6 +915,10 @@ class TogglePage(Adw.Bin):
         self.skip = False
         self.passed = None
         self.state = None
+        # Label for the free-text "add your own" option in the reason grid
+        # below -- worded per-page so it reads naturally (e.g. "Some other
+        # Keyboard issue") instead of a generic "Custom...".
+        self.custom_option = f"Some other {page_title} issue"
         # Set externally by spec_v3.py so the wizard's Next button can
         # refresh (light up/dim, re-check completeness) the moment this
         # page's pass/fail or reason details change, not just on navigation.
@@ -957,12 +1004,12 @@ class TogglePage(Adw.Bin):
 
         reason_buttons_box, self._reason_buttons = _build_toggle_button_grid(
             "What about it did not work?",
-            self.reason_options + [CUSTOM_OPTION],
+            self.reason_options + [self.custom_option],
             self._on_reason_button_toggled,
         )
         reasons_content.append(reason_buttons_box)
 
-        # Free-text entry, revealed only when "Custom..." is clicked above
+        # Free-text entry, revealed only when the custom option is clicked above
         self.custom_reason_revealer = Gtk.Revealer()
         self.custom_reason_revealer.set_transition_type(
             Gtk.RevealerTransitionType.SLIDE_DOWN
@@ -1073,7 +1120,7 @@ class TogglePage(Adw.Bin):
 
     def _on_reason_button_toggled(self, button, reason):
         _toggle_button_css(button)
-        if reason == CUSTOM_OPTION:
+        if reason == self.custom_option:
             self.custom_reason_revealer.set_reveal_child(button.get_active())
             if button.get_active():
                 self.custom_reason_entry.grab_focus()
@@ -1091,7 +1138,7 @@ class TogglePage(Adw.Bin):
         self.custom_reason_entry.set_text("")
         self._add_reason(reason, removable=True)
         # Hides the custom entry box again (fires _on_reason_button_toggled).
-        self._reason_buttons[CUSTOM_OPTION].set_active(False)
+        self._reason_buttons[self.custom_option].set_active(False)
 
     def suppress_reason_option(self, reason):
         """Grey out a preset reason's button because it's already been
@@ -1383,6 +1430,10 @@ class PhysicalDefectsPage(Adw.Bin):
         self.skip = False
         self.has_defects = None
         self.state = None
+        # Label for the free-text "add your own" defect-type option below --
+        # see TogglePage.custom_option for the same pattern on every other
+        # test page.
+        self.custom_option = "Some other physical damage"
         # Set externally by spec_v3.py -- see TogglePage.on_status_changed.
         self.on_status_changed = None
         self._defect_entries = {}
@@ -1461,7 +1512,7 @@ class PhysicalDefectsPage(Adw.Bin):
 
         defect_buttons_box, self._defect_buttons = _build_toggle_button_grid(
             "What type of damage is present? (Select all that apply)",
-            PHYSICAL_DEFECT_TYPES + [CUSTOM_OPTION],
+            PHYSICAL_DEFECT_TYPES + [self.custom_option],
             self._on_defect_button_toggled,
         )
         defects_content.append(defect_buttons_box)
@@ -1544,7 +1595,7 @@ class PhysicalDefectsPage(Adw.Bin):
 
     def _on_defect_button_toggled(self, button, defect_type):
         _toggle_button_css(button)
-        if defect_type == CUSTOM_OPTION:
+        if defect_type == self.custom_option:
             self.custom_defect_revealer.set_reveal_child(button.get_active())
             if button.get_active():
                 self.custom_defect_entry.grab_focus()
@@ -1562,7 +1613,7 @@ class PhysicalDefectsPage(Adw.Bin):
         self.custom_defect_entry.set_text("")
         self._add_defect(defect_type, removable=True)
         # Hides the custom entry box again (fires _on_defect_button_toggled).
-        self._defect_buttons[CUSTOM_OPTION].set_active(False)
+        self._defect_buttons[self.custom_option].set_active(False)
 
     def _add_defect(self, defect_type, removable=False):
         if defect_type in self._defect_entries:
@@ -1704,7 +1755,7 @@ class PhysicalDefectsPage(Adw.Bin):
             "types": [],
             "locations": {},  # port_type -> [location, ...]
             "port_numbers": {},  # port_type -> {location: port_num}
-            "custom_text": {},  # port_type ("Other") -> custom description
+            "custom_text": {},  # port_type (PHYSICAL_PORT_OTHER_TYPE) -> custom description
             "_suppressed_pages": {},  # port_type -> page it's suppressed on
         }
 
@@ -1744,7 +1795,7 @@ class PhysicalDefectsPage(Adw.Bin):
                 type_label.add_css_class("heading")
                 block.append(type_label)
 
-                if port_type == "Other":
+                if port_type == PHYSICAL_PORT_OTHER_TYPE:
                     custom_entry = Gtk.Entry()
                     custom_entry.set_placeholder_text("Describe the port")
                     custom_entry.set_text(data["custom_text"].get(port_type, ""))
@@ -1877,9 +1928,11 @@ class PhysicalDefectsPage(Adw.Bin):
         """ "Broken Part" -> "Keys Have Physical Damage"/"Screen"/"Port
         Physically Broken" (for a USB-A/USB-C port) hand off to that
         page's own dedicated test instead of being recorded here -- see
-        _delegate_broken_part/_build_broken_part_port_block. "Hinge" and
-        "Other" (and any non-USB-A/C port type) have no dedicated page and
-        stay Physical-Defects-coded -- see _broken_part_detail.
+        _delegate_broken_part/_build_broken_part_port_block. "Hinge
+        Broken"/"Loose Hinge"/BROKEN_PART_OTHER_TYPE (and any non-USB-A/C
+        port type) have no dedicated page, but each still get their own
+        real PD code instead of one generic "Broken Part" code -- see
+        _broken_part_codes_and_details.
 
         Each sub-type's block is built once and kept in data["_blocks"]
         for as long as it stays selected -- toggling some *other* sub-type
@@ -1919,8 +1972,11 @@ class PhysicalDefectsPage(Adw.Bin):
 
                 custom_entry.connect("changed", _on_custom_changed)
                 block.append(custom_entry)
-            elif sub_type == BROKEN_PART_HINGE_TYPE:
-                pass  # Nothing further to record -- see PHYSICAL_NO_LOCATION_TYPES.
+            elif sub_type in (
+                BROKEN_PART_HINGE_BROKEN_TYPE,
+                BROKEN_PART_LOOSE_HINGE_TYPE,
+            ):
+                pass  # Nothing further to record -- each gets a fixed code, see BROKEN_PART_HINGE_CODES.
             elif sub_type == BROKEN_PART_PORT_TYPE:
                 self._build_broken_part_port_block(block, data)
             else:
@@ -2048,7 +2104,7 @@ class PhysicalDefectsPage(Adw.Bin):
                 )
                 return block
 
-            if port_type == "Other":
+            if port_type == PHYSICAL_PORT_OTHER_TYPE:
                 custom_entry = Gtk.Entry()
                 custom_entry.set_placeholder_text("Describe the port")
                 custom_entry.set_text(port_data["custom_text"].get(port_type, ""))
@@ -2356,7 +2412,7 @@ class PhysicalDefectsPage(Adw.Bin):
             self._undelegate_broken_part(sub_type, data)
 
     def _broken_part_sub_is_filled(self, sub_type, data):
-        if sub_type == BROKEN_PART_HINGE_TYPE:
+        if sub_type in (BROKEN_PART_HINGE_BROKEN_TYPE, BROKEN_PART_LOOSE_HINGE_TYPE):
             return True
         if sub_type == BROKEN_PART_OTHER_TYPE:
             return bool(data.get("other_text", "").strip())
@@ -2376,18 +2432,25 @@ class PhysicalDefectsPage(Adw.Bin):
                     continue  # delegated -- that page's is_complete() gates it
                 if not locations.get(port_type):
                     return False
-                if port_type == "Other" and not custom_text.get(port_type, "").strip():
+                if (
+                    port_type == PHYSICAL_PORT_OTHER_TYPE
+                    and not custom_text.get(port_type, "").strip()
+                ):
                     return False
             return True
         return False
 
     def _broken_part_has_own_content(self, data):
         """Whether "Broken Part" has anything left to report under its own
-        Physical-Defects datacode -- False when every selected sub-type
+        Physical-Defects datacode(s) -- False when every selected sub-type
         was fully handed off to a dedicated test page (see
-        _broken_part_detail/get_failure_reasons/get_notes_entries)."""
+        _broken_part_codes_and_details/get_failure_reasons/
+        get_notes_entries)."""
         sub_types = data.get("sub_types") or []
-        if BROKEN_PART_HINGE_TYPE in sub_types:
+        if (
+            BROKEN_PART_HINGE_BROKEN_TYPE in sub_types
+            or BROKEN_PART_LOOSE_HINGE_TYPE in sub_types
+        ):
             return True
         if BROKEN_PART_OTHER_TYPE in sub_types and data.get("other_text", "").strip():
             return True
@@ -2398,22 +2461,27 @@ class PhysicalDefectsPage(Adw.Bin):
                     return True
         return False
 
-    def _broken_part_detail(self, data):
-        """Tracking-sheet detail text for "Broken Part", covering only the
-        sub-types with no dedicated test page (Hinge, Other, and any
-        non-USB-A/C port type) -- Keys/Screen/USB-A/USB-C are reported on
-        their own page under their own datacode instead (see
+    def _broken_part_codes_and_details(self, data):
+        """(code, detail text) pairs for the sub-types of "Broken Part"
+        that carry their own real PD code -- Hinge Broken/Loose Hinge
+        (BROKEN_PART_HINGE_CODES), Port Physically Broken on a non-USB-A/C
+        port (BROKEN_PART_PORT_CODE/BROKEN_PART_PORT_OTHER_CODE), and Other
+        (the generic PDOT custom code, same as a typed-in top-level
+        defect) -- instead of one generic "Broken Part" code for the whole
+        entry. Keys/Screen/USB-A/USB-C are reported on their own page
+        under their own datacode instead (see
         _delegate_broken_part/_build_broken_part_port_block), so they're
-        deliberately left out here. Returns None when nothing is left to
-        report under Physical Defects' own code."""
+        deliberately left out here."""
         sub_types = data.get("sub_types") or []
-        parts = []
-        if BROKEN_PART_HINGE_TYPE in sub_types:
-            parts.append(BROKEN_PART_HINGE_TYPE)
+        items = []
+        for hinge_type, code in BROKEN_PART_HINGE_CODES.items():
+            if hinge_type in sub_types:
+                items.append((code, f"{code}: {hinge_type}"))
         if BROKEN_PART_OTHER_TYPE in sub_types:
             text = data.get("other_text", "").strip()
             if text:
-                parts.append(text)
+                code = f"{self.CODE_PREFIX}{CUSTOM_REASON_CODE_SUFFIX}"
+                items.append((code, f"{code}: {text}"))
         if BROKEN_PART_PORT_TYPE in sub_types:
             port_data = data.get("port_damage") or {}
             locations = port_data.get("locations") or {}
@@ -2423,9 +2491,12 @@ class PhysicalDefectsPage(Adw.Bin):
                 if self._usb_page_for_type(port_type) is not None:
                     continue
                 name = port_type
-                if port_type == "Other":
+                if port_type == PHYSICAL_PORT_OTHER_TYPE:
                     custom = custom_text.get(port_type, "").strip()
-                    name = custom if custom else "Other"
+                    name = custom if custom else PHYSICAL_PORT_OTHER_TYPE
+                    code = BROKEN_PART_PORT_OTHER_CODE
+                else:
+                    code = BROKEN_PART_PORT_CODE
                 locs = locations.get(port_type) or []
                 loc_parts = []
                 for location in locs:
@@ -2436,11 +2507,8 @@ class PhysicalDefectsPage(Adw.Bin):
                 loc_text = (
                     ", ".join(loc_parts) if loc_parts else "no location specified"
                 )
-                parts.append(f"{name}: {loc_text}")
-        if not parts:
-            return None
-        label = f"{self._defect_code('Broken Part')}: Broken Part"
-        return f"{label} ({'; '.join(parts)})"
+                items.append((code, f"{code}: {name} ({loc_text})"))
+        return items
 
     def _defect_is_filled(self, data):
         """See TogglePage._reason_is_filled -- "Yes" requires at
@@ -2457,8 +2525,9 @@ class PhysicalDefectsPage(Adw.Bin):
         if kind == "port_damage":
             # Every selected port type needs at least one location marked
             # (port # itself stays optional -- only needed to disambiguate
-            # multiple same-side ports); "Other" additionally requires the
-            # custom port description to be filled in.
+            # multiple same-side ports); PHYSICAL_PORT_OTHER_TYPE
+            # additionally requires the custom port description to be
+            # filled in.
             types = data.get("types") or []
             if not types:
                 return False
@@ -2467,7 +2536,10 @@ class PhysicalDefectsPage(Adw.Bin):
             for port_type in types:
                 if not locations.get(port_type):
                     return False
-                if port_type == "Other" and not custom_text.get(port_type, "").strip():
+                if (
+                    port_type == PHYSICAL_PORT_OTHER_TYPE
+                    and not custom_text.get(port_type, "").strip()
+                ):
                     return False
             return True
         if kind == "broken_part":
@@ -2574,9 +2646,9 @@ class PhysicalDefectsPage(Adw.Bin):
             type_details = []
             for port_type in types:
                 name = port_type
-                if port_type == "Other":
+                if port_type == PHYSICAL_PORT_OTHER_TYPE:
                     custom = custom_text.get(port_type, "").strip()
-                    name = custom if custom else "Other"
+                    name = custom if custom else PHYSICAL_PORT_OTHER_TYPE
                 locs = locations.get(port_type) or []
                 loc_parts = []
                 for location in locs:
@@ -2591,7 +2663,10 @@ class PhysicalDefectsPage(Adw.Bin):
             return f"{label} ({'; '.join(type_details)})"
 
         if kind == "broken_part":
-            return self._broken_part_detail(data)
+            items = self._broken_part_codes_and_details(data)
+            if not items:
+                return None
+            return "; ".join(text for _, text in items)
 
         return label
 
@@ -2599,16 +2674,19 @@ class PhysicalDefectsPage(Adw.Bin):
         """Data codes (e.g. "PD01") for every reported defect, deduped and
         sorted in numeric order -- shared by get_failure_reasons' compact
         summary and get_datacodes' feed to the Sortly Data Codes string
-        (see SpecCompleteV3._gather_datacodes). "Broken Part" is left out
-        entirely when everything selected under it was handed off to a
-        dedicated test page -- see _broken_part_has_own_content."""
+        (see SpecCompleteV3._gather_datacodes). "Broken Part" contributes
+        whichever real codes its selected sub-types map to (see
+        _broken_part_codes_and_details) instead of one generic code for
+        the whole entry -- empty when everything selected under it was
+        handed off to a dedicated test page instead."""
         if not self.has_defects or not self._defect_entries:
             return []
         codes = set()
         for defect_type, (entry_row, data) in self._defect_entries.items():
-            if defect_type == "Broken Part" and not self._broken_part_has_own_content(
-                data
-            ):
+            if defect_type == "Broken Part":
+                codes.update(
+                    code for code, _ in self._broken_part_codes_and_details(data)
+                )
                 continue
             codes.add(self._defect_code(defect_type))
         return sorted(codes, key=self._code_sort_key)
@@ -2640,8 +2718,8 @@ class PhysicalDefectsPage(Adw.Bin):
         as a single grouped note, e.g. "PD01: Hinge Broken, PD05: Deep
         Scratches (Keyboard: Top, Left)". "Broken Part" contributes nothing
         here when everything selected under it was handed off to a
-        dedicated test page instead (see _broken_part_detail, which
-        returns None in that case)."""
+        dedicated test page instead (see _broken_part_codes_and_details,
+        which returns an empty list in that case)."""
         if self.has_defects is not True:
             return []
         if not self._defect_entries:
@@ -3085,6 +3163,79 @@ class BrowserPage(TogglePage):
                 title="What's wrong with the sound?",
             )
         return {"type": "none"}
+
+    def _reason_code(self, reason):
+        """Overrides TogglePage._reason_code -- "Audio" gets no code of
+        its own; each Sound issue selected under it reports under its own
+        real SD code instead (see _sound_reason_notes), same "no single
+        code" pattern as TouchpadPage's click/cursor reasons."""
+        if reason == "Audio":
+            return None
+        return super()._reason_code(reason)
+
+    def _sound_reason_notes(self, data):
+        """Each Sound option selected under "Audio" reports under its own
+        fixed SD code (see SOUND_REASON_CODES) -- any option that somehow
+        isn't in that dict (there's currently no way to add one, since
+        this picker has no free-text entry) falls back to
+        SOUND_CUSTOM_CODE, same "OT" suffix pattern as
+        CUSTOM_REASON_CODE_SUFFIX."""
+        selected = data.get("selected") or []
+        notes = []
+        for option in selected:
+            code = SOUND_REASON_CODES.get(option, SOUND_CUSTOM_CODE)
+            notes.append((code, f"{code}: {option}"))
+        return notes
+
+    def _failed_codes(self):
+        """Overrides TogglePage._failed_codes -- "Audio" has no code of
+        its own, so it contributes whichever SD codes its selected Sound
+        options map to instead of being skipped (see
+        KeyboardPage._failed_codes for the same "no single code" pattern)."""
+        codes = set()
+        for reason, (entry_row, data) in self._reason_entries.items():
+            if reason == "Audio":
+                codes.update(code for code, _ in self._sound_reason_notes(data))
+            else:
+                code = self._reason_code(reason)
+                if code:
+                    codes.add(code)
+        return sorted(codes, key=self._code_sort_key)
+
+    def _code_sort_key(self, code):
+        """Overrides TogglePage._code_sort_key -- this page's own "BR"
+        codes and the Sound sub-picker's "SD" codes are mixed together in
+        its failure codes, so strip whichever 2-letter prefix the code
+        actually has instead of assuming self.code_prefix specifically."""
+        if not code:
+            return 999
+        try:
+            return int(code[2:])
+        except (TypeError, ValueError):
+            return 999
+
+    def get_notes_entries(self):
+        """Overrides TogglePage.get_notes_entries -- "Audio" has no code
+        of its own; each Sound issue selected under it becomes its own
+        coded detail (e.g. "SD02: Sound is crunchy") instead of one
+        "BR02: Audio (...)" line, so entries are gathered across every
+        reason and re-sorted by code at the end (same pattern as
+        TouchpadPage.get_notes_entries for its click/cursor sub-reasons)."""
+        if self.passed is not False:
+            return []
+        if not self._reason_entries:
+            return [{"text": "Browser: issue reported"}]
+        entries = []
+        for reason, (entry_row, data) in self._reason_entries.items():
+            if reason == "Audio":
+                entries.extend(self._sound_reason_notes(data))
+                continue
+            label = self._reason_label(reason)
+            loc_text = self._locations_text(data)
+            text = f"{label} ({loc_text})" if loc_text else label
+            entries.append((self._reason_code(reason), text))
+        entries.sort(key=lambda entry: self._code_sort_key(entry[0]))
+        return [{"text": ", ".join(text for _, text in entries)}]
 
 
 class WebcamPage(TogglePage):
