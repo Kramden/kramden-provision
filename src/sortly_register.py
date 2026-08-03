@@ -492,11 +492,12 @@ class SortlyRegister(Adw.Bin):
         """
         if not REPORT_DATACODES_TO_SORTLY:
             if on_complete:
-                on_complete(True, None)
+                GLib.idle_add(on_complete, True, None)
             return
         if not self._existing_item:
             if on_complete:
-                on_complete(
+                GLib.idle_add(
+                    on_complete,
                     False,
                     "This machine has no Sortly record to update -- "
                     "registration on the Sortly Registration page never "
@@ -508,7 +509,7 @@ class SortlyRegister(Adw.Bin):
             # Sortly record's Data Codes field alone rather than making an
             # unnecessary API call.
             if on_complete:
-                on_complete(True, None)
+                GLib.idle_add(on_complete, True, None)
             return
 
         try:
@@ -516,7 +517,7 @@ class SortlyRegister(Adw.Bin):
         except EnvironmentError as e:
             print(f"Skipping data codes report: {e}")
             if on_complete:
-                on_complete(False, str(e))
+                GLib.idle_add(on_complete, False, str(e))
             return
 
         item_id = self._existing_item["id"]
@@ -558,11 +559,12 @@ class SortlyRegister(Adw.Bin):
         """
         if not REPORT_SPEC_DATE_TO_SORTLY:
             if on_complete:
-                on_complete(True, None)
+                GLib.idle_add(on_complete, True, None)
             return
         if not self._existing_item:
             if on_complete:
-                on_complete(
+                GLib.idle_add(
+                    on_complete,
                     False,
                     "This machine has no Sortly record to update -- "
                     "registration on the Sortly Registration page never "
@@ -575,7 +577,7 @@ class SortlyRegister(Adw.Bin):
         except EnvironmentError as e:
             print(f"Skipping spec date report: {e}")
             if on_complete:
-                on_complete(False, str(e))
+                GLib.idle_add(on_complete, False, str(e))
             return
 
         item_id = self._existing_item["id"]
