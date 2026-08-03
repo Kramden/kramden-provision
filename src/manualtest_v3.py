@@ -41,15 +41,15 @@ PHYSICAL_DEFECT_CODES = {
     "Deep Scratches": "PD04",
     "Peeling Paint": "PD05",
     "Cracks": "PD06",
-    "Latop feet coming off": "PD08",
+    "Laptop feet coming off": "PD08",
     "Heavy Scuffing": "PD09",
 }
 # Feet issues are self-explanatory with no meaningful location to ask for.
 PHYSICAL_NO_LOCATION_TYPES = {
-    "Feet Coming Off/Missing From Device",
+    "Laptop feet coming off",
 }
 # Marked the same way as a screen/touchscreen defect (see SCREEN_SECTIONS).
-PHYSICAL_SCREEN_SECTION_TYPES = {"Screen Cracked"}
+PHYSICAL_SCREEN_SECTION_TYPES = {"Cracks"}
 # Ask which part is affected, then where on that part (same sextant grid as
 # SCREEN_SECTIONS below -- see _build_section_picker).
 PHYSICAL_PART_LOCATION_TYPES = {
