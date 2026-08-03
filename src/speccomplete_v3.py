@@ -9,6 +9,7 @@ gi.require_version("Adw", "1")
 from gi.repository import Adw, Gtk, GLib
 from utils import Utils
 from generate_tracking_sheet_v3 import generate_tracking_sheet, prefetch_tracking_sheet_data
+from sortly_register import REPORT_DATACODES_TO_SORTLY
 
 # Once the Manual Tests failure/incomplete list exceeds this many rows, the
 # remainder spills into a second column instead of growing the page past the
@@ -136,6 +137,17 @@ class SpecCompleteV3(Adw.Bin):
         # is_complete() and on_shown() below.
         self._tracking_reviewed = False
         self._tracking_printed = False
+        # Set while complete() is waiting on the Sortly datacodes update
+        # it kicked off (see _complete_with_sortly_report) -- keeps
+        # is_complete() (and so the wizard's "Complete" button) disabled
+        # for that window so a second click can't fire a duplicate report
+        # or race the power-off dialog.
+        self._sortly_send_in_progress = False
+        # Tracks the "Power off in N seconds" dialog/countdown so a
+        # response can cancel the pending timeout -- see
+        # _show_sortly_success_dialog/_on_sortly_success_response.
+        self._poweroff_countdown = 0
+        self._poweroff_timeout_id = None
         # Set by spec_v3.py to WizardWindow.update_buttons, so the
         # "Complete" button's sensitivity updates immediately when review/
         # print finish, rather than waiting for the next page navigation.
@@ -184,6 +196,125 @@ class SpecCompleteV3(Adw.Bin):
 
     def complete(self):
         print("SpecCompleteV3: complete")
+        if REPORT_DATACODES_TO_SORTLY and self.sortly_register:
+            self._complete_with_sortly_report()
+        else:
+            self._power_off()
+
+    def _complete_with_sortly_report(self):
+        """Send this machine's aggregated datacodes to Sortly and block
+        powering off until that's confirmed one way or the other -- see
+        _on_sortly_report_complete for what happens next. Disables the
+        "Complete" button for the duration (see is_complete()) so a
+        double-click can't fire this twice."""
+        self._sortly_send_in_progress = True
+        if self.on_status_changed:
+            self.on_status_changed()
+        self.tracking_status.set_label("Sending Data Codes to Sortly...")
+        if self.tracking_status.has_css_class("text-error"):
+            self.tracking_status.remove_css_class("text-error")
+
+        codes = self._gather_datacodes()
+        self.sortly_register.report_datacodes(
+            codes, on_complete=self._on_sortly_report_complete
+        )
+
+    def _on_sortly_report_complete(self, success, error):
+        self._sortly_send_in_progress = False
+        if self.on_status_changed:
+            self.on_status_changed()
+        if success:
+            self.tracking_status.set_label("Sortly information updated.")
+            if self.tracking_status.has_css_class("text-error"):
+                self.tracking_status.remove_css_class("text-error")
+            self._show_sortly_success_dialog()
+        else:
+            self.tracking_status.set_label(f"Sortly update failed: {error}")
+            self.tracking_status.add_css_class("text-error")
+            self._show_sortly_failure_dialog(error)
+
+    def _show_sortly_success_dialog(self):
+        """Confirms the Sortly update succeeded and gives the tech a
+        "Power Off" button -- but powers off automatically after a 10
+        second countdown regardless of whether it's clicked, since the
+        point of this dialog is just to make sure the tech saw the
+        confirmation before the machine shuts down, not to make powering
+        off conditional on them clicking anything."""
+        self._poweroff_countdown = 10
+        dialog = Adw.MessageDialog(
+            transient_for=self.get_root(),
+            heading="Sortly information updated",
+            body=self._poweroff_countdown_body(),
+        )
+        dialog.add_response("power_off", "Power Off")
+        dialog.set_response_appearance("power_off", Adw.ResponseAppearance.SUGGESTED)
+        dialog.set_default_response("power_off")
+        # There's no way to opt out of powering off from here -- the
+        # countdown below fires regardless, so treat any dismissal
+        # (Escape, etc.) the same as clicking "Power Off".
+        dialog.set_close_response("power_off")
+        dialog.connect("response", self._on_sortly_success_response)
+        dialog.present()
+        self._poweroff_timeout_id = GLib.timeout_add(
+            1000, self._tick_poweroff_countdown, dialog
+        )
+
+    def _poweroff_countdown_body(self):
+        seconds = self._poweroff_countdown
+        return (
+            f"This machine will power off automatically in {seconds} "
+            f"second{'s' if seconds != 1 else ''}. Click \"Power Off\" to "
+            "do it now."
+        )
+
+    def _tick_poweroff_countdown(self, dialog):
+        self._poweroff_countdown -= 1
+        if self._poweroff_countdown <= 0:
+            self._poweroff_timeout_id = None
+            dialog.close()
+            self._power_off()
+            return GLib.SOURCE_REMOVE
+        dialog.set_body(self._poweroff_countdown_body())
+        return GLib.SOURCE_CONTINUE
+
+    def _on_sortly_success_response(self, dialog, response):
+        # Reached if the tech clicks "Power Off" (or dismisses the
+        # dialog) before the countdown finishes on its own -- cancel the
+        # pending timeout so it doesn't also fire _power_off() a second
+        # time once the machine is already on its way down.
+        if self._poweroff_timeout_id is not None:
+            GLib.source_remove(self._poweroff_timeout_id)
+            self._poweroff_timeout_id = None
+        self._power_off()
+
+    def _show_sortly_failure_dialog(self, error):
+        """Explains why the Sortly update failed and how to move past it
+        -- does NOT power off the machine, since the whole point is that
+        Sortly is not yet confirmed up to date. Clicking "Complete" again
+        (once whatever's wrong is fixed) re-attempts the whole thing."""
+        dialog = Adw.MessageDialog(
+            transient_for=self.get_root(),
+            heading="Couldn't update Sortly",
+            body=(
+                "This machine's Data Codes could not be sent to Sortly, "
+                "so it has not been powered off.\n\n"
+                f"Reason: {error}\n\n"
+                "This is usually because the laptop isn't connected to "
+                "WiFi or Ethernet right now, or because something about "
+                "this machine's Sortly record needs fixing (e.g. the "
+                "wrong K-Number was entered on the Sortly Registration "
+                "page). Check the network connection, then click "
+                '"Complete" again to retry. If it keeps failing, find a '
+                "Staff member or Super Geek for help."
+            ),
+        )
+        dialog.add_response("ok", "OK")
+        dialog.set_default_response("ok")
+        dialog.set_close_response("ok")
+        dialog.connect("response", lambda d, r: d.close())
+        dialog.present()
+
+    def _power_off(self):
         utils = Utils()
         utils.complete_reset("spec")
 
@@ -706,8 +837,15 @@ class SpecCompleteV3(Adw.Bin):
         """The wizard's "Complete" button stays disabled until the tech has
         both reviewed and printed the tracking sheet at least once (see
         on_shown(), which resets this if they navigate away and the
-        underlying results change)."""
-        return self._tracking_reviewed and self._tracking_printed
+        underlying results change), and re-disables it for as long as a
+        Sortly datacodes report kicked off by clicking "Complete" is still
+        in flight (see _complete_with_sortly_report), so a second click
+        can't fire a duplicate report."""
+        return (
+            self._tracking_reviewed
+            and self._tracking_printed
+            and not self._sortly_send_in_progress
+        )
 
     # on_shown is called when the page is shown in the stack
     def on_shown(self):
