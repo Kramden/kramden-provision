@@ -1,6 +1,7 @@
 import gi
 import os
 import re
+import shlex
 import subprocess
 import threading
 
@@ -405,29 +406,55 @@ class SpecCompleteV3(Adw.Bin):
             self.on_status_changed()
 
     def _resolve_printer_name(self):
-        """Pick which CUPS destination to print to.
+        """Pick which CUPS destination to print to, trying three tiers in
+        order and re-resolving from scratch every time (never trusting a
+        queue found on a previous print attempt), since which of these is
+        reachable can change between one tracking sheet and the next:
 
-        The reliable path, when the printer is plugged in via USB, is to
-        talk straight to the local loopback IPP service that Ubuntu's
-        ipp-usb daemon already runs for it, via our own dedicated queue --
-        bypassing cups-browsed's auto-discovered queues entirely, since
-        those have repeatedly proven unreliable: an "implicitclass" queue
-        hangs/fails whenever cups-browsed sees the same printer over more
-        than one path (USB and network at once) and can't resolve a
-        destination, and a "dnssd" (network) queue fails outright if the
-        printer isn't actually reachable on the network at that moment
-        (e.g. it's only really connected via USB right now, even though a
-        stale mDNS record for it is still floating around).
+        1. USB, if the printer is plugged in -- talk straight to the local
+           loopback IPP service Ubuntu's ipp-usb daemon already runs for
+           it, via our own dedicated queue (see _find_ipp_usb_port/
+           _ensure_direct_usb_queue).
+        2. The network otherwise -- resolve the printer's current address
+           straight from mDNS/DNS-SD and talk directly to its own IPP
+           endpoint, via our own dedicated queue (see
+           _find_network_printer/_ensure_direct_network_queue). This is
+           interface-agnostic: it works the same whether this laptop
+           reaches the printer over WiFi or over Ethernet (e.g. the
+           printer itself is only on WiFi, but this laptop is plugged into
+           the same LAN over Ethernet) -- mDNS discovery just needs *some*
+           path to the printer's network segment, not a direct physical
+           link to it. This is tried automatically whenever USB isn't
+           available, so WiFi (or Ethernet) is always the default the
+           moment USB isn't an option.
+        3. Matching an existing cups-browsed-discovered queue by name, as
+           a last resort if neither of the above found anything (e.g.
+           avahi-browse isn't installed, or the printer answers IPP
+           requests but isn't advertising itself over mDNS for some
+           reason).
 
-        Falls back to matching an existing cups-browsed queue by name only
-        if ipp-usb doesn't see a matching device at all (e.g. the printer
-        really is network-only at this station).
+        Both dedicated-queue tiers deliberately bypass cups-browsed's own
+        auto-discovered queues, since those have repeatedly proven
+        unreliable: an "implicitclass" queue hangs/fails whenever
+        cups-browsed sees the same printer over more than one path (USB
+        and network at once) and can't resolve a destination, and a
+        "dnssd" (network) queue fails outright if the printer isn't
+        actually reachable on the network at that moment (e.g. it's only
+        really connected via USB right now, even though a stale mDNS
+        record for it is still floating around).
         """
-        port = self._find_ipp_usb_port()
-        if port:
-            queue = self._ensure_direct_usb_queue(port)
+        usb_port = self._find_ipp_usb_port()
+        if usb_port:
+            queue = self._ensure_direct_usb_queue(usb_port)
             if queue:
                 return queue
+
+        network_target = self._find_network_printer()
+        if network_target:
+            queue = self._ensure_direct_network_queue(*network_target)
+            if queue:
+                return queue
+
         return self._resolve_browsed_printer_name()
 
     def _find_ipp_usb_port(self):
@@ -464,6 +491,87 @@ class SpecCompleteV3(Adw.Bin):
                     "-p", queue_name,
                     "-E",
                     "-v", f"ipp://localhost:{port}/ipp/print",
+                    "-m", "everywhere",
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            return queue_name
+        except Exception:
+            return None
+
+    def _find_network_printer(self):
+        """Resolve the tracking sheet printer's current address, port, and
+        IPP resource path straight from mDNS/DNS-SD, if it's reachable on
+        the network at all right now. Re-resolved fresh on every print
+        attempt (like _find_ipp_usb_port() does for the USB path) so a
+        changed DHCP lease, or a printer that's only just come up, doesn't
+        get stuck on a stale address. This is interface-agnostic -- it
+        works the same whether this laptop is on WiFi or Ethernet, since
+        mDNS discovery just needs some path to the printer's network
+        segment, not a direct physical link to it.
+
+        Returns (address, port, resource_path), or None if nothing
+        matching was found (e.g. avahi-browse isn't installed, or the
+        printer isn't reachable on the network right now)."""
+        try:
+            result = subprocess.run(
+                ["avahi-browse", "-r", "-p", "-t", "_ipp._tcp"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+        except Exception:
+            return None
+
+        for line in result.stdout.splitlines():
+            if not line.startswith("="):
+                continue
+            fields = line.split(";")
+            if len(fields) < 10:
+                continue
+            protocol, name, address, port, txt = (
+                fields[2], fields[3], fields[7], fields[8], fields[9]
+            )
+            if protocol != "IPv4":
+                # Keep the ipp:// URI construction below simple -- an
+                # IPv4 record for the same printer is always advertised
+                # alongside any IPv6 one.
+                continue
+            if TRACKING_SHEET_PRINTER_MODEL not in name.lower().replace("_", "-"):
+                continue
+            return address, port, self._extract_ipp_resource_path(txt)
+        return None
+
+    @staticmethod
+    def _extract_ipp_resource_path(txt_field):
+        """Pull the "rp=" (resource path) token out of avahi-browse's -p
+        TXT field, e.g. 'rp=ipp/print' -> 'ipp/print' -- falls back to
+        "ipp/print", the IPP Everywhere convention this file's other IPP
+        URIs already assume, if the printer's TXT records don't advertise
+        one."""
+        for token in shlex.split(txt_field):
+            if token.startswith("rp="):
+                return token[len("rp="):]
+        return "ipp/print"
+
+    def _ensure_direct_network_queue(self, address, port, resource_path):
+        """Create (or update, harmlessly, if it already exists) a queue
+        pointed straight at the printer's own IPP endpoint over the
+        network -- same "bypass cups-browsed's flaky auto-discovered
+        queues, talk directly" approach as _ensure_direct_usb_queue(),
+        just reaching the printer over the network instead of ipp-usb's
+        loopback."""
+        queue_name = "KramdenTrackingSheetPrinterNetwork"
+        try:
+            subprocess.run(
+                [
+                    "lpadmin",
+                    "-p", queue_name,
+                    "-E",
+                    "-v", f"ipp://{address}:{port}/{resource_path}",
                     "-m", "everywhere",
                 ],
                 check=True,
