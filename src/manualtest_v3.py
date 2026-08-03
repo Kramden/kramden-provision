@@ -428,9 +428,24 @@ def _sortly_entry(code, description, locations=None):
     `locations`, if given, is a list of strings joined with "," and no
     surrounding whitespace; a reason with nothing to point at (e.g.
     "TP01|Touchpad does not work at all") omits the ":" entirely."""
-    text = f"{code}|{description}"
+
+    def _clean(text):
+        # Prevent reserved delimiters from breaking Sortly parsing.
+        return (
+            str(text)
+            .replace("|", " ")
+            .replace(":", " ")
+            .replace("/", " ")
+            .replace(",", ";")
+            .strip()
+        )
+
+    text = f"{_clean(code)}|{_clean(description)}"
     if locations:
-        text += ":" + ",".join(locations)
+        cleaned = [_clean(loc) for loc in locations if loc is not None]
+        cleaned = [loc for loc in cleaned if loc]
+        if cleaned:
+            text += ":" + ",".join(cleaned)
     return text
 
 
