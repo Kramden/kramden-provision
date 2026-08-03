@@ -1,5 +1,6 @@
 import gi
 import threading
+from datetime import datetime, time
 
 gi.require_version("Adw", "1")
 gi.require_version("Gdk", "4.0")
@@ -587,16 +588,18 @@ class SortlyRegister(Adw.Bin):
 
     def _report_spec_date_thread(self, api_key, item_id, spec_date, on_complete):
         try:
-            # Pass the raw date through like every other field in
-            # get_system_info() (Brand, RAM, Storage, ...) does -- update_item()
-            # str()s it generically instead of us pre-formatting it here, which
-            # gives an ISO "YYYY-MM-DD" string rather than the "%m-%d-%Y" this
-            # used to hand-format, matching what Sortly's Date custom field
-            # type actually expects.
+            # A bare "YYYY-MM-DD" string gets rejected by Sortly with
+            # "must be a datetime instance" -- this custom attribute is
+            # provisioned on Sortly's side as a full Date & Time type, so
+            # it needs a complete ISO 8601 datetime (midnight UTC), not
+            # just a date.
+            spec_datetime = datetime.combine(spec_date, time.min).isoformat(
+                timespec="milliseconds"
+            ) + "Z"
             success, error = update_item(
                 api_key,
                 item_id,
-                {SORTLY_SPEC_DATE_FIELD: spec_date},
+                {SORTLY_SPEC_DATE_FIELD: spec_datetime},
             )
             if not success:
                 print(f"Failed to report spec date to Sortly: {error}")
