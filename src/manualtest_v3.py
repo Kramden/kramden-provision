@@ -182,20 +182,7 @@ TOUCHPAD_DEFECT_TYPES = [
     "A problem with left or right click",
     "Touchpad looks as if it is bulging out",
     "Something is wrong with how the cursor moves",
-    "Part of the touchpad doesn't work",
 ]
-
-# "Part of the touchpad doesn't work" pops up the same 6-section grid used
-# for screen/touchscreen locations (see SCREEN_SECTIONS) so the tech can
-# mark which part is dead -- see TouchpadPage.build_reason_locations. It
-# gets a fixed TP09 code (see TOUCHPAD_REASON_CODES/TouchpadPage._reason_code)
-# rather than the position-based TP05 its slot in the list above would
-# otherwise imply, since TP05/TP06 are already taken by the cursor
-# sub-reasons (see TOUCHPAD_CURSOR_CODES).
-TOUCHPAD_PARTIAL_REASON = "Part of the touchpad doesn't work"
-TOUCHPAD_REASON_CODES = {
-    TOUCHPAD_PARTIAL_REASON: "TP09",
-}
 
 # "A problem with left or right click" expands into "Left click"/"Right
 # click"/"Touchpad click" instead of the generic touchpad-location section
@@ -250,7 +237,6 @@ TOUCHPAD_CURSOR_OPTIONS = list(TOUCHPAD_CURSOR_CODES)
 TOUCHPAD_REASON_NOTES = {
     "Touchpad does not work at all": "Touchpad broken",
     "Touchpad looks as if it is bulging out": "Touchpad bulging",
-    TOUCHPAD_PARTIAL_REASON: "Part of touchpad not working",
 }
 
 SCREEN_DEFECT_TYPES = [
@@ -306,6 +292,8 @@ KEYBOARD_DEFECT_TYPES = [
     "Certain keys stick",
     "Keys report the incorrect keys when typing",
     "Certain keys are scratched",
+    "Trackpoint missing",
+    "Trackpoint error",
 ]
 
 # Tracking-sheet/failure-summary data codes for every keyboard reason
@@ -321,9 +309,12 @@ KEYBOARD_REASON_CODES = {
     "It is an international keyboard": "KB07",
     "Certain keys stick": "KB08",
     "Keys report the incorrect keys when typing": "KB09",
+    "Trackpoint missing": "KB11",
+    "Trackpoint error": "KB12",
 }
 
-# These two reasons apply to the whole keyboard with nothing to point at --
+# These reasons apply to the whole keyboard (or, for the trackpoint
+# reasons, to a component with no keys at all) with nothing to point at --
 # see KeyboardPage.build_reason_locations -- so they get no keyboard popup
 # at all, just added to the list like PhysicalDefectsPage/TouchpadPage's
 # no-location reasons. Every other reason above (and every "Physical
@@ -332,6 +323,8 @@ KEYBOARD_REASON_CODES = {
 KEYBOARD_NO_KEYS_REASONS = {
     "The whole keyboard does not work",
     "It is an international keyboard",
+    "Trackpoint missing",
+    "Trackpoint error",
 }
 
 # "Physical damage" expands into this pick-list instead of a single
@@ -2816,12 +2809,6 @@ class TouchpadPage(TogglePage):
                 options=TOUCHPAD_CURSOR_OPTIONS,
                 title="What's the cursor doing wrong?",
             )
-        if reason == TOUCHPAD_PARTIAL_REASON:
-            return _build_section_picker(
-                self,
-                entry_row,
-                title="Which part of the touchpad doesn't work?",
-            )
         # "Touchpad does not work at all" / "Touchpad feels very tight"
         # apply to the whole touchpad -- no location to narrow down. Any
         # custom free-text reason gets no location picker either, to keep
@@ -2934,16 +2921,10 @@ class TouchpadPage(TogglePage):
     def _reason_code(self, reason):
         """Overrides TogglePage._reason_code -- "A problem with left or
         right click" and "Something is wrong with how the cursor moves"
-        get no single code of their own (see class docstring above).
-        "Part of the touchpad doesn't work" gets a fixed code from
-        TOUCHPAD_REASON_CODES rather than its position in
-        TOUCHPAD_DEFECT_TYPES, since TP04-TP08 are already spoken for by
-        the click/cursor sub-reasons. Every other touchpad reason keeps
-        the default position-based code."""
+        get no single code of their own (see class docstring above). Every
+        other touchpad reason keeps the default position-based code."""
         if reason in (TOUCHPAD_CLICK_REASON, TOUCHPAD_CURSOR_REASON):
             return None
-        if reason in TOUCHPAD_REASON_CODES:
-            return TOUCHPAD_REASON_CODES[reason]
         return super()._reason_code(reason)
 
     def _touchpad_click_notes(self, data):
@@ -2989,11 +2970,6 @@ class TouchpadPage(TogglePage):
         if reason == TOUCHPAD_CURSOR_REASON:
             return self._touchpad_cursor_notes(data)
         code = self._reason_code(reason)
-        if reason == TOUCHPAD_PARTIAL_REASON:
-            loc_text = self._locations_text(data)
-            label = TOUCHPAD_REASON_NOTES[reason]
-            text = f"{code} {label}: {loc_text}" if loc_text else f"{code} {label}"
-            return [(code, text)]
         if reason in TOUCHPAD_REASON_NOTES:
             return [(code, f"{code} {TOUCHPAD_REASON_NOTES[reason]}")]
         # Custom free-text reason -- fall back to the generic coded label
@@ -3827,7 +3803,7 @@ class KeyboardPage(TogglePage):
     def get_notes_entries(self):
         """Overrides TogglePage.get_notes_entries -- tracking-sheet notes
         read "<code> <reason> (<keys>)" (e.g. "KB02 Keys do not work (F,
-        G)"), or just "<code> <reason>" for the two reasons with no keys to
+        G)"), or just "<code> <reason>" for the reasons with no keys to
         list (see KEYBOARD_NO_KEYS_REASONS). "Physical damage" contributes
         one entry per real code its categories map to (see
         _physical_damage_notes). Entries always come out in KB01, KB02, ...
