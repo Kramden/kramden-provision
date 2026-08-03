@@ -298,13 +298,13 @@ TOUCHSCREEN_DEFECT_TYPES = [
 # KEYBOARD_REASON_CODES, and PHYSICAL_DAMAGE_CATEGORY_CODES below.
 KEYBOARD_DEFECT_TYPES = [
     "The whole keyboard does not work",
-    "Certain keys do not work",
+    "Keys do not work",
     "Physical damage",
-    "Certain keys need extra pressure or massaging to work",
+    "Keys need extra pressure or massaging to work",
     "It is an international keyboard",
-    "Certain keys stick",
+    "Keys stick",
     "Keys report the incorrect keys when typing",
-    "Certain keys are scratched",
+    "Keys are scratched",
     "Trackpoint missing",
     "Trackpoint error",
 ]
@@ -317,10 +317,10 @@ KEYBOARD_DEFECT_TYPES = [
 # position-based numbering -- see KeyboardPage._reason_code.
 KEYBOARD_REASON_CODES = {
     "The whole keyboard does not work": "KB01",
-    "Certain keys do not work": "KB02",
-    "Certain keys need extra pressure or massaging to work": "KB06",
+    "Keys do not work": "KB02",
+    "Keys need extra pressure or massaging to work": "KB06",
     "It is an international keyboard": "KB07",
-    "Certain keys stick": "KB08",
+    "Keys stick": "KB08",
     "Keys report the incorrect keys when typing": "KB09",
     "Trackpoint missing": "KB11",
     "Trackpoint error": "KB12",
@@ -3114,9 +3114,9 @@ class TouchpadPage(TogglePage):
                 loc_text = (
                     ", ".join(locations) if locations else "no location specified"
                 )
-                notes.append((code, f"{code} {label}: {loc_text}"))
+                notes.append((code, f"{code}: {label} ({loc_text})"))
             else:
-                notes.append((code, f"{code} {label}"))
+                notes.append((code, f"{code}: {label}"))
         return notes
 
     def _touchpad_cursor_notes(self, data):
@@ -3133,7 +3133,7 @@ class TouchpadPage(TogglePage):
                 if opt == "Cursor moves on its own"
                 else ""
             )
-            notes.append((code, f"{code} {label}{addendum}"))
+            notes.append((code, f"{code}: {label}{addendum}"))
         return notes
 
     def _touchpad_reason_notes(self, reason, data):
@@ -3143,7 +3143,7 @@ class TouchpadPage(TogglePage):
             return self._touchpad_cursor_notes(data)
         code = self._reason_code(reason)
         if reason in TOUCHPAD_REASON_NOTES:
-            return [(code, f"{code} {TOUCHPAD_REASON_NOTES[reason]}")]
+            return [(code, f"{code}: {TOUCHPAD_REASON_NOTES[reason]}")]
         # Custom free-text reason -- fall back to the generic coded label
         # (already includes a code, e.g. "TPO: some custom text").
         return [(code, self._reason_label(reason))]
@@ -4058,8 +4058,8 @@ class KeyboardPage(TogglePage):
 
     def get_notes_entries(self):
         """Overrides TogglePage.get_notes_entries -- tracking-sheet notes
-        read "<code> <reason> (<keys>)" (e.g. "KB02 Keys do not work (F,
-        G)"), or just "<code> <reason>" for the reasons with no keys to
+        read "<code>: <reason> (<keys>)" (e.g. "KB02: Keys do not work (F,
+        G)"), or just "<code>: <reason>" for the reasons with no keys to
         list (see KEYBOARD_NO_KEYS_REASONS). "Physical damage" contributes
         one entry per real code its categories map to (see
         _physical_damage_notes). Entries always come out in KB01, KB02, ...
@@ -4075,10 +4075,10 @@ class KeyboardPage(TogglePage):
                 continue
             code = self._reason_code(reason)
             if data.get("type") == "none":
-                entries.append((code, f"{code} {reason}"))
+                entries.append((code, f"{code}: {reason}"))
             else:
                 loc_text = self._locations_text(data)
-                entries.append((code, f"{code} {reason} ({loc_text})"))
+                entries.append((code, f"{code}: {reason} ({loc_text})"))
         entries.sort(key=lambda entry: self._code_sort_key(entry[0]))
         return [{"text": ", ".join(text for _, text in entries)}]
 
@@ -4122,7 +4122,7 @@ class KeyboardPage(TogglePage):
                 key_text = "Entire Keyboard"
             else:
                 key_text = ", ".join(keys) if keys else "no keys specified"
-            notes.append((code, f"{code} {label} ({key_text})"))
+            notes.append((code, f"{code}: {label} ({key_text})"))
         return notes
 
     def _physical_damage_sortly_entries(self, data):

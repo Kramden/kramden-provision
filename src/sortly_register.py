@@ -23,7 +23,7 @@ from sortly import (
 )
 
 # Master switch for reporting each manual test page's failure reasons (e.g.
-# "KB02|Certain keys do not work:A,B/TP01|Touchpad does not work at all" --
+# "KB02|Keys do not work:A,B/TP01|Touchpad does not work at all" --
 # see SpecCompleteV3._gather_sortly_notes) back to Sortly as a follow-up
 # update after the initial registration on this page -- see
 # report_datacodes() below.

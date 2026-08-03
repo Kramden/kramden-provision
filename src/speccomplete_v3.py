@@ -460,7 +460,7 @@ class SpecCompleteV3(Adw.Bin):
         Sortly's "Speccing Notes" custom attribute (see
         manualtest_v3.TogglePage.get_sortly_entries/_sortly_entry) and
         concatenated across all pages into one "/"-joined string with no
-        spaces around any delimiter, e.g. "KB01|Certain keys do not
+        spaces around any delimiter, e.g. "KB01|Keys do not
         work:A,B/TP01|Touchpad does not work at all" -- the format fed to
         SortlyRegister.report_datacodes(). Pages that passed, weren't
         tested, or have no get_sortly_entries() (SpecInfo isn't a manual
