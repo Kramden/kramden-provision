@@ -34,7 +34,7 @@ REPORT_DATACODES_TO_SORTLY = False
 SORTLY_DATACODES_FIELD = "Data Codes"
 
 # Separate master switch for reporting the tracking sheet's generation
-# date back to Sortly as its own "Spec_Date" custom attribute -- kept
+# date back to Sortly as its own "Spec Date" custom attribute -- kept
 # independent of REPORT_DATACODES_TO_SORTLY so this can be flipped on by
 # itself for testing without also turning on data-codes reporting (or
 # vice versa). See report_spec_date() below.
@@ -42,7 +42,7 @@ REPORT_SPEC_DATE_TO_SORTLY = False
 
 # Must match the custom attribute's name on the Sortly item exactly --
 # update_item() silently skips any field name it doesn't recognize.
-SORTLY_SPEC_DATE_FIELD = "Spec_Date"
+SORTLY_SPEC_DATE_FIELD = "Spec Date"
 
 
 class SortlyRegister(Adw.Bin):
@@ -300,7 +300,9 @@ class SortlyRegister(Adw.Bin):
                 self._folder_ids = folder_ids
             results = search_item_by_name(api_key, folder_ids, knumber)
         except Exception as e:
-            GLib.idle_add(self._on_search_complete, None, knumber, sortly_error_message(e))
+            GLib.idle_add(
+                self._on_search_complete, None, knumber, sortly_error_message(e)
+            )
             return
         GLib.idle_add(self._on_search_complete, results, knumber, None)
 
@@ -375,7 +377,9 @@ class SortlyRegister(Adw.Bin):
             )
             results = search_item_by_name(api_key, folder_ids, knumber)
         except Exception as e:
-            GLib.idle_add(self._on_search_complete, None, knumber, sortly_error_message(e))
+            GLib.idle_add(
+                self._on_search_complete, None, knumber, sortly_error_message(e)
+            )
             return
         GLib.idle_add(self._on_search_complete, results, knumber, None)
 
@@ -540,9 +544,11 @@ class SortlyRegister(Adw.Bin):
         follow-up update to the item registered on this page, mirroring
         report_datacodes() above but gated by its own
         REPORT_SPEC_DATE_TO_SORTLY switch (testing-only, independent of
-        data-codes reporting) instead. Called from SpecCompleteV3 once
-        the tracking sheet PDF has actually been generated, passing the
-        same date stamped in the PDF's "Generated" line.
+        data-codes reporting) instead. Called from SpecCompleteV3 as soon
+        as tracking sheet generation starts, in parallel with the PDF
+        itself, passing the same date that gets stamped in the PDF's
+        "Generated" line. May be called again by the same caller's retry
+        button if the first attempt failed.
 
         `on_complete`, if given, is called as `on_complete(success, error)`
         via GLib.idle_add once the background request finishes -- see
@@ -581,10 +587,16 @@ class SortlyRegister(Adw.Bin):
 
     def _report_spec_date_thread(self, api_key, item_id, spec_date, on_complete):
         try:
+            # Pass the raw date through like every other field in
+            # get_system_info() (Brand, RAM, Storage, ...) does -- update_item()
+            # str()s it generically instead of us pre-formatting it here, which
+            # gives an ISO "YYYY-MM-DD" string rather than the "%m-%d-%Y" this
+            # used to hand-format, matching what Sortly's Date custom field
+            # type actually expects.
             success, error = update_item(
                 api_key,
                 item_id,
-                {SORTLY_SPEC_DATE_FIELD: spec_date.strftime("%m-%d-%Y")},
+                {SORTLY_SPEC_DATE_FIELD: spec_date},
             )
             if not success:
                 print(f"Failed to report spec date to Sortly: {error}")

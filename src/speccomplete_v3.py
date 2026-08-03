@@ -152,14 +152,30 @@ class SpecCompleteV3(Adw.Bin):
         self.tracking_button.add_css_class("suggested-action")
         self.tracking_button.connect("clicked", self._on_tracking_clicked)
         self._tracking_output_path = None
+        self._tracking_viewer_error = None
         self._tracking_ready_to_print = False
         self._tracking_initials = ""
         # The date.today() computed in _generate_tracking_sheet() and
-        # stamped on the PDF -- reused in _on_generate_complete() to
-        # report the same value to Sortly as "Spec_Date", so the two
+        # stamped on the PDF -- reused there to kick off the Sortly
+        # "Spec Date" report in parallel with PDF generation, so the two
         # can't disagree. See generate_tracking_sheet_v3.py's
         # generated_date parameter.
         self._tracking_generated_date = None
+        # Tri-state outcome of the Sortly "Spec Date" report kicked off
+        # from _generate_tracking_sheet(): None while no attempt has
+        # resolved yet (still in flight, or none made because
+        # self.sortly_register is unset), True/False once
+        # _on_spec_date_report_complete() hears back. Combined with
+        # _tracking_output_path in _refresh_tracking_status() to build the
+        # status line, and drives whether the retry button below shows.
+        self._spec_date_reported = None
+        self._spec_date_error = None
+        self.spec_date_retry_button = Gtk.Button(label="Retry Spec Date Update")
+        self.spec_date_retry_button.connect(
+            "clicked", self._on_spec_date_retry_clicked
+        )
+        self.spec_date_retry_button.set_visible(False)
+        self.spec_date_retry_button.set_halign(Gtk.Align.START)
         # Set once the tech has clicked "Print Tracking Sheet" at least
         # once, so a subsequent click (e.g. because the sheet hasn't come
         # out yet) prompts for confirmation instead of silently queuing
@@ -190,6 +206,7 @@ class SpecCompleteV3(Adw.Bin):
         vbox.append(complete_list)
         vbox.append(columns_box)
         vbox.append(self.tracking_status)
+        vbox.append(self.spec_date_retry_button)
         vbox.append(self.tracking_button)
 
         self.set_child(vbox)
@@ -502,10 +519,25 @@ class SpecCompleteV3(Adw.Bin):
             self.tracking_status.remove_css_class("text-error")
 
         # Computed once here and threaded through to both the PDF (as
-        # generated_date) and, on success, the Sortly "Spec_Date" report
-        # (see _on_generate_complete) -- so the two can't disagree if
-        # generation happens to straddle a midnight boundary.
+        # generated_date) and the Sortly "Spec Date" report kicked off
+        # immediately below -- so the two can't disagree if generation
+        # happens to straddle a midnight boundary.
         self._tracking_generated_date = date.today()
+
+        # Fired here, in parallel with PDF generation below, rather than
+        # waiting for it to finish -- the report doesn't depend on the PDF
+        # existing, and doing both at once means a slow Sortly response
+        # doesn't add to the wait before the tech sees the reviewed sheet.
+        # _refresh_tracking_status() reconciles whichever of the two
+        # finishes last against the other's already-known outcome.
+        self._spec_date_reported = None
+        self._spec_date_error = None
+        self.spec_date_retry_button.set_visible(False)
+        if self.sortly_register:
+            self.sortly_register.report_spec_date(
+                self._tracking_generated_date,
+                on_complete=self._on_spec_date_report_complete,
+            )
 
         thread = threading.Thread(
             target=self._generate_thread,
@@ -543,17 +575,9 @@ class SpecCompleteV3(Adw.Bin):
             self.tracking_status.add_css_class("text-error")
             return
 
-        self.tracking_status.set_label(f"Saved: {output_path}")
-        if self.tracking_status.has_css_class("text-error"):
-            self.tracking_status.remove_css_class("text-error")
-
-        if self.sortly_register:
-            self.sortly_register.report_spec_date(
-                self._tracking_generated_date,
-                on_complete=self._on_spec_date_report_complete,
-            )
-
         self._tracking_output_path = output_path
+        self._tracking_viewer_error = None
+        self._refresh_tracking_status()
         self._tracking_ready_to_print = True
         self._tracking_reviewed = True
         self.tracking_button.set_label("Print Tracking Sheet")
@@ -598,25 +622,68 @@ class SpecCompleteV3(Adw.Bin):
         try:
             subprocess.Popen([viewer, output_path])
         except Exception as e:
-            self.tracking_status.set_label(
-                f"Saved: {output_path} (could not open viewer: {e})"
-            )
+            self._tracking_viewer_error = str(e)
+            self._refresh_tracking_status()
         if self.on_status_changed:
             self.on_status_changed()
 
-    def _on_spec_date_report_complete(self, success, error):
-        """Surface a failed Sortly "Spec_Date" report in the UI instead of
-        only printing it to the console -- this fires asynchronously,
-        potentially well after _on_generate_complete() has already moved
-        the status label on to something else (e.g. "Sent to printer."),
-        so on failure it appends to whatever's currently shown rather
-        than replacing it outright."""
-        if success:
+    def _refresh_tracking_status(self):
+        """Rebuild the tracking-sheet status line from whatever's currently
+        known about the PDF and the Sortly "Spec Date" report -- the two
+        are kicked off in parallel from _generate_tracking_sheet() and can
+        resolve in either order, so both _on_generate_complete() and
+        _on_spec_date_report_complete() funnel through here instead of each
+        writing the label directly and risking clobbering the other's
+        result."""
+        if self._tracking_output_path is None:
+            # PDF generation hasn't finished yet -- leave whatever status
+            # it's currently showing (e.g. "Generating tracking sheet...")
+            # alone rather than getting ahead of it.
             return
-        current = self.tracking_status.get_label()
-        note = f"Spec_Date not reported to Sortly: {error}"
-        self.tracking_status.set_label(f"{current}\n{note}" if current else note)
-        self.tracking_status.add_css_class("text-error")
+
+        line = f"Saved: {self._tracking_output_path}"
+        if self._tracking_viewer_error:
+            line += f" (could not open viewer: {self._tracking_viewer_error})"
+
+        if self._spec_date_reported is None:
+            spec_line = "Spec date: updating Sortly..."
+        elif self._spec_date_reported:
+            spec_line = "Spec date: updated in Sortly."
+        else:
+            spec_line = f"Spec date: FAILED to update in Sortly ({self._spec_date_error})"
+
+        self.tracking_status.set_label(f"{line}\n{spec_line}")
+
+        has_error = bool(self._tracking_viewer_error) or self._spec_date_reported is False
+        if has_error:
+            self.tracking_status.add_css_class("text-error")
+        elif self.tracking_status.has_css_class("text-error"):
+            self.tracking_status.remove_css_class("text-error")
+
+        self.spec_date_retry_button.set_visible(self._spec_date_reported is False)
+
+    def _on_spec_date_report_complete(self, success, error):
+        """Record the outcome of the Sortly "Spec Date" report kicked off
+        from _generate_tracking_sheet() and refresh the status line to
+        show it -- this fires asynchronously and can resolve before or
+        after PDF generation finishes, so _refresh_tracking_status()
+        reconciles it against whatever else is known rather than writing
+        the label directly here."""
+        self._spec_date_reported = success
+        self._spec_date_error = error
+        self._refresh_tracking_status()
+
+    def _on_spec_date_retry_clicked(self, button):
+        if not self.sortly_register or self._tracking_generated_date is None:
+            return
+        self._spec_date_reported = None
+        self._spec_date_error = None
+        self.spec_date_retry_button.set_visible(False)
+        self._refresh_tracking_status()
+        self.sortly_register.report_spec_date(
+            self._tracking_generated_date,
+            on_complete=self._on_spec_date_report_complete,
+        )
 
     def _resolve_printer_name(self):
         """Pick which CUPS destination to print to, trying three tiers in
