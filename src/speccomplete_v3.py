@@ -3,7 +3,9 @@ import os
 import re
 import shlex
 import subprocess
+import tempfile
 import threading
+from datetime import date
 
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gtk, GLib
@@ -17,8 +19,33 @@ from sortly_register import REPORT_DATACODES_TO_SORTLY
 MANUALTEST_ROWS_PER_COLUMN = 5
 
 # The tracking sheet printer at every station is a Brother MFC-L2710DW
-# series; used to pick its CUPS queue out of whatever else is configured.
+# series; used to pick its CUPS queue out of whatever else is configured
+# when falling back to USB or an existing cups-browsed queue (see
+# _find_ipp_usb_port/_resolve_browsed_printer_name).
 TRACKING_SHEET_PRINTER_MODEL = "mfc-l2710dw"
+
+# Over the network there are two of these printers, physically labeled 1
+# and 2 so volunteers can tell them apart. Each has its Bonjour/mDNS name
+# set (in its own web admin) to "KramdenSpec1"/"KramdenSpec2" so
+# _find_network_printers() can do the same -- see _resolve_printer_name().
+# The tech-facing label shown on screen is spelled out separately (see
+# _resolve_printer_name) rather than reusing this raw mDNS name.
+NETWORK_PRINTER_NAME_RE = re.compile(r"kramden\s*spec\s*(\d+)", re.IGNORECASE)
+
+# A minimal ipptool script requesting just the one attribute
+# _printer_queued_job_count() needs -- $uri is filled in by ipptool itself
+# from the URI passed on its command line.
+QUEUED_JOB_COUNT_TEST = """{
+    OPERATION Get-Printer-Attributes
+    GROUP operation-attributes-tag
+    ATTR charset attributes-charset utf-8
+    ATTR language attributes-natural-language en
+    ATTR uri printer-uri $uri
+    ATTR keyword requested-attributes queued-job-count
+    STATUS successful-ok
+    EXPECT queued-job-count
+}
+"""
 
 
 class SpecCompleteV3(Adw.Bin):
@@ -127,6 +154,12 @@ class SpecCompleteV3(Adw.Bin):
         self._tracking_output_path = None
         self._tracking_ready_to_print = False
         self._tracking_initials = ""
+        # The date.today() computed in _generate_tracking_sheet() and
+        # stamped on the PDF -- reused in _on_generate_complete() to
+        # report the same value to Sortly as "Spec_Date", so the two
+        # can't disagree. See generate_tracking_sheet_v3.py's
+        # generated_date parameter.
+        self._tracking_generated_date = None
         # Set once the tech has clicked "Print Tracking Sheet" at least
         # once, so a subsequent click (e.g. because the sheet hasn't come
         # out yet) prompts for confirmation instead of silently queuing
@@ -382,10 +415,12 @@ class SpecCompleteV3(Adw.Bin):
                 "continue", bool(e.get_text().strip())
             ),
         )
-        entry.connect(
-            "activate",
-            lambda e: dialog.response("continue") if e.get_text().strip() else None,
-        )
+        # Makes Enter in the entry activate the dialog's default response
+        # ("continue") exactly as if its button were clicked -- same code
+        # path, so it respects "continue" being disabled while the entry
+        # is empty, and reliably closes the dialog (a plain "activate"
+        # signal handler calling dialog.response() directly does not).
+        entry.set_activates_default(True)
 
         dialog.connect("response", self._on_initials_response, entry)
         # Without this, keyboard focus stays on the "Review Tracking Sheet"
@@ -465,14 +500,28 @@ class SpecCompleteV3(Adw.Bin):
         if self.tracking_status.has_css_class("text-error"):
             self.tracking_status.remove_css_class("text-error")
 
+        # Computed once here and threaded through to both the PDF (as
+        # generated_date) and, on success, the Sortly "Spec_Date" report
+        # (see _on_generate_complete) -- so the two can't disagree if
+        # generation happens to straddle a midnight boundary.
+        self._tracking_generated_date = date.today()
+
         thread = threading.Thread(
             target=self._generate_thread,
-            args=(knumber, spec_passed, manual_test_results, notes_entries),
+            args=(
+                knumber,
+                spec_passed,
+                manual_test_results,
+                notes_entries,
+                self._tracking_generated_date,
+            ),
             daemon=True,
         )
         thread.start()
 
-    def _generate_thread(self, knumber, spec_passed, manual_test_results, notes_entries):
+    def _generate_thread(
+        self, knumber, spec_passed, manual_test_results, notes_entries, generated_date
+    ):
         try:
             output_path = generate_tracking_sheet(
                 knumber,
@@ -480,6 +529,7 @@ class SpecCompleteV3(Adw.Bin):
                 manual_test_results=manual_test_results,
                 notes_entries=notes_entries,
                 initials=self._tracking_initials,
+                generated_date=generated_date,
             )
             GLib.idle_add(self._on_generate_complete, output_path, None)
         except Exception as e:
@@ -495,6 +545,12 @@ class SpecCompleteV3(Adw.Bin):
         self.tracking_status.set_label(f"Saved: {output_path}")
         if self.tracking_status.has_css_class("text-error"):
             self.tracking_status.remove_css_class("text-error")
+
+        if self.sortly_register:
+            self.sortly_register.report_spec_date(
+                self._tracking_generated_date,
+                on_complete=self._on_spec_date_report_complete,
+            )
 
         self._tracking_output_path = output_path
         self._tracking_ready_to_print = True
@@ -525,6 +581,17 @@ class SpecCompleteV3(Adw.Bin):
                 capture_output=True,
                 timeout=5,
             )
+            # "maximized" and "fullscreen" are tracked separately -- e.g.
+            # a tech hitting F11 while reviewing a previous sheet leaves
+            # fullscreen=true even though the window was never maximized
+            # -- so both need resetting or the viewer can still come up
+            # covering the whole screen and blocking the app underneath.
+            subprocess.run(
+                ["gsettings", "set", schema, "fullscreen", "false"],
+                check=False,
+                capture_output=True,
+                timeout=5,
+            )
         except Exception:
             pass
         try:
@@ -536,6 +603,20 @@ class SpecCompleteV3(Adw.Bin):
         if self.on_status_changed:
             self.on_status_changed()
 
+    def _on_spec_date_report_complete(self, success, error):
+        """Surface a failed Sortly "Spec_Date" report in the UI instead of
+        only printing it to the console -- this fires asynchronously,
+        potentially well after _on_generate_complete() has already moved
+        the status label on to something else (e.g. "Sent to printer."),
+        so on failure it appends to whatever's currently shown rather
+        than replacing it outright."""
+        if success:
+            return
+        current = self.tracking_status.get_label()
+        note = f"Spec_Date not reported to Sortly: {error}"
+        self.tracking_status.set_label(f"{current}\n{note}" if current else note)
+        self.tracking_status.add_css_class("text-error")
+
     def _resolve_printer_name(self):
         """Pick which CUPS destination to print to, trying three tiers in
         order and re-resolving from scratch every time (never trusting a
@@ -546,21 +627,23 @@ class SpecCompleteV3(Adw.Bin):
            loopback IPP service Ubuntu's ipp-usb daemon already runs for
            it, via our own dedicated queue (see _find_ipp_usb_port/
            _ensure_direct_usb_queue).
-        2. The network otherwise -- resolve the printer's current address
-           straight from mDNS/DNS-SD and talk directly to its own IPP
-           endpoint, via our own dedicated queue (see
-           _find_network_printer/_ensure_direct_network_queue). This is
-           interface-agnostic: it works the same whether this laptop
-           reaches the printer over WiFi or over Ethernet (e.g. the
-           printer itself is only on WiFi, but this laptop is plugged into
-           the same LAN over Ethernet) -- mDNS discovery just needs *some*
-           path to the printer's network segment, not a direct physical
-           link to it. This is tried automatically whenever USB isn't
-           available, so WiFi (or Ethernet) is always the default the
-           moment USB isn't an option.
+        2. The network otherwise -- there are two network printers
+           ("KramdenSpec1"/"KramdenSpec2" over mDNS, physically labeled 1
+           and 2 so volunteers can tell them apart), so resolve both of
+           their current addresses straight from mDNS/DNS-SD, talk
+           directly to each one's own IPP endpoint via our own dedicated
+           queue (see _find_network_printers/_ensure_direct_network_queue),
+           and print to whichever one's real queue is shortest right now
+           (see _printer_queued_job_count). This is interface-agnostic: it
+           works the same whether this laptop reaches the printers over
+           WiFi or over Ethernet -- mDNS discovery just needs *some* path
+           to their network segment, not a direct physical link to them.
+           This is tried automatically whenever USB isn't available, so
+           WiFi (or Ethernet) is always the default the moment USB isn't
+           an option.
         3. Matching an existing cups-browsed-discovered queue by name, as
            a last resort if neither of the above found anything (e.g.
-           avahi-browse isn't installed, or the printer answers IPP
+           avahi-browse isn't installed, or a printer answers IPP
            requests but isn't advertising itself over mDNS for some
            reason).
 
@@ -573,20 +656,49 @@ class SpecCompleteV3(Adw.Bin):
         actually reachable on the network at that moment (e.g. it's only
         really connected via USB right now, even though a stale mDNS
         record for it is still floating around).
+
+        Returns (queue_name, display_label). display_label is a
+        tech-facing name like "Kramden Spec Printer 1" for the network
+        tier, so the UI can tell the tech which of the two physical,
+        physically-labeled printers the job actually went to -- or None
+        for the USB and last-resort tiers, which only ever deal with a
+        single printer.
         """
         usb_port = self._find_ipp_usb_port()
         if usb_port:
             queue = self._ensure_direct_usb_queue(usb_port)
             if queue:
-                return queue
+                return queue, None
 
-        network_target = self._find_network_printer()
-        if network_target:
-            queue = self._ensure_direct_network_queue(*network_target)
-            if queue:
-                return queue
+        network_printers = self._find_network_printers()
+        if network_printers:
+            candidates = []
+            for printer in network_printers:
+                queue = self._ensure_direct_network_queue(
+                    printer["address"],
+                    printer["port"],
+                    printer["resource_path"],
+                    printer["label"],
+                )
+                if not queue:
+                    continue
+                depth = self._printer_queued_job_count(
+                    printer["address"], printer["port"], printer["resource_path"]
+                )
+                candidates.append((depth, printer["label"], queue))
+            if candidates:
+                # Prefer a printer whose queue depth we could actually
+                # measure, then the shortest queue, then (only if still
+                # tied -- e.g. neither answered) the lower-numbered
+                # printer, so the choice is deterministic rather than
+                # depending on avahi's report order.
+                candidates.sort(
+                    key=lambda c: (c[0] is None, c[0] if c[0] is not None else 0, c[1])
+                )
+                _, label, queue = candidates[0]
+                return queue, f"Kramden Spec Printer {label}"
 
-        return self._resolve_browsed_printer_name()
+        return self._resolve_browsed_printer_name(), None
 
     def _find_ipp_usb_port(self):
         """Return the local loopback port ipp-usb is serving the tracking
@@ -633,20 +745,23 @@ class SpecCompleteV3(Adw.Bin):
         except Exception:
             return None
 
-    def _find_network_printer(self):
-        """Resolve the tracking sheet printer's current address, port, and
-        IPP resource path straight from mDNS/DNS-SD, if it's reachable on
-        the network at all right now. Re-resolved fresh on every print
-        attempt (like _find_ipp_usb_port() does for the USB path) so a
-        changed DHCP lease, or a printer that's only just come up, doesn't
-        get stuck on a stale address. This is interface-agnostic -- it
-        works the same whether this laptop is on WiFi or Ethernet, since
-        mDNS discovery just needs some path to the printer's network
-        segment, not a direct physical link to it.
+    def _find_network_printers(self):
+        """Resolve both network tracking-sheet printers' current
+        addresses, ports, and IPP resource paths straight from mDNS/
+        DNS-SD, for whichever of the two ("KramdenSpec1"/"KramdenSpec2")
+        are reachable on the network right now. Re-resolved fresh on
+        every print attempt (like _find_ipp_usb_port() does for the USB
+        path) so a changed DHCP lease, or a printer that's only just come
+        up, doesn't get stuck on a stale address. This is
+        interface-agnostic -- it works the same whether this laptop is on
+        WiFi or Ethernet, since mDNS discovery just needs some path to
+        the printers' network segment, not a direct physical link to
+        them.
 
-        Returns (address, port, resource_path), or None if nothing
-        matching was found (e.g. avahi-browse isn't installed, or the
-        printer isn't reachable on the network right now)."""
+        Returns a list of dicts: {"label": <int>, "address", "port",
+        "resource_path"} -- one per printer found (zero, one, or two),
+        in whatever order avahi-browse reported them. The caller is
+        responsible for choosing between them (see _resolve_printer_name)."""
         try:
             result = subprocess.run(
                 ["avahi-browse", "-r", "-p", "-t", "_ipp._tcp"],
@@ -655,8 +770,9 @@ class SpecCompleteV3(Adw.Bin):
                 timeout=10,
             )
         except Exception:
-            return None
+            return []
 
+        found = {}
         for line in result.stdout.splitlines():
             if not line.startswith("="):
                 continue
@@ -671,10 +787,22 @@ class SpecCompleteV3(Adw.Bin):
                 # IPv4 record for the same printer is always advertised
                 # alongside any IPv6 one.
                 continue
-            if TRACKING_SHEET_PRINTER_MODEL not in name.lower().replace("_", "-"):
+            match = NETWORK_PRINTER_NAME_RE.search(name)
+            if not match:
                 continue
-            return address, port, self._extract_ipp_resource_path(txt)
-        return None
+            label = int(match.group(1))
+            # avahi can report the same printer more than once (e.g. one
+            # record per network interface) -- keep the first sighting
+            # of each label rather than treating it as a second printer.
+            if label in found:
+                continue
+            found[label] = {
+                "label": label,
+                "address": address,
+                "port": port,
+                "resource_path": self._extract_ipp_resource_path(txt),
+            }
+        return list(found.values())
 
     @staticmethod
     def _extract_ipp_resource_path(txt_field):
@@ -688,14 +816,16 @@ class SpecCompleteV3(Adw.Bin):
                 return token[len("rp="):]
         return "ipp/print"
 
-    def _ensure_direct_network_queue(self, address, port, resource_path):
+    def _ensure_direct_network_queue(self, address, port, resource_path, label):
         """Create (or update, harmlessly, if it already exists) a queue
-        pointed straight at the printer's own IPP endpoint over the
-        network -- same "bypass cups-browsed's flaky auto-discovered
-        queues, talk directly" approach as _ensure_direct_usb_queue(),
-        just reaching the printer over the network instead of ipp-usb's
-        loopback."""
-        queue_name = "KramdenTrackingSheetPrinterNetwork"
+        pointed straight at this network printer's own IPP endpoint --
+        same "bypass cups-browsed's flaky auto-discovered queues, talk
+        directly" approach as _ensure_direct_usb_queue(), just reaching
+        the printer over the network instead of ipp-usb's loopback. A
+        separate queue per label (KramdenTrackingSheetPrinterNetwork1/2)
+        so both network printers can have a live queue at once instead
+        of one clobbering the other's."""
+        queue_name = f"KramdenTrackingSheetPrinterNetwork{label}"
         try:
             subprocess.run(
                 [
@@ -713,6 +843,44 @@ class SpecCompleteV3(Adw.Bin):
             return queue_name
         except Exception:
             return None
+
+    def _printer_queued_job_count(self, address, port, resource_path):
+        """How many jobs are queued at the printer itself right now, via
+        a direct IPP Get-Printer-Attributes query -- not this laptop's
+        own local CUPS state, which would only ever reflect jobs *this*
+        laptop has submitted. Since both network printers are shared by
+        every spec station at once, load-balancing between them has to
+        be based on each printer's real queue, not a per-laptop count.
+
+        Returns None if it couldn't be determined (e.g. ipptool isn't
+        installed, or the printer didn't answer), so the caller can fall
+        back to some other tie-breaker instead of treating "unknown" the
+        same as "empty"."""
+        uri = f"ipp://{address}:{port}/{resource_path}"
+        test_path = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                "w", suffix=".test", delete=False
+            ) as f:
+                f.write(QUEUED_JOB_COUNT_TEST)
+                test_path = f.name
+            result = subprocess.run(
+                ["ipptool", "-t", uri, test_path],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+        except Exception:
+            return None
+        finally:
+            if test_path:
+                try:
+                    os.unlink(test_path)
+                except OSError:
+                    pass
+
+        match = re.search(r"queued-job-count[^=]*=\s*(\d+)", result.stdout)
+        return int(match.group(1)) if match else None
 
     def _resolve_browsed_printer_name(self):
         """Match an existing cups-browsed-discovered queue by name/
@@ -784,12 +952,14 @@ class SpecCompleteV3(Adw.Bin):
         thread.start()
 
     def _print_thread(self, output_path):
-        printer = self._resolve_printer_name()
+        printer, label = self._resolve_printer_name()
         if not printer:
             GLib.idle_add(
                 self._on_print_complete,
-                "No Brother MFC-L2710DW printer found. Check the USB cable "
-                "and that the printer is powered on.",
+                "No Brother MFC-L2710DW printer found. Check the USB cable, "
+                "or that Kramden Spec Printer 1 or 2 is powered on and "
+                "connected to the network.",
+                None,
             )
             return
         try:
@@ -813,20 +983,20 @@ class SpecCompleteV3(Adw.Bin):
                 text=True,
                 timeout=30,
             )
-            GLib.idle_add(self._on_print_complete, None)
+            GLib.idle_add(self._on_print_complete, None, label)
         except subprocess.CalledProcessError as e:
-            GLib.idle_add(self._on_print_complete, e.stderr.strip() or str(e))
+            GLib.idle_add(self._on_print_complete, e.stderr.strip() or str(e), None)
         except Exception as e:
-            GLib.idle_add(self._on_print_complete, str(e))
+            GLib.idle_add(self._on_print_complete, str(e), None)
 
-    def _on_print_complete(self, error):
+    def _on_print_complete(self, error, label=None):
         self.tracking_button.set_sensitive(True)
         if error:
             self.tracking_status.set_label(f"Print failed: {error}")
             self.tracking_status.add_css_class("text-error")
             return
 
-        self.tracking_status.set_label("Sent to printer.")
+        self.tracking_status.set_label(f"Sent to {label}." if label else "Sent to printer.")
         if self.tracking_status.has_css_class("text-error"):
             self.tracking_status.remove_css_class("text-error")
         self._tracking_printed = True
@@ -861,6 +1031,7 @@ class SpecCompleteV3(Adw.Bin):
         self._tracking_printed = False
         self._tracking_print_requested = False
         self._tracking_initials = ""
+        self._tracking_generated_date = None
         self.tracking_button.set_label("Review Tracking Sheet")
         self.tracking_button.remove_css_class("button-green")
         self.tracking_button.add_css_class("suggested-action")

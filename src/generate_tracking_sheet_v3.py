@@ -338,6 +338,7 @@ def generate_tracking_sheet(
     manual_test_results=None,
     notes_entries=None,
     initials=None,
+    generated_date=None,
 ):
     """Generate a single-page portrait PDF tracking sheet for a computer.
 
@@ -348,13 +349,23 @@ def generate_tracking_sheet(
     initials, if given, is the tech's initials (collected via a dialog when
     they click "Review Tracking Sheet") and is printed next to "Initials:"
     in the header instead of leaving it blank for handwriting.
+
+    generated_date, if given, is the datetime.date stamped in the header's
+    "Generated" line (and used for the fallback output filename below) --
+    callers that also need to report that same date elsewhere (e.g.
+    SpecCompleteV3 reporting it to Sortly) should pass it in explicitly so
+    both places agree, rather than each independently calling
+    date.today() and risking disagreement across a midnight boundary.
+    Defaults to date.today() if not given.
     """
+    if generated_date is None:
+        generated_date = date.today()
     if output_path is None:
         if item_name:
             output_path = f"/tmp/{item_name}_tracking_sheet.pdf"
         else:
             # No K-Number entered yet; keep output paths unique per run.
-            stamp = date.today().strftime("%Y%m%d") + f"-{os.getpid()}"
+            stamp = generated_date.strftime("%Y%m%d") + f"-{os.getpid()}"
             output_path = f"/tmp/tracking_sheet_{stamp}.pdf"
 
     print("Gathering system information...")
@@ -479,7 +490,7 @@ def generate_tracking_sheet(
     # ===== Header: Generated/Initials (left) + K-Number (right) =====
     initials_display = escape(initials) if initials else "__________"
     meta_para = Paragraph(
-        f"Generated {date.today().strftime('%m-%d-%Y')}<br/>Initials: {initials_display}",
+        f"Generated {generated_date.strftime('%m-%d-%Y')}<br/>Initials: {initials_display}",
         meta_style,
     )
     knum_para = Paragraph(item_name or "_____________", knum_style)

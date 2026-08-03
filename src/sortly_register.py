@@ -33,6 +33,17 @@ REPORT_DATACODES_TO_SORTLY = False
 # update_item() silently skips any field name it doesn't recognize.
 SORTLY_DATACODES_FIELD = "Data Codes"
 
+# Separate master switch for reporting the tracking sheet's generation
+# date back to Sortly as its own "Spec_Date" custom attribute -- kept
+# independent of REPORT_DATACODES_TO_SORTLY so this can be flipped on by
+# itself for testing without also turning on data-codes reporting (or
+# vice versa). See report_spec_date() below.
+REPORT_SPEC_DATE_TO_SORTLY = False
+
+# Must match the custom attribute's name on the Sortly item exactly --
+# update_item() silently skips any field name it doesn't recognize.
+SORTLY_SPEC_DATE_FIELD = "Spec_Date"
+
 
 class SortlyRegister(Adw.Bin):
     def __init__(self):
@@ -521,6 +532,65 @@ class SortlyRegister(Adw.Bin):
         except Exception as e:
             success, error = False, sortly_error_message(e)
             print(f"Failed to report data codes to Sortly: {error}")
+        if on_complete:
+            GLib.idle_add(on_complete, success, error)
+
+    def report_spec_date(self, spec_date, on_complete=None):
+        """Push the date the tracking sheet was generated to Sortly as a
+        follow-up update to the item registered on this page, mirroring
+        report_datacodes() above but gated by its own
+        REPORT_SPEC_DATE_TO_SORTLY switch (testing-only, independent of
+        data-codes reporting) instead. Called from SpecCompleteV3 once
+        the tracking sheet PDF has actually been generated, passing the
+        same date stamped in the PDF's "Generated" line.
+
+        `on_complete`, if given, is called as `on_complete(success, error)`
+        via GLib.idle_add once the background request finishes -- see
+        report_datacodes() for the full rationale, which applies
+        identically here.
+        """
+        if not REPORT_SPEC_DATE_TO_SORTLY:
+            if on_complete:
+                on_complete(True, None)
+            return
+        if not self._existing_item:
+            if on_complete:
+                on_complete(
+                    False,
+                    "This machine has no Sortly record to update -- "
+                    "registration on the Sortly Registration page never "
+                    "completed.",
+                )
+            return
+
+        try:
+            api_key = get_api_key()
+        except EnvironmentError as e:
+            print(f"Skipping spec date report: {e}")
+            if on_complete:
+                on_complete(False, str(e))
+            return
+
+        item_id = self._existing_item["id"]
+        thread = threading.Thread(
+            target=self._report_spec_date_thread,
+            args=(api_key, item_id, spec_date, on_complete),
+            daemon=True,
+        )
+        thread.start()
+
+    def _report_spec_date_thread(self, api_key, item_id, spec_date, on_complete):
+        try:
+            success, error = update_item(
+                api_key,
+                item_id,
+                {SORTLY_SPEC_DATE_FIELD: spec_date.strftime("%m-%d-%Y")},
+            )
+            if not success:
+                print(f"Failed to report spec date to Sortly: {error}")
+        except Exception as e:
+            success, error = False, sortly_error_message(e)
+            print(f"Failed to report spec date to Sortly: {error}")
         if on_complete:
             GLib.idle_add(on_complete, success, error)
 
