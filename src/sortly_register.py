@@ -26,20 +26,20 @@ from sortly import (
 # "KB02,SC08,UA02" -- see SpecCompleteV3._gather_datacodes) back to Sortly
 # as a follow-up update after the initial registration on this page. Off
 # for now so spec_v3 sends Sortly exactly the same fields spec.py does;
-# flip to True once Sortly has a "Data Codes" custom attribute ready to
+# flip to True once Sortly has a "Speccing Notes" custom attribute ready to
 # receive it -- see report_datacodes() below.
-REPORT_DATACODES_TO_SORTLY = False
+REPORT_DATACODES_TO_SORTLY = True
 
 # Must match the custom attribute's name on the Sortly item exactly --
 # update_item() silently skips any field name it doesn't recognize.
-SORTLY_DATACODES_FIELD = "Data Codes"
+SORTLY_DATACODES_FIELD = "Speccing Notes"
 
 # Separate master switch for reporting the tracking sheet's generation
 # date back to Sortly as its own "Spec Date" custom attribute -- kept
 # independent of REPORT_DATACODES_TO_SORTLY so this can be flipped on by
 # itself for testing without also turning on data-codes reporting (or
 # vice versa). See report_spec_date() below.
-REPORT_SPEC_DATE_TO_SORTLY = False
+REPORT_SPEC_DATE_TO_SORTLY = True
 
 # Must match the custom attribute's name on the Sortly item exactly --
 # update_item() silently skips any field name it doesn't recognize.
