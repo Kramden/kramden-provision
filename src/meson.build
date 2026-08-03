@@ -88,6 +88,7 @@ sources = [
   'getlearngive.png',
   'landscape_dark.png',
   'inspection_animation_placeholder.gif',
+  'keyboard_animation.gif',
   'guide.py',
 ]
 

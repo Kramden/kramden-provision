@@ -182,7 +182,19 @@ TOUCHPAD_DEFECT_TYPES = [
     "A problem with left or right click",
     "Touchpad looks as if it is bulging out",
     "Something is wrong with how the cursor moves",
+    "Part of the touchpad doesn't work",
 ]
+
+# "Part of the touchpad doesn't work" has no location picker -- it applies
+# to the whole touchpad like "Touchpad does not work at all" (see
+# TOUCHPAD_REASON_NOTES below). It gets a fixed TP09 code (see
+# TouchpadPage._reason_code) rather than the position-based TP05 its slot
+# in the list above would otherwise imply, since TP05/TP06 are already
+# taken by the cursor sub-reasons (see TOUCHPAD_CURSOR_CODES).
+TOUCHPAD_PARTIAL_REASON = "Part of the touchpad doesn't work"
+TOUCHPAD_REASON_CODES = {
+    TOUCHPAD_PARTIAL_REASON: "TP09",
+}
 
 # "A problem with left or right click" expands into "Left click"/"Right
 # click"/"Touchpad click" instead of the generic touchpad-location section
@@ -237,6 +249,7 @@ TOUCHPAD_CURSOR_OPTIONS = list(TOUCHPAD_CURSOR_CODES)
 TOUCHPAD_REASON_NOTES = {
     "Touchpad does not work at all": "Touchpad broken",
     "Touchpad looks as if it is bulging out": "Touchpad bulging",
+    TOUCHPAD_PARTIAL_REASON: "Part of touchpad not working",
 }
 
 SCREEN_DEFECT_TYPES = [
@@ -745,19 +758,25 @@ def _clear_status_if_unchanged(label, expected_text):
     return False
 
 
-# TEMPORARY: stand-in animation shown on every testing page until each page
+# TEMPORARY: stand-in animation shown on most testing pages until each page
 # gets its own real inspection-step gif. Remove this and its call sites once
 # actual per-page animations exist.
 GIF_PLACEHOLDER_PATH = os.path.join(
     os.path.dirname(os.path.realpath(__file__)), "inspection_animation_placeholder.gif"
 )
 
+# Real inspection-step animation for the Keyboard page -- see
+# KeyboardPage/TogglePage's gif_path param.
+KEYBOARD_GIF_PATH = os.path.join(
+    os.path.dirname(os.path.realpath(__file__)), "keyboard_animation.gif"
+)
 
-def _build_gif_placeholder_widget():
+
+def _build_gif_widget(gif_path):
     try:
-        animation = GdkPixbuf.PixbufAnimation.new_from_file(GIF_PLACEHOLDER_PATH)
+        animation = GdkPixbuf.PixbufAnimation.new_from_file(gif_path)
     except GLib.Error as e:
-        print(f"_build_gif_placeholder_widget: could not load placeholder gif: {e}")
+        print(f"_build_gif_widget: could not load gif {gif_path}: {e}")
         return None
 
     picture = Gtk.Picture()
@@ -901,6 +920,7 @@ class TogglePage(Adw.Bin):
         instructions=PLACEHOLDER_INSTRUCTIONS,
         code_prefix=None,
         topic=None,
+        gif_path=GIF_PLACEHOLDER_PATH,
     ):
         super().__init__()
         self.key = key
@@ -952,10 +972,14 @@ class TogglePage(Adw.Bin):
         instructions_label.add_css_class("instructions-label")
         vbox.append(instructions_label)
 
-        # TEMPORARY placeholder animation -- see _build_gif_placeholder_widget.
-        gif_placeholder = _build_gif_placeholder_widget()
-        if gif_placeholder is not None:
-            vbox.append(gif_placeholder)
+        # Inspection-step animation -- defaults to the TEMPORARY placeholder
+        # (see GIF_PLACEHOLDER_PATH above); a page with its own real
+        # animation passes gif_path, and a page that wants none passes
+        # gif_path=None (see TouchpadPage/TouchscreenPage).
+        if gif_path is not None:
+            gif_widget = _build_gif_widget(gif_path)
+            if gif_widget is not None:
+                vbox.append(gif_widget)
 
         # Hook for subclasses to add a launcher button, typing box, etc.
         self.action_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
@@ -1474,8 +1498,8 @@ class PhysicalDefectsPage(Adw.Bin):
         instructions_label.add_css_class("instructions-label")
         vbox.append(instructions_label)
 
-        # TEMPORARY placeholder animation -- see _build_gif_placeholder_widget.
-        gif_placeholder = _build_gif_placeholder_widget()
+        # TEMPORARY placeholder animation -- see _build_gif_widget.
+        gif_placeholder = _build_gif_widget(GIF_PLACEHOLDER_PATH)
         if gif_placeholder is not None:
             vbox.append(gif_placeholder)
 
@@ -2797,6 +2821,7 @@ class TouchpadPage(TogglePage):
                 " your finger across the touchpad that the"
                 " cursor moves cleanly and accurately. "
             ),
+            gif_path=None,
         )
 
     def build_reason_locations(self, entry_row, reason):
@@ -2921,10 +2946,16 @@ class TouchpadPage(TogglePage):
     def _reason_code(self, reason):
         """Overrides TogglePage._reason_code -- "A problem with left or
         right click" and "Something is wrong with how the cursor moves"
-        get no single code of their own (see class docstring above). Every
-        other touchpad reason keeps the default position-based code."""
+        get no single code of their own (see class docstring above).
+        "Part of the touchpad doesn't work" gets a fixed code from
+        TOUCHPAD_REASON_CODES rather than its position in
+        TOUCHPAD_DEFECT_TYPES, since TP04-TP08 are already spoken for by
+        the click/cursor sub-reasons. Every other touchpad reason keeps
+        the default position-based code."""
         if reason in (TOUCHPAD_CLICK_REASON, TOUCHPAD_CURSOR_REASON):
             return None
+        if reason in TOUCHPAD_REASON_CODES:
+            return TOUCHPAD_REASON_CODES[reason]
         return super()._reason_code(reason)
 
     def _touchpad_click_notes(self, data):
@@ -3405,6 +3436,7 @@ class TouchscreenPage(ScreenSectionMixin, TogglePage):
                 "Click below to launch the touchscreen test. During it, "
                 "please tap each grey dot with your finger."
             ),
+            gif_path=None,
         )
 
     def build_action(self, box):
@@ -3480,6 +3512,7 @@ class KeyboardPage(TogglePage):
                 "registers correctly. All keys should respond accurately and "
                 "with a normal amount of effort."
             ),
+            gif_path=KEYBOARD_GIF_PATH,
         )
 
     def _can_mark_no_issues(self):
