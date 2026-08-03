@@ -303,9 +303,10 @@ class SpecCompleteV3(Adw.Bin):
     def _tick_poweroff_countdown(self, dialog):
         self._poweroff_countdown -= 1
         if self._poweroff_countdown <= 0:
+            # Trigger the same response path as clicking/dismissing the dialog,
+            # so _power_off() is called exactly once.
             self._poweroff_timeout_id = None
-            dialog.close()
-            self._power_off()
+            dialog.response("power_off")
             return GLib.SOURCE_REMOVE
         dialog.set_body(self._poweroff_countdown_body())
         return GLib.SOURCE_CONTINUE
