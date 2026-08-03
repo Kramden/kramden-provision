@@ -1040,6 +1040,50 @@ class Utils:
             return False
 
     @staticmethod
+    def get_default_gateway():
+        """IP address of the machine's default route gateway (e.g.
+        "192.168.1.1"), or None if there's no default route -- e.g. no
+        active connection. Works for whichever device (WiFi or Ethernet)
+        currently holds the default route, so it doesn't need an
+        interface name up front."""
+        try:
+            result = subprocess.run(
+                ["ip", "route", "show", "default"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            for line in result.stdout.strip().splitlines():
+                parts = line.split()
+                if "via" in parts:
+                    return parts[parts.index("via") + 1]
+            return None
+        except Exception:
+            return None
+
+    @staticmethod
+    def gateway_ping_ok(count=10):
+        """Whether all `count` pings to the machine's default gateway
+        succeeded (0% packet loss) -- used by WiFiPage to verify the
+        connection actually works rather than trusting NetworkManager's
+        "connected" state alone. Returns True (nothing to fail) when
+        there's no default gateway to ping."""
+        gateway = Utils.get_default_gateway()
+        if not gateway:
+            return True
+        try:
+            result = subprocess.run(
+                ["ping", "-c", str(count), gateway],
+                capture_output=True,
+                text=True,
+                timeout=count + 10,
+            )
+            match = re.search(r"(\d+)% packet loss", result.stdout)
+            return match is not None and match.group(1) == "0"
+        except Exception:
+            return False
+
+    @staticmethod
     def _typec_port_names():
         """Names of actual Type-C port entries under /sys/class/typec/ (e.g.
         "port0", "port1") -- excludes the "portN-partner"/"portN-cable"/
