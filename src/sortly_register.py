@@ -22,23 +22,22 @@ from sortly import (
     sortly_error_message,
 )
 
-# Master switch for reporting each manual test page's data codes (e.g.
-# "KB02,SC08,UA02" -- see SpecCompleteV3._gather_datacodes) back to Sortly
-# as a follow-up update after the initial registration on this page. Off
-# for now so spec_v3 sends Sortly exactly the same fields spec.py does;
-# flip to True once Sortly has a "Speccing Notes" custom attribute ready to
-# receive it -- see report_datacodes() below.
-REPORT_DATACODES_TO_SORTLY = True
+# Master switch for reporting each manual test page's failure reasons (e.g.
+# "KB02|Keys do not work:A,B/TP01|Touchpad does not work at all" --
+# see SpecCompleteV3._gather_sortly_notes) back to Sortly as a follow-up
+# update after the initial registration on this page -- see
+# report_speccing_notes() below.
+REPORT_SPECCING_NOTES_TO_SORTLY = True
 
 # Must match the custom attribute's name on the Sortly item exactly --
 # update_item() silently skips any field name it doesn't recognize.
-SORTLY_DATACODES_FIELD = "Speccing Notes"
+SORTLY_SPECCING_NOTES_FIELD = "Speccing Notes"
 
 # Separate master switch for reporting the tracking sheet's generation
 # date back to Sortly as its own "Spec Date" custom attribute -- kept
-# independent of REPORT_DATACODES_TO_SORTLY so this can be flipped on by
-# itself for testing without also turning on data-codes reporting (or
-# vice versa). See report_spec_date() below.
+# independent of REPORT_SPECCING_NOTES_TO_SORTLY so this can be flipped on
+# by itself for testing without also turning on Speccing Notes reporting
+# (or vice versa). See report_spec_date() below.
 REPORT_SPEC_DATE_TO_SORTLY = True
 
 # Must match the custom attribute's name on the Sortly item exactly --
@@ -473,12 +472,14 @@ class SortlyRegister(Adw.Bin):
             self.register_button.set_sensitive(True)
             self.knumber_entry.set_sensitive(True)
 
-    def report_datacodes(self, datacodes, on_complete=None):
-        """Push the machine's aggregated data-codes string to Sortly as a
-        follow-up update to the item registered on this page. Called from
-        SpecCompleteV3 once every manual test page has reported in --
-        those results don't exist yet when _do_register() runs at the
-        start of the wizard, so this fires later instead.
+    def report_speccing_notes(self, speccing_notes, on_complete=None):
+        """Push the machine's aggregated Sortly notes string (see
+        SpecCompleteV3._gather_sortly_notes/manualtest_v3._sortly_entry for
+        the "<code>|<description>[:<locations>]" format, entries joined by
+        "/") to Sortly as a follow-up update to the item registered on this
+        page. Called from SpecCompleteV3 once every manual test page has
+        reported in -- those results don't exist yet when _do_register()
+        runs at the start of the wizard, so this fires later instead.
 
         `on_complete`, if given, is called as `on_complete(success, error)`
         -- via GLib.idle_add once the background request finishes, so it's
@@ -490,7 +491,7 @@ class SortlyRegister(Adw.Bin):
         report; the fire-and-forget call from _generate_tracking_sheet
         passes no callback and doesn't care either way.
         """
-        if not REPORT_DATACODES_TO_SORTLY:
+        if not REPORT_SPECCING_NOTES_TO_SORTLY:
             if on_complete:
                 GLib.idle_add(on_complete, True, None)
             return
@@ -504,10 +505,10 @@ class SortlyRegister(Adw.Bin):
                     "completed.",
                 )
             return
-        if not datacodes:
+        if not speccing_notes:
             # Nothing to report (no defects found) -- leave the existing
-            # Sortly record's Data Codes field alone rather than making an
-            # unnecessary API call.
+            # Sortly record's Speccing Notes field alone rather than making
+            # an unnecessary API call.
             if on_complete:
                 GLib.idle_add(on_complete, True, None)
             return
@@ -515,46 +516,48 @@ class SortlyRegister(Adw.Bin):
         try:
             api_key = get_api_key()
         except EnvironmentError as e:
-            print(f"Skipping data codes report: {e}")
+            print(f"Skipping Speccing Notes report: {e}")
             if on_complete:
                 GLib.idle_add(on_complete, False, str(e))
             return
 
         item_id = self._existing_item["id"]
         thread = threading.Thread(
-            target=self._report_datacodes_thread,
-            args=(api_key, item_id, datacodes, on_complete),
+            target=self._report_speccing_notes_thread,
+            args=(api_key, item_id, speccing_notes, on_complete),
             daemon=True,
         )
         thread.start()
 
-    def _report_datacodes_thread(self, api_key, item_id, datacodes, on_complete):
+    def _report_speccing_notes_thread(
+        self, api_key, item_id, speccing_notes, on_complete
+    ):
         try:
             success, error = update_item(
-                api_key, item_id, {SORTLY_DATACODES_FIELD: datacodes}
+                api_key, item_id, {SORTLY_SPECCING_NOTES_FIELD: speccing_notes}
             )
             if not success:
-                print(f"Failed to report data codes to Sortly: {error}")
+                print(f"Failed to report Speccing Notes to Sortly: {error}")
         except Exception as e:
             success, error = False, sortly_error_message(e)
-            print(f"Failed to report data codes to Sortly: {error}")
+            print(f"Failed to report Speccing Notes to Sortly: {error}")
         if on_complete:
             GLib.idle_add(on_complete, success, error)
 
     def report_spec_date(self, spec_date, on_complete=None):
         """Push the date the tracking sheet was generated to Sortly as a
         follow-up update to the item registered on this page, mirroring
-        report_datacodes() above but gated by its own
+        report_speccing_notes() above but gated by its own
         REPORT_SPEC_DATE_TO_SORTLY switch (testing-only, independent of
-        data-codes reporting) instead. Called from SpecCompleteV3 as soon
-        as tracking sheet generation starts, in parallel with the PDF
+        Speccing Notes reporting) instead. Called from SpecCompleteV3 as
+        soon as tracking sheet generation starts, in parallel with the PDF
         itself, passing the same date that gets stamped in the PDF's
         "Generated" line. May be called again by the same caller's retry
         button if the first attempt failed.
 
         `on_complete`, if given, is called as `on_complete(success, error)`
         via GLib.idle_add once the background request finishes -- see
-        report_datacodes() for the full rationale, which applies
+        report_speccing_notes() for the full rationale, which applies
         identically here.
         """
         if not REPORT_SPEC_DATE_TO_SORTLY:

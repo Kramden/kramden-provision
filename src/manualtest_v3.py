@@ -298,13 +298,13 @@ TOUCHSCREEN_DEFECT_TYPES = [
 # KEYBOARD_REASON_CODES, and PHYSICAL_DAMAGE_CATEGORY_CODES below.
 KEYBOARD_DEFECT_TYPES = [
     "The whole keyboard does not work",
-    "Certain keys do not work",
+    "Keys do not work",
     "Physical damage",
-    "Certain keys need extra pressure or massaging to work",
+    "Keys need extra pressure or massaging to work",
     "It is an international keyboard",
-    "Certain keys stick",
+    "Keys stick",
     "Keys report the incorrect keys when typing",
-    "Certain keys are scratched",
+    "Keys are scratched",
     "Trackpoint missing",
     "Trackpoint error",
 ]
@@ -317,10 +317,10 @@ KEYBOARD_DEFECT_TYPES = [
 # position-based numbering -- see KeyboardPage._reason_code.
 KEYBOARD_REASON_CODES = {
     "The whole keyboard does not work": "KB01",
-    "Certain keys do not work": "KB02",
-    "Certain keys need extra pressure or massaging to work": "KB06",
+    "Keys do not work": "KB02",
+    "Keys need extra pressure or massaging to work": "KB06",
     "It is an international keyboard": "KB07",
-    "Certain keys stick": "KB08",
+    "Keys stick": "KB08",
     "Keys report the incorrect keys when typing": "KB09",
     "Trackpoint missing": "KB11",
     "Trackpoint error": "KB12",
@@ -419,6 +419,34 @@ SCREEN_SECTIONS = [
     "Lower Middle",
     "Lower Right",
 ]
+
+
+def _sortly_entry(code, description, locations=None):
+    """Format one failure reason as "<code>|<description>[:<locations>]" --
+    the exact shape Sortly's "Speccing Notes" custom attribute expects (see
+    SpecCompleteV3._gather_sortly_notes/SortlyRegister.report_speccing_notes).
+    `locations`, if given, is a list of strings joined with "," and no
+    surrounding whitespace; a reason with nothing to point at (e.g.
+    "TP01|Touchpad does not work at all") omits the ":" entirely."""
+
+    def _clean(text):
+        # Prevent reserved delimiters from breaking Sortly parsing.
+        return (
+            str(text)
+            .replace("|", " ")
+            .replace(":", " ")
+            .replace("/", " ")
+            .replace(",", ";")
+            .strip()
+        )
+
+    text = f"{_clean(code)}|{_clean(description)}"
+    if locations:
+        cleaned = [_clean(loc) for loc in locations if loc is not None]
+        cleaned = [loc for loc in cleaned if loc]
+        if cleaned:
+            text += ":" + ",".join(cleaned)
+    return text
 
 
 def _toggle_button_css(button):
@@ -1263,6 +1291,29 @@ class TogglePage(Adw.Bin):
             return "; ".join(parts)
         return "no location specified"
 
+    def _locations_list(self, data):
+        """Same location kinds as _locations_text above, as a raw list of
+        strings instead of prose already joined with ", " -- feeds
+        get_sortly_entries' comma-joined (no spaces) location detail.
+        Only the generic kinds a plain reason can have (keys, sections,
+        usb_port); kinds owned by a reason that fans out into its own
+        sub-codes (key_categories, click_sides) are built by that reason's
+        own Sortly-entries method instead -- see
+        KeyboardPage._physical_damage_sortly_entries,
+        TouchpadPage._touchpad_click_sortly_entries/
+        _touchpad_cursor_sortly_entries."""
+        kind = data.get("type")
+        if kind == "keys":
+            keys = data.get("selected") or []
+            if keys == ENTIRE_KEYBOARD_MARKER:
+                return ["Entire Keyboard"]
+            return keys or None
+        if kind == "sections":
+            return data.get("selected") or None
+        if kind == "usb_port":
+            return data.get("locations") or None
+        return None
+
     def _reason_is_filled(self, data):
         """Whether a given failure reason's location/detail was actually
         filled in, not just added with defaults left blank. "Yes" pages
@@ -1399,17 +1450,6 @@ class TogglePage(Adw.Bin):
             return [f"{self.title} not completed"]
         return []
 
-    def get_datacodes(self):
-        """Data codes (e.g. "KB02") this page is reporting, for the
-        machine-wide Data Codes string sent to Sortly -- see
-        SpecCompleteV3._gather_datacodes. Same codes as
-        get_failure_reasons' compact summary, just without the
-        "<title> failed:" wrapper, and empty whenever this page passed,
-        wasn't tested, or failed with no reason recorded."""
-        if self.passed is not False:
-            return []
-        return self._failed_codes()
-
     def get_notes_entries(self):
         """Each reported reason becomes its own coded detail (e.g. "KB02:
         Key(s) Sticking (F, G)"), all joined onto a single line so multiple
@@ -1427,6 +1467,21 @@ class TogglePage(Adw.Bin):
             else:
                 details.append(label)
         return [{"text": ", ".join(details)}]
+
+    def get_sortly_entries(self):
+        """This page's failure reasons as "<code>|<description>[:<locations>]"
+        strings for Sortly's Speccing Notes field (see _sortly_entry) --
+        parallels get_notes_entries above, but keeps each reason's
+        description and location detail in Sortly's fixed machine-parsed
+        shape instead of the tracking sheet's prose. Description text is
+        the reason string verbatim, same wording get_notes_entries uses."""
+        if self.passed is not False:
+            return []
+        entries = []
+        for reason, data in self._sorted_reason_items():
+            code = self._reason_code(reason)
+            entries.append(_sortly_entry(code, reason, self._locations_list(data)))
+        return entries
 
     def get_result(self):
         if self.passed is None:
@@ -2689,9 +2744,8 @@ class PhysicalDefectsPage(Adw.Bin):
 
     def _failed_codes(self):
         """Data codes (e.g. "PD01") for every reported defect, deduped and
-        sorted in numeric order -- shared by get_failure_reasons' compact
-        summary and get_datacodes' feed to the Sortly Data Codes string
-        (see SpecCompleteV3._gather_datacodes). "Broken Part" contributes
+        sorted in numeric order -- used for get_failure_reasons' compact
+        Spec Complete summary. "Broken Part" contributes
         whichever real codes its selected sub-types map to (see
         _broken_part_codes_and_details) instead of one generic code for
         the whole entry -- empty when everything selected under it was
@@ -2724,11 +2778,6 @@ class PhysicalDefectsPage(Adw.Bin):
             return ["Physical defects present"]
         return [", ".join(codes)]
 
-    def get_datacodes(self):
-        """See TogglePage.get_datacodes -- same Data Codes feed, computed
-        from _failed_codes() above."""
-        return self._failed_codes()
-
     def get_notes_entries(self):
         """All reported defects are concatenated onto a single line (rather
         than one line per defect type) so damages affecting the device read
@@ -2749,6 +2798,113 @@ class PhysicalDefectsPage(Adw.Bin):
         if not details:
             return []
         return [{"text": ", ".join(details)}]
+
+    def _broken_part_sortly_entries(self, data):
+        """Sortly-format sibling of _broken_part_codes_and_details -- same
+        sub-type -> code branching (Keys/Screen/USB-A/USB-C deliberately
+        left out since those report on their own dedicated page), just
+        formatted as "<code>|<description>[:<locations>]" entries instead
+        of tracking-sheet prose."""
+        sub_types = data.get("sub_types") or []
+        entries = []
+        for hinge_type, code in BROKEN_PART_HINGE_CODES.items():
+            if hinge_type in sub_types:
+                entries.append((code, _sortly_entry(code, hinge_type)))
+        if BROKEN_PART_OTHER_TYPE in sub_types:
+            text = data.get("other_text", "").strip()
+            if text:
+                code = f"{self.CODE_PREFIX}{CUSTOM_REASON_CODE_SUFFIX}"
+                entries.append((code, _sortly_entry(code, text)))
+        if BROKEN_PART_PORT_TYPE in sub_types:
+            port_data = data.get("port_damage") or {}
+            locations = port_data.get("locations") or {}
+            port_numbers = port_data.get("port_numbers") or {}
+            custom_text = port_data.get("custom_text") or {}
+            for port_type in port_data.get("types") or []:
+                if self._usb_page_for_type(port_type) is not None:
+                    continue
+                name = port_type
+                if port_type == PHYSICAL_PORT_OTHER_TYPE:
+                    custom = custom_text.get(port_type, "").strip()
+                    name = custom if custom else PHYSICAL_PORT_OTHER_TYPE
+                    code = BROKEN_PART_PORT_OTHER_CODE
+                else:
+                    code = BROKEN_PART_PORT_CODE
+                locs = locations.get(port_type) or []
+                loc_list = []
+                for location in locs:
+                    port_num = port_numbers.get(port_type, {}).get(location, "").strip()
+                    loc_list.append(
+                        f"{location} (port #{port_num})" if port_num else location
+                    )
+                entries.append((code, _sortly_entry(code, name, loc_list or None)))
+        return entries
+
+    def _defect_sortly_entries(self, defect_type, data):
+        """Sortly-format sibling of _defect_detail -- same location kinds,
+        formatted as (code, entry) pairs instead of one prose string per
+        defect. "Broken Part" fans out into its own real codes (see
+        _broken_part_sortly_entries) instead of a single PD entry."""
+        code = self._defect_code(defect_type)
+        kind = data.get("type")
+
+        if kind == "sections":
+            selected = data.get("selected") or None
+            return [(code, _sortly_entry(code, defect_type, selected))]
+
+        if kind == "part_location":
+            parts = data.get("parts") or []
+            if not parts:
+                return [(code, _sortly_entry(code, defect_type))]
+            locations = data.get("locations") or {}
+            loc_list = []
+            for part in parts:
+                selected = locations.get(part) or []
+                loc_list.append(f"{part} ({','.join(selected)})" if selected else part)
+            return [(code, _sortly_entry(code, defect_type, loc_list))]
+
+        if kind == "port_damage":
+            types = data.get("types") or []
+            if not types:
+                return [(code, _sortly_entry(code, defect_type))]
+            locations = data.get("locations") or {}
+            port_numbers = data.get("port_numbers") or {}
+            custom_text = data.get("custom_text") or {}
+            loc_list = []
+            for port_type in types:
+                name = port_type
+                if port_type == PHYSICAL_PORT_OTHER_TYPE:
+                    custom = custom_text.get(port_type, "").strip()
+                    name = custom if custom else PHYSICAL_PORT_OTHER_TYPE
+                locs = locations.get(port_type) or []
+                sub_parts = []
+                for location in locs:
+                    port_num = port_numbers.get(port_type, {}).get(location, "").strip()
+                    sub_parts.append(
+                        f"{location} (port #{port_num})" if port_num else location
+                    )
+                loc_text = ",".join(sub_parts) if sub_parts else None
+                loc_list.append(f"{name} ({loc_text})" if loc_text else name)
+            return [(code, _sortly_entry(code, defect_type, loc_list))]
+
+        if kind == "broken_part":
+            return self._broken_part_sortly_entries(data)
+
+        return [(code, _sortly_entry(code, defect_type))]
+
+    def get_sortly_entries(self):
+        """Sortly-format sibling of get_notes_entries -- see _sortly_entry
+        for the exact <code>|<description>[:<locations>] shape. "Broken
+        Part" fans out into one entry per real code (see
+        _defect_sortly_entries/_broken_part_sortly_entries), same as
+        get_notes_entries via _defect_detail."""
+        if self.has_defects is not True:
+            return []
+        entries = []
+        for defect_type, data in self._sorted_defect_items():
+            entries.extend(self._defect_sortly_entries(defect_type, data))
+        entries.sort(key=lambda entry: self._code_sort_key(entry[0]))
+        return [text for _, text in entries]
 
     def get_result(self):
         if self.has_defects is None:
@@ -2973,9 +3129,9 @@ class TouchpadPage(TogglePage):
                 loc_text = (
                     ", ".join(locations) if locations else "no location specified"
                 )
-                notes.append((code, f"{code} {label}: {loc_text}"))
+                notes.append((code, f"{code}: {label} ({loc_text})"))
             else:
-                notes.append((code, f"{code} {label}"))
+                notes.append((code, f"{code}: {label}"))
         return notes
 
     def _touchpad_cursor_notes(self, data):
@@ -2992,7 +3148,7 @@ class TouchpadPage(TogglePage):
                 if opt == "Cursor moves on its own"
                 else ""
             )
-            notes.append((code, f"{code} {label}{addendum}"))
+            notes.append((code, f"{code}: {label}{addendum}"))
         return notes
 
     def _touchpad_reason_notes(self, reason, data):
@@ -3002,7 +3158,7 @@ class TouchpadPage(TogglePage):
             return self._touchpad_cursor_notes(data)
         code = self._reason_code(reason)
         if reason in TOUCHPAD_REASON_NOTES:
-            return [(code, f"{code} {TOUCHPAD_REASON_NOTES[reason]}")]
+            return [(code, f"{code}: {TOUCHPAD_REASON_NOTES[reason]}")]
         # Custom free-text reason -- fall back to the generic coded label
         # (already includes a code, e.g. "TPO: some custom text").
         return [(code, self._reason_label(reason))]
@@ -3021,6 +3177,61 @@ class TouchpadPage(TogglePage):
         if not culprits:
             return ""
         return f" (May be a {' or '.join(culprits)} issue)"
+
+    def _touchpad_click_sortly_entries(self, data):
+        """Sortly-format sibling of _touchpad_click_notes -- same fixed
+        code per side, formatted as "<code>|<description>[:<locations>]"
+        instead of tracking-sheet prose."""
+        sides = data.get("sides") or []
+        entries = []
+        for side in sides:
+            code = TOUCHPAD_CLICK_SIDE_CODES[side]
+            label = TOUCHPAD_CLICK_CODE_LABELS[code]
+            locations = None
+            if side in TOUCHPAD_CLICK_SIDES_WITH_LOCATION:
+                locations = data.get("locations", {}).get(side) or None
+            entries.append((code, _sortly_entry(code, label, locations)))
+        return entries
+
+    def _touchpad_cursor_sortly_entries(self, data):
+        """Sortly-format sibling of _touchpad_cursor_notes."""
+        selected = data.get("selected") or []
+        entries = []
+        for opt in selected:
+            code = TOUCHPAD_CURSOR_CODES[opt]
+            label = TOUCHPAD_CURSOR_CODE_LABELS[code]
+            addendum = (
+                self._cursor_moves_addendum()
+                if opt == "Cursor moves on its own"
+                else ""
+            )
+            entries.append((code, _sortly_entry(code, f"{label}{addendum}")))
+        return entries
+
+    def _touchpad_reason_sortly_entries(self, reason, data):
+        """Sortly-format sibling of _touchpad_reason_notes."""
+        if reason == TOUCHPAD_CLICK_REASON:
+            return self._touchpad_click_sortly_entries(data)
+        if reason == TOUCHPAD_CURSOR_REASON:
+            return self._touchpad_cursor_sortly_entries(data)
+        code = self._reason_code(reason)
+        if reason in TOUCHPAD_REASON_NOTES:
+            return [(code, _sortly_entry(code, TOUCHPAD_REASON_NOTES[reason]))]
+        return [(code, _sortly_entry(code, reason))]
+
+    def get_sortly_entries(self):
+        """Overrides TogglePage.get_sortly_entries -- "A problem with left
+        or right click" and "Something is wrong with how the cursor moves"
+        have no code of their own; each selected sub-option becomes its own
+        entry instead (see _touchpad_reason_sortly_entries), same fan-out
+        pattern as get_notes_entries."""
+        if self.passed is not False:
+            return []
+        entries = []
+        for reason, (entry_row, data) in self._reason_entries.items():
+            entries.extend(self._touchpad_reason_sortly_entries(reason, data))
+        entries.sort(key=lambda entry: self._code_sort_key(entry[0]))
+        return [text for _, text in entries]
 
 
 class ScreenSectionMixin:
@@ -3243,6 +3454,33 @@ class BrowserPage(TogglePage):
             entries.append((self._reason_code(reason), text))
         entries.sort(key=lambda entry: self._code_sort_key(entry[0]))
         return [{"text": ", ".join(text for _, text in entries)}]
+
+    def _sound_reason_sortly_entries(self, data):
+        """Sortly-format sibling of _sound_reason_notes."""
+        selected = data.get("selected") or []
+        entries = []
+        for option in selected:
+            code = SOUND_REASON_CODES.get(option, SOUND_CUSTOM_CODE)
+            entries.append((code, _sortly_entry(code, option)))
+        return entries
+
+    def get_sortly_entries(self):
+        """Overrides TogglePage.get_sortly_entries -- "Audio" has no code
+        of its own; each Sound issue selected under it becomes its own
+        entry instead (see _sound_reason_sortly_entries), same fan-out
+        pattern as get_notes_entries."""
+        if self.passed is not False:
+            return []
+        entries = []
+        for reason, (entry_row, data) in self._reason_entries.items():
+            if reason == "Audio":
+                entries.extend(self._sound_reason_sortly_entries(data))
+                continue
+            code = self._reason_code(reason)
+            locations = None if data.get("type") == "none" else self._locations_list(data)
+            entries.append((code, _sortly_entry(code, reason, locations)))
+        entries.sort(key=lambda entry: self._code_sort_key(entry[0]))
+        return [text for _, text in entries]
 
 
 class WebcamPage(TogglePage):
@@ -3835,8 +4073,8 @@ class KeyboardPage(TogglePage):
 
     def get_notes_entries(self):
         """Overrides TogglePage.get_notes_entries -- tracking-sheet notes
-        read "<code> <reason> (<keys>)" (e.g. "KB02 Keys do not work (F,
-        G)"), or just "<code> <reason>" for the reasons with no keys to
+        read "<code>: <reason> (<keys>)" (e.g. "KB02: Keys do not work (F,
+        G)"), or just "<code>: <reason>" for the reasons with no keys to
         list (see KEYBOARD_NO_KEYS_REASONS). "Physical damage" contributes
         one entry per real code its categories map to (see
         _physical_damage_notes). Entries always come out in KB01, KB02, ...
@@ -3852,10 +4090,10 @@ class KeyboardPage(TogglePage):
                 continue
             code = self._reason_code(reason)
             if data.get("type") == "none":
-                entries.append((code, f"{code} {reason}"))
+                entries.append((code, f"{code}: {reason}"))
             else:
                 loc_text = self._locations_text(data)
-                entries.append((code, f"{code} {reason} ({loc_text})"))
+                entries.append((code, f"{code}: {reason} ({loc_text})"))
         entries.sort(key=lambda entry: self._code_sort_key(entry[0]))
         return [{"text": ", ".join(text for _, text in entries)}]
 
@@ -3899,5 +4137,48 @@ class KeyboardPage(TogglePage):
                 key_text = "Entire Keyboard"
             else:
                 key_text = ", ".join(keys) if keys else "no keys specified"
-            notes.append((code, f"{code} {label} ({key_text})"))
+            notes.append((code, f"{code}: {label} ({key_text})"))
         return notes
+
+    def _physical_damage_sortly_entries(self, data):
+        """Sortly-format sibling of _physical_damage_notes -- same
+        category -> code merge (see there for the "Keys are scratched"
+        merging into KB04 rule), formatted as
+        "<code>|<description>[:<keys>]" entries instead of tracking-sheet
+        prose."""
+        categories = data.get("categories") or {}
+        code_keys = {}
+        for category, keys in categories.items():
+            code = PHYSICAL_DAMAGE_CATEGORY_CODES[category]
+            existing = code_keys.setdefault(code, [])
+            if keys == ENTIRE_KEYBOARD_MARKER or existing == ENTIRE_KEYBOARD_MARKER:
+                code_keys[code] = ENTIRE_KEYBOARD_MARKER
+            else:
+                for key in keys:
+                    if key not in existing:
+                        existing.append(key)
+
+        entries = []
+        for code, keys in code_keys.items():
+            label = PHYSICAL_DAMAGE_CODE_LABELS[code]
+            locations = ["Entire Keyboard"] if keys == ENTIRE_KEYBOARD_MARKER else (keys or None)
+            entries.append((code, _sortly_entry(code, label, locations)))
+        return entries
+
+    def get_sortly_entries(self):
+        """Overrides TogglePage.get_sortly_entries -- "Physical damage"
+        contributes one entry per real code its categories map to (see
+        _physical_damage_sortly_entries), same fan-out pattern as
+        get_notes_entries."""
+        if self.passed is not False:
+            return []
+        entries = []
+        for reason, (entry_row, data) in self._reason_entries.items():
+            if reason == KEYBOARD_PHYSICAL_DAMAGE_REASON:
+                entries.extend(self._physical_damage_sortly_entries(data))
+                continue
+            code = self._reason_code(reason)
+            locations = None if data.get("type") == "none" else self._locations_list(data)
+            entries.append((code, _sortly_entry(code, reason, locations)))
+        entries.sort(key=lambda entry: self._code_sort_key(entry[0]))
+        return [text for _, text in entries]
