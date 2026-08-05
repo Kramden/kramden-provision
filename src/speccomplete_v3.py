@@ -11,7 +11,7 @@ gi.require_version("Adw", "1")
 from gi.repository import Adw, Gtk, GLib
 from utils import Utils
 from generate_tracking_sheet_v3 import generate_tracking_sheet, prefetch_tracking_sheet_data
-from sortly_register import REPORT_DATACODES_TO_SORTLY
+from sortly_register import REPORT_SPECCING_NOTES_TO_SORTLY
 
 # Once the Manual Tests failure/incomplete list exceeds this many rows, the
 # remainder spills into a second column instead of growing the page past the
@@ -186,7 +186,7 @@ class SpecCompleteV3(Adw.Bin):
         # is_complete() and on_shown() below.
         self._tracking_reviewed = False
         self._tracking_printed = False
-        # Set while complete() is waiting on the Sortly datacodes update
+        # Set while complete() is waiting on the Sortly Speccing Notes update
         # it kicked off (see _complete_with_sortly_report) -- keeps
         # is_complete() (and so the wizard's "Complete" button) disabled
         # for that window so a second click can't fire a duplicate report
@@ -246,13 +246,13 @@ class SpecCompleteV3(Adw.Bin):
 
     def complete(self):
         print("SpecCompleteV3: complete")
-        if REPORT_DATACODES_TO_SORTLY and self.sortly_register:
+        if REPORT_SPECCING_NOTES_TO_SORTLY and self.sortly_register:
             self._complete_with_sortly_report()
         else:
             self._power_off()
 
     def _complete_with_sortly_report(self):
-        """Send this machine's aggregated datacodes to Sortly and block
+        """Send this machine's aggregated Speccing Notes to Sortly and block
         powering off until that's confirmed one way or the other -- see
         _on_sortly_report_complete for what happens next. Disables the
         "Complete" button for the duration (see is_complete()) so a
@@ -260,12 +260,12 @@ class SpecCompleteV3(Adw.Bin):
         self._sortly_send_in_progress = True
         if self.on_status_changed:
             self.on_status_changed()
-        self.tracking_status.set_label("Sending Data Codes to Sortly...")
+        self.tracking_status.set_label("Sending Speccing Notes to Sortly...")
         if self.tracking_status.has_css_class("text-error"):
             self.tracking_status.remove_css_class("text-error")
 
         notes = self._gather_sortly_notes()
-        self.sortly_register.report_datacodes(
+        self.sortly_register.report_speccing_notes(
             notes, on_complete=self._on_sortly_report_complete
         )
 
@@ -462,7 +462,7 @@ class SpecCompleteV3(Adw.Bin):
         concatenated across all pages into one "/"-joined string with no
         spaces around any delimiter, e.g. "KB01|Keys do not
         work:A,B/TP01|Touchpad does not work at all" -- the format fed to
-        SortlyRegister.report_datacodes(). Pages that passed, weren't
+        SortlyRegister.report_speccing_notes(). Pages that passed, weren't
         tested, or have no get_sortly_entries() (SpecInfo isn't a manual
         test page) contribute nothing."""
         entries = []
@@ -506,7 +506,7 @@ class SpecCompleteV3(Adw.Bin):
             notes_entries.extend(self.specinfo.get_notes_entries())
 
         if self.sortly_register:
-            self.sortly_register.report_datacodes(self._gather_sortly_notes())
+            self.sortly_register.report_speccing_notes(self._gather_sortly_notes())
 
         self.tracking_button.set_sensitive(False)
         if not knumber:
@@ -1079,7 +1079,7 @@ class SpecCompleteV3(Adw.Bin):
         both reviewed and printed the tracking sheet at least once (see
         on_shown(), which resets this if they navigate away and the
         underlying results change), and re-disables it for as long as a
-        Sortly datacodes report kicked off by clicking "Complete" is still
+        Sortly Speccing Notes report kicked off by clicking "Complete" is still
         in flight (see _complete_with_sortly_report), so a second click
         can't fire a duplicate report."""
         return (

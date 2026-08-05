@@ -424,7 +424,7 @@ SCREEN_SECTIONS = [
 def _sortly_entry(code, description, locations=None):
     """Format one failure reason as "<code>|<description>[:<locations>]" --
     the exact shape Sortly's "Speccing Notes" custom attribute expects (see
-    SpecCompleteV3._gather_sortly_notes/SortlyRegister.report_datacodes).
+    SpecCompleteV3._gather_sortly_notes/SortlyRegister.report_speccing_notes).
     `locations`, if given, is a list of strings joined with "," and no
     surrounding whitespace; a reason with nothing to point at (e.g.
     "TP01|Touchpad does not work at all") omits the ":" entirely."""
