@@ -89,6 +89,8 @@ sources = [
   'landscape_dark.png',
   'inspection_animation_placeholder.gif',
   'keyboard_animation.gif',
+  'screen_animation.gif',
+  'touchpad_animation.gif',
   'guide.py',
 ]
 

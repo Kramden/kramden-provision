@@ -808,6 +808,15 @@ KEYBOARD_GIF_PATH = os.path.join(
     os.path.dirname(os.path.realpath(__file__)), "keyboard_animation.gif"
 )
 
+# Real inspection-step animations for the Screen and Touchpad pages -- see
+# ScreenPage/TouchpadPage's gif_path param.
+SCREEN_GIF_PATH = os.path.join(
+    os.path.dirname(os.path.realpath(__file__)), "screen_animation.gif"
+)
+TOUCHPAD_GIF_PATH = os.path.join(
+    os.path.dirname(os.path.realpath(__file__)), "touchpad_animation.gif"
+)
+
 
 def _build_gif_widget(gif_path):
     try:
@@ -3044,7 +3053,7 @@ class TouchpadPage(TogglePage):
                 " your finger across the touchpad that the"
                 " cursor moves cleanly and accurately. "
             ),
-            gif_path=None,
+            gif_path=TOUCHPAD_GIF_PATH,
         )
 
     def build_reason_locations(self, entry_row, reason):
@@ -3354,6 +3363,7 @@ class ScreenPage(ScreenSectionMixin, TogglePage):
                 "rag when testing to help tell apart real damage and "
                 "dirtiness. (Please never spray directly onto the screen)"
             ),
+            gif_path=SCREEN_GIF_PATH,
         )
         self.utils = Utils()
 
@@ -3416,6 +3426,7 @@ class BrowserPage(TogglePage):
                 "Click below to open a test video in Firefox and confirm both "
                 "video playback and audio play correctly."
             ),
+            gif_path=None,
         )
         self.utils = Utils()
 
@@ -3562,6 +3573,7 @@ class WebcamPage(TogglePage):
                 "Click below to open the webcam test. During it, ensure the "
                 "picture is clear and accurate."
             ),
+            gif_path=None,
         )
         self.utils = Utils()
         # Detected once at startup, since webcam hardware presence doesn't
