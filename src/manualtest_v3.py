@@ -175,7 +175,15 @@ WIFI_DEFECT_TYPES = [
     "Wi-Fi doesn't work",
     "Wi-Fi is extremely slow",
     "No WiFi device detected",
+    # Reported automatically (not something a tech picks by hand) when
+    # the automated gateway ping test run on page load comes back with
+    # any packet loss -- see WiFiPage._check_gateway_ping. Appended as
+    # the 4th entry so it becomes WF04, leaving WF01-WF03 untouched.
+    "No connectivity to gateway detected",
 ]
+# Must match the last WIFI_DEFECT_TYPES entry exactly -- see
+# WiFiPage._check_gateway_ping.
+WIFI_GATEWAY_PING_FAILURE_REASON = "No connectivity to gateway detected"
 
 TOUCHPAD_DEFECT_TYPES = [
     "Touchpad does not work at all",
@@ -2945,19 +2953,45 @@ class WiFiPage(TogglePage):
             instructions=(
                 "Connect to a Wi-Fi network and confirm the connection is "
                 "stable. This page is skipped automatically once a "
-                "connection is detected."
+                "connection is detected and a gateway ping test passes."
             ),
         )
 
     def on_shown(self):
         connected = Utils.is_wifi_connected()
-        self.skip = connected
-        if connected:
+        ping_ok = self._check_gateway_ping() if connected else True
+        self.skip = connected and ping_ok
+        if connected and ping_ok:
             self.passed = True
         if self.state is not None:
             state = self.state.get_value()
-            state[self.key] = connected or bool(self.passed)
-        print(f"WiFi:on_shown connected={connected} skip={self.skip}")
+            state[self.key] = (connected and ping_ok) or bool(self.passed)
+        print(
+            f"WiFi:on_shown connected={connected} ping_ok={ping_ok} "
+            f"skip={self.skip}"
+        )
+
+    def _check_gateway_ping(self):
+        """Automated reachability check, run once per page view while
+        NetworkManager reports WiFi connected: ping the machine's default
+        gateway 10 times and, on any packet loss, fail this page
+        automatically (WF04/WIFI_GATEWAY_PING_FAILURE_REASON) via the
+        same toggle-button path a tech would use by hand, rather than
+        trusting the "connected" state alone. Already-failed pings from
+        an earlier visit to this page aren't re-run."""
+        if WIFI_GATEWAY_PING_FAILURE_REASON in self._reason_entries:
+            return False
+        if Utils.gateway_ping_ok():
+            return True
+        self.fail_button.set_active(True)
+        self._reason_buttons[WIFI_GATEWAY_PING_FAILURE_REASON].set_active(True)
+        return False
+
+    def _reason_label(self, reason):
+        label = super()._reason_label(reason)
+        if reason == WIFI_GATEWAY_PING_FAILURE_REASON:
+            return f"{label} (Failed ping test)"
+        return label
 
     def build_reason_locations(self, entry_row, reason):
         return {"type": "none"}
