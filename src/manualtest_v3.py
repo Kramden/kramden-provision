@@ -176,13 +176,14 @@ WIFI_DEFECT_TYPES = [
     "Wi-Fi is extremely slow",
     "No WiFi device detected",
     # Reported automatically (not something a tech picks by hand) when
-    # the automated gateway ping test run on page load comes back with
-    # any packet loss -- see WiFiPage._check_gateway_ping. Appended as
-    # the 4th entry so it becomes WF04, leaving WF01-WF03 untouched.
+    # the automated gateway ping test run in the background comes back
+    # with any packet loss -- see WiFiPage._on_connectivity_checked.
+    # Appended as the 4th entry so it becomes WF04, leaving WF01-WF03
+    # untouched.
     "No connectivity to gateway detected",
 ]
 # Must match the last WIFI_DEFECT_TYPES entry exactly -- see
-# WiFiPage._check_gateway_ping.
+# WiFiPage._on_connectivity_checked.
 WIFI_GATEWAY_PING_FAILURE_REASON = "No connectivity to gateway detected"
 
 TOUCHPAD_DEFECT_TYPES = [
@@ -2957,9 +2958,31 @@ class WiFiPage(TogglePage):
             ),
         )
 
+        self._ping_pending = False
+        # None = no completed gateway-ping result for the current
+        # connection yet. Reset to None whenever WiFi drops so a later
+        # reconnect gets a fresh check. Kick off a check immediately at
+        # construction time -- i.e. as soon as the app opens -- instead of
+        # waiting for this page to become visible, so the ~10s ping (see
+        # Utils.gateway_ping_ok) never stalls Next/Previous navigation.
+        self._ping_ok = None
+        self.start_connectivity_check()
+
     def on_shown(self):
         connected = Utils.is_wifi_connected()
-        ping_ok = self._check_gateway_ping() if connected else True
+        if not connected:
+            self._ping_ok = None
+        elif (
+            self._ping_ok is None
+            and not self._ping_pending
+            and WIFI_GATEWAY_PING_FAILURE_REASON not in self._reason_entries
+        ):
+            self.start_connectivity_check()
+        # Treat "not connected" or "no result yet" as ok-for-now so this
+        # page is never gated on the background ping finishing -- a
+        # pending/failed check updates skip/passed asynchronously via
+        # _on_connectivity_checked once it completes.
+        ping_ok = True if not connected else (self._ping_ok is not False)
         self.skip = connected and ping_ok
         if connected and ping_ok:
             self.passed = True
@@ -2968,24 +2991,34 @@ class WiFiPage(TogglePage):
             state[self.key] = (connected and ping_ok) or bool(self.passed)
         print(
             f"WiFi:on_shown connected={connected} ping_ok={ping_ok} "
-            f"skip={self.skip}"
+            f"pending={self._ping_pending} skip={self.skip}"
         )
 
-    def _check_gateway_ping(self):
-        """Automated reachability check, run once per page view while
-        NetworkManager reports WiFi connected: ping the machine's default
-        gateway 10 times and, on any packet loss, fail this page
-        automatically (WF04/WIFI_GATEWAY_PING_FAILURE_REASON) via the
-        same toggle-button path a tech would use by hand, rather than
-        trusting the "connected" state alone. Already-failed pings from
-        an earlier visit to this page aren't re-run."""
-        if WIFI_GATEWAY_PING_FAILURE_REASON in self._reason_entries:
-            return False
-        if Utils.gateway_ping_ok():
-            return True
-        self.fail_button.set_active(True)
-        self._reason_buttons[WIFI_GATEWAY_PING_FAILURE_REASON].set_active(True)
-        return False
+    def start_connectivity_check(self):
+        """Run the (possibly ~10s) connected + gateway-ping check on a
+        background thread so it never blocks the GTK main loop -- neither
+        at app startup nor on page navigation. Safe to call before this
+        page has ever been shown."""
+        if self._ping_pending:
+            return
+        self._ping_pending = True
+
+        def _worker():
+            connected = Utils.is_wifi_connected()
+            ping_ok = Utils.gateway_ping_ok() if connected else True
+            GLib.idle_add(self._on_connectivity_checked, connected, ping_ok)
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _on_connectivity_checked(self, connected, ping_ok):
+        self._ping_pending = False
+        if connected:
+            self._ping_ok = ping_ok
+            if not ping_ok:
+                self.fail_button.set_active(True)
+                self._reason_buttons[WIFI_GATEWAY_PING_FAILURE_REASON].set_active(True)
+        self.on_shown()
+        return GLib.SOURCE_REMOVE
 
     def _reason_label(self, reason):
         label = super()._reason_label(reason)
