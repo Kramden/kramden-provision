@@ -92,6 +92,7 @@ sources = [
   'screen_animation.gif',
   'touchpad_animation.gif',
   'guide.py',
+  'defect_types.json',
 ]
 
 install_emptydir(moduledir / 'css')

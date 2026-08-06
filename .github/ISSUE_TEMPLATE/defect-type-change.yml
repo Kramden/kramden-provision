@@ -1,0 +1,62 @@
+name: Defect type / datacode change
+description: Add or remove a defect-type button and its tracking-sheet datacode on a test page, without touching the codebase directly.
+title: "[Defect type] "
+labels: ["defect-type-request"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This opens a pull request that adds or removes one defect-type button (and its tracking-sheet datacode) on a Kramden Provision test page. A maintainer still has to review and merge it.
+
+        Only "plain" buttons can be changed this way -- ones that are just a label + a fixed code with no special behavior. Some buttons on these pages (e.g. Physical Defects' "Cracks"/"Broken Part", Keyboard's "Physical damage", Browser's "Audio") have extra logic wired to them and can't be added/removed here; those need a developer.
+  - type: dropdown
+    id: action
+    attributes:
+      label: Action
+      options:
+        - Add
+        - Remove
+    validations:
+      required: true
+  - type: dropdown
+    id: page
+    attributes:
+      label: Page
+      description: Which test page's button list should change.
+      options:
+        - Physical Defects
+        - Screen
+        - Touchscreen
+        - Webcam
+        - Keyboard
+        - USB-A
+        - USB-C
+        - WiFi
+        - Touchpad
+        - Browser
+        - Sound (Browser's "Audio" sub-picker)
+    validations:
+      required: true
+  - type: input
+    id: label
+    attributes:
+      label: Button label
+      description: The exact text on the button, e.g. "Speaker crackles at high volume". For Remove, this must match an existing button's label exactly.
+      placeholder: Exact button text
+    validations:
+      required: true
+  - type: input
+    id: datacode
+    attributes:
+      label: Datacode
+      description: 'Only for Add. Format "<PREFIX><NN>", e.g. "SC10" -- leave blank to auto-assign the next free code for this page. Ignored for Remove.'
+      placeholder: e.g. SC10 (optional)
+    validations:
+      required: false
+  - type: textarea
+    id: why
+    attributes:
+      label: Why
+      description: Context for whoever reviews the resulting PR.
+    validations:
+      required: false
