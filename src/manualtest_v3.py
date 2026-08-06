@@ -27,7 +27,7 @@ PHYSICAL_DEFECT_TYPES = [
     "Cracks",
     "Broken Part",
     "Laptop feet coming off",
-    "Heavy Scuffing",
+    "Significant Scuffing",
 ]
 # Fixed code overrides for defect types whose position in the list above
 # doesn't match their tracking-sheet code (see
@@ -42,16 +42,25 @@ PHYSICAL_DEFECT_CODES = {
     "Peeling Paint": "PD05",
     "Cracks": "PD06",
     "Laptop feet coming off": "PD08",
-    "Heavy Scuffing": "PD09",
+    "Significant Scuffing": "PD09",
 }
 # Feet issues are self-explanatory with no meaningful location to ask for.
 PHYSICAL_NO_LOCATION_TYPES = {
     "Laptop feet coming off",
 }
-# Marked the same way as a screen/touchscreen defect (see SCREEN_SECTIONS).
+# Defect types whose part-location picker (see
+# PhysicalDefectsPage._build_part_location_picker) offers PHYSICAL_SCREEN_PART
+# as an extra part alongside PHYSICAL_AFFECTED_PARTS -- picking it swaps in
+# the fullscreen click-through picker (marked the same way as a
+# screen/touchscreen defect, see SCREEN_SECTIONS) instead of the usual
+# sextant-grid row, since e.g. a crack across the display itself needs the
+# same picker ScreenPage/TouchscreenPage use for their own screen-location
+# defects.
 PHYSICAL_SCREEN_SECTION_TYPES = {"Cracks"}
 # Ask which part is affected, then where on that part (same sextant grid as
-# SCREEN_SECTIONS below -- see _build_section_picker).
+# SCREEN_SECTIONS below -- see _build_section_picker). PHYSICAL_SCREEN_PART
+# (only offered for PHYSICAL_SCREEN_SECTION_TYPES) is the one exception --
+# see _build_part_location_picker.
 PHYSICAL_PART_LOCATION_TYPES = {
     "Dents",
     "Deep Scratches",
@@ -67,14 +76,16 @@ PHYSICAL_AFFECTED_PARTS = [
     "On one of the sides of the laptop (including the back or front)",
     "One or multiple corners",
 ]
+# Extra part option appended for PHYSICAL_SCREEN_SECTION_TYPES -- see
+# _build_part_location_picker.
+PHYSICAL_SCREEN_PART = "Screen"
 # Ask which port type, reusing the same location picker as the dedicated
-# USB-A/USB-C pages (see UsbPortLocationMixin), plus its own optional
-# per-location port-# field. Only USB-A/USB-C trigger the
+# USB-A/USB-C pages (see UsbPortLocationMixin). Only USB-A/USB-C trigger the
 # suppress-on-matching-page logic below since those are the only port types
 # with their own dedicated test page; PHYSICAL_PORT_OTHER_TYPE additionally
 # asks for a free-text description of the port.
 PHYSICAL_PORT_DAMAGE_TYPES = {"Port Damaged"}
-PHYSICAL_PORT_OTHER_TYPE = "Some other broken port"
+PHYSICAL_PORT_OTHER_TYPE = "Some other port is damaged"
 PHYSICAL_PORT_TYPES = [
     "USB-A",
     "USB-C",
@@ -101,7 +112,7 @@ BROKEN_PART_PORT_TYPE = "Port physically broken"
 BROKEN_PART_HINGE_BROKEN_TYPE = "Hinge broken"
 BROKEN_PART_LOOSE_HINGE_TYPE = "Very loose hinge"
 BROKEN_PART_SCREEN_TYPE = "Screen"
-BROKEN_PART_OTHER_TYPE = "Some other broken part"
+BROKEN_PART_OTHER_TYPE = "Some other part is broken"
 BROKEN_PART_SUB_TYPES = [
     BROKEN_PART_KEYS_TYPE,
     BROKEN_PART_PORT_TYPE,
@@ -311,7 +322,7 @@ KEYBOARD_DEFECT_TYPES = [
     "Physical damage",
     "Keys need extra pressure or massaging to work",
     "It is an international keyboard",
-    "Keys stick",
+    "Keys stick when pressed, holding themselves down",
     "Keys report the incorrect keys when typing",
     "Keys are scratched",
     "Trackpoint missing",
@@ -329,7 +340,7 @@ KEYBOARD_REASON_CODES = {
     "Keys do not work": "KB02",
     "Keys need extra pressure or massaging to work": "KB06",
     "It is an international keyboard": "KB07",
-    "Keys stick": "KB08",
+    "Keys stick when pressed, holding themselves down": "KB08",
     "Keys report the incorrect keys when typing": "KB09",
     "Trackpoint missing": "KB11",
     "Trackpoint error": "KB12",
@@ -595,19 +606,22 @@ def _build_section_picker(
 ):
     """Embed a "click the affected section(s)" picker into `entry_row` and
     keep `data["selected"]` in sync as the tech makes a selection. Shared by
-    ScreenPage, TouchscreenPage, TouchpadPage, the generic default location
-    picker, and Physical Defects' "Screen Cracked"/dents-scratches-etc
-    pickers. `owner` just needs check_status(), called once a selection
-    changes.
+    ScreenPage, TouchscreenPage, TouchpadPage, and Physical Defects'
+    dents-scratches-etc part-location/generic default pickers. `owner` just
+    needs check_status(), called once a selection changes.
 
     `fullscreen=True` is for the call sites that are genuinely about
-    pointing at the physical screen (ScreenSectionMixin, Physical Defects'
-    "Screen Cracked") -- there the picker launches a fullscreen
-    click-through window (screen_section_picker_runner.py) over the 6
-    screen sections (see SCREEN_SECTIONS) instead of a small button grid.
-    Everything else (touchpad zones, port locations, the generic
-    default/custom-defect fallback) isn't a screen location, so it keeps
-    the original embedded button-grid picker regardless of `options`."""
+    pointing at the physical screen (ScreenSectionMixin) -- there the
+    picker launches a fullscreen click-through window
+    (screen_section_picker_runner.py) over the 6 screen sections (see
+    SCREEN_SECTIONS) instead of a small button grid. Everything else
+    (touchpad zones, port locations, the generic default/custom-defect
+    fallback) isn't a screen location, so it keeps the original embedded
+    button-grid picker regardless of `options`. Physical Defects' "Cracks"
+    reaches the same fullscreen picker a different way -- see
+    PhysicalDefectsPage._build_part_location_picker, which calls
+    _build_fullscreen_section_row directly so it can control when the
+    picker auto-launches."""
     options = options or SCREEN_SECTIONS
     if data is None:
         data = {"type": "sections", "selected": []}
@@ -628,13 +642,22 @@ def _build_section_picker(
     return data
 
 
-def _build_fullscreen_section_row(title, select_all_label, data, on_change=None):
+def _build_fullscreen_section_row(
+    title, select_all_label, data, on_change=None, auto_launch=True
+):
     """Build the Gtk.ListBoxRow used by the default (screen-section)
     _build_section_picker case: a title, a status label showing the
     currently selected section(s), and a button that launches the
     fullscreen click-through picker in screen_section_picker_runner.py.
     `on_change` is called with the list of currently selected sections (in
-    SCREEN_SECTIONS order) once the picker window closes."""
+    SCREEN_SECTIONS order) once the picker window closes.
+
+    `auto_launch=False` skips the "open it immediately" behavior below --
+    used by PhysicalDefectsPage._build_part_location_picker, whose "Screen"
+    part row gets rebuilt (along with every other selected part's row)
+    every time the tech toggles a *different* part on/off, which would
+    otherwise reopen the fullscreen picker and clobber an already-completed
+    selection."""
     row_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
     row_box.set_margin_top(8)
     row_box.set_margin_bottom(8)
@@ -711,52 +734,14 @@ def _build_fullscreen_section_row(title, select_all_label, data, on_change=None)
     # immediately" pattern as KeyPickerDialog/_build_physical_damage_picker.
     # The button stays so the picker can still be reopened to redo/correct
     # the selection.
-    GLib.idle_add(_on_launch_clicked, launch_button)
+    if auto_launch:
+        GLib.idle_add(_on_launch_clicked, launch_button)
 
     list_row = Gtk.ListBoxRow()
     list_row.set_selectable(False)
     list_row.set_activatable(False)
     list_row.set_child(row_box)
     return list_row
-
-
-def _rebuild_port_number_rows(
-    owner, ports_box, port_type, selected_locations, port_numbers
-):
-    """Rebuild the per-location "Port #" entry rows inside `ports_box` for
-    `port_type`'s currently `selected_locations` -- shared by Physical
-    Defects' "Port Damaged" and "Broken Part" -> "Port Physically Broken"
-    pickers (see PhysicalDefectsPage._build_port_damage_picker/
-    _build_broken_part_port_block). `owner` just needs
-    _on_port_number_insert_text()."""
-    child = ports_box.get_first_child()
-    while child is not None:
-        next_child = child.get_next_sibling()
-        ports_box.remove(child)
-        child = next_child
-    for location in selected_locations:
-        port_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        label = Gtk.Label(label=f"{location} Port #")
-        label.set_halign(Gtk.Align.START)
-        label.set_hexpand(True)
-        num_entry = Gtk.Entry()
-        num_entry.set_max_length(1)
-        num_entry.set_placeholder_text("optional")
-        num_entry.set_tooltip_text(
-            "Only needed if there are multiple of this type on this side"
-        )
-        num_entry.set_input_purpose(Gtk.InputPurpose.DIGITS)
-        num_entry.set_size_request(48, -1)
-        num_entry.set_text(port_numbers.get(port_type, {}).get(location, ""))
-        num_entry.connect("insert-text", owner._on_port_number_insert_text)
-
-        def _on_num_changed(entry, location=location):
-            port_numbers.setdefault(port_type, {})[location] = entry.get_text().strip()
-
-        num_entry.connect("changed", _on_num_changed)
-        port_row.append(label)
-        port_row.append(num_entry)
-        ports_box.append(port_row)
 
 
 def _build_note_row(text):
@@ -1756,17 +1741,8 @@ class PhysicalDefectsPage(Adw.Bin):
         if defect_type in PHYSICAL_NO_LOCATION_TYPES:
             return {"type": "none"}
 
-        if defect_type in PHYSICAL_SCREEN_SECTION_TYPES:
-            return _build_section_picker(
-                self,
-                entry_row,
-                title="Location of crack",
-                select_all_label="Entire Screen",
-                fullscreen=True,
-            )
-
         if defect_type in PHYSICAL_PART_LOCATION_TYPES:
-            return self._build_part_location_picker(entry_row)
+            return self._build_part_location_picker(defect_type, entry_row)
 
         if defect_type in PHYSICAL_PORT_DAMAGE_TYPES:
             return self._build_port_damage_picker(entry_row)
@@ -1780,12 +1756,19 @@ class PhysicalDefectsPage(Adw.Bin):
             self, entry_row, title="Location (optional)", select_all_label="Select All"
         )
 
-    def _build_part_location_picker(self, entry_row):
+    def _build_part_location_picker(self, defect_type, entry_row):
         # Each affected part gets its own independent location grid (rather
         # than one grid shared across all of them), since e.g. a scratch on
         # the Case and a scratch on the Screen aren't necessarily in the
-        # same sextant.
+        # same sextant. PHYSICAL_SCREEN_PART (offered only for
+        # PHYSICAL_SCREEN_SECTION_TYPES, e.g. "Cracks") is the one part whose
+        # "location" row is the fullscreen click-through picker instead of
+        # the sextant grid -- see _build_screen_part_row below.
         data = {"type": "part_location", "parts": [], "locations": {}}
+
+        parts_options = PHYSICAL_AFFECTED_PARTS
+        if defect_type in PHYSICAL_SCREEN_SECTION_TYPES:
+            parts_options = PHYSICAL_AFFECTED_PARTS + [PHYSICAL_SCREEN_PART]
 
         locations_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         locations_list_row = Gtk.ListBoxRow()
@@ -1793,7 +1776,30 @@ class PhysicalDefectsPage(Adw.Bin):
         locations_list_row.set_activatable(False)
         locations_list_row.set_child(locations_box)
 
-        def _rebuild_part_location_rows(selected_parts):
+        def _build_screen_part_row(newly_added):
+            # Rebuilt (like every other part's row) whenever *any* part is
+            # toggled on/off, so only auto-launch the fullscreen picker when
+            # "Screen" itself was just selected -- otherwise toggling some
+            # unrelated part (e.g. also checking "One or multiple corners")
+            # would reopen it on top of an already-completed selection.
+            screen_data = {
+                "type": "sections",
+                "selected": data["locations"].get(PHYSICAL_SCREEN_PART, []),
+            }
+
+            def _on_screen_change(selected):
+                data["locations"][PHYSICAL_SCREEN_PART] = selected
+                self.check_status()
+
+            return _build_fullscreen_section_row(
+                f"Location of {defect_type.lower()} on Screen",
+                "Entire Screen",
+                screen_data,
+                on_change=_on_screen_change,
+                auto_launch=newly_added,
+            )
+
+        def _rebuild_part_location_rows(selected_parts, newly_added):
             child = locations_box.get_first_child()
             while child is not None:
                 next_child = child.get_next_sibling()
@@ -1805,6 +1811,9 @@ class PhysicalDefectsPage(Adw.Bin):
                 if part in selected_parts
             }
             for part in selected_parts:
+                if part == PHYSICAL_SCREEN_PART:
+                    locations_box.append(_build_screen_part_row(part in newly_added))
+                    continue
 
                 def _on_location_change(selected, part=part):
                     data["locations"][part] = selected
@@ -1819,14 +1828,15 @@ class PhysicalDefectsPage(Adw.Bin):
                 locations_box.append(part_row)
 
         def _on_parts_change(selected):
+            previous_parts = data.get("parts") or []
             data["parts"] = selected
-            _rebuild_part_location_rows(selected)
+            _rebuild_part_location_rows(selected, set(selected) - set(previous_parts))
             self.check_status()
             _scroll_to_bottom(self.scrolled)
 
         parts_row = _build_section_row(
             f"Where is/are the {entry_row.get_title()}(s)?",
-            PHYSICAL_AFFECTED_PARTS,
+            parts_options,
             columns=3,
             on_change=_on_parts_change,
         )
@@ -1836,15 +1846,11 @@ class PhysicalDefectsPage(Adw.Bin):
 
     def _build_port_damage_picker(self, entry_row):
         # Multiple port types can be damaged at once (e.g. a USB-A port and
-        # the charging port), each with its own set of affected location(s)
-        # and, per location, an optional port # -- same per-location Port #
-        # pattern as UsbPortLocationMixin.build_reason_locations, just
-        # nested one level deeper (per port type instead of a single type).
+        # the charging port), each with its own set of affected location(s).
         data = {
             "type": "port_damage",
             "types": [],
             "locations": {},  # port_type -> [location, ...]
-            "port_numbers": {},  # port_type -> {location: port_num}
             "custom_text": {},  # port_type (PHYSICAL_PORT_OTHER_TYPE) -> custom description
             "_suppressed_pages": {},  # port_type -> page it's suppressed on
         }
@@ -1870,9 +1876,6 @@ class PhysicalDefectsPage(Adw.Bin):
             data["locations"] = {
                 t: v for t, v in data["locations"].items() if t in selected_types
             }
-            data["port_numbers"] = {
-                t: v for t, v in data["port_numbers"].items() if t in selected_types
-            }
             data["custom_text"] = {
                 t: v for t, v in data["custom_text"].items() if t in selected_types
             }
@@ -1897,63 +1900,8 @@ class PhysicalDefectsPage(Adw.Bin):
                     custom_entry.connect("changed", _on_custom_changed)
                     block.append(custom_entry)
 
-                ports_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
-
-                def _rebuild_ports(
-                    selected_locations, port_type=port_type, ports_box=ports_box
-                ):
-                    child = ports_box.get_first_child()
-                    while child is not None:
-                        next_child = child.get_next_sibling()
-                        ports_box.remove(child)
-                        child = next_child
-                    for location in selected_locations:
-                        port_row = Gtk.Box(
-                            orientation=Gtk.Orientation.HORIZONTAL, spacing=8
-                        )
-                        label = Gtk.Label(label=f"{location} Port #")
-                        label.set_halign(Gtk.Align.START)
-                        label.set_hexpand(True)
-                        num_entry = Gtk.Entry()
-                        num_entry.set_max_length(1)
-                        num_entry.set_placeholder_text("optional")
-                        num_entry.set_tooltip_text(
-                            "Only needed if there are multiple of this type on "
-                            "this side"
-                        )
-                        num_entry.set_input_purpose(Gtk.InputPurpose.DIGITS)
-                        num_entry.set_size_request(48, -1)
-                        num_entry.set_text(
-                            data["port_numbers"].get(port_type, {}).get(location, "")
-                        )
-                        num_entry.connect(
-                            "insert-text", self._on_port_number_insert_text
-                        )
-
-                        def _on_num_changed(
-                            entry, port_type=port_type, location=location
-                        ):
-                            data["port_numbers"].setdefault(port_type, {})[
-                                location
-                            ] = entry.get_text().strip()
-
-                        num_entry.connect("changed", _on_num_changed)
-                        port_row.append(label)
-                        port_row.append(num_entry)
-                        ports_box.append(port_row)
-
-                def _on_locations_change(
-                    selected, port_type=port_type, ports_box=ports_box
-                ):
+                def _on_locations_change(selected, port_type=port_type):
                     data["locations"][port_type] = selected
-                    data["port_numbers"][port_type] = {
-                        location: value
-                        for location, value in data["port_numbers"]
-                        .get(port_type, {})
-                        .items()
-                        if location in selected
-                    }
-                    _rebuild_ports(selected)
                     self.check_status()
                     _scroll_to_bottom(self.scrolled)
 
@@ -1964,8 +1912,6 @@ class PhysicalDefectsPage(Adw.Bin):
                     on_change=_on_locations_change,
                 )
                 block.append(location_row)
-                block.append(ports_box)
-                _rebuild_ports(data["locations"].get(port_type, []))
 
                 types_box.append(block)
 
@@ -2009,10 +1955,6 @@ class PhysicalDefectsPage(Adw.Bin):
         if port_type == "USB-C":
             return USB_C_PORT_DAMAGE_REASON
         return None
-
-    def _on_port_number_insert_text(self, entry, text, length, position):
-        if text and not text.isdigit():
-            GObject.signal_stop_emission_by_name(entry, "insert-text")
 
     def _build_broken_part_picker(self, entry_row):
         """ "Broken Part" -> "Keys Have Physical Damage"/"Screen"/"Port
@@ -2126,7 +2068,6 @@ class PhysicalDefectsPage(Adw.Bin):
         return {
             "types": [],
             "locations": {},
-            "port_numbers": {},
             "custom_text": {},
             "_delegated_pages": {},  # port_type -> delegation info
             "_blocks": {},  # port_type -> block widget, built once
@@ -2206,22 +2147,8 @@ class PhysicalDefectsPage(Adw.Bin):
                 custom_entry.connect("changed", _on_custom_changed)
                 block.append(custom_entry)
 
-            ports_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
-
-            def _on_locations_change(
-                selected, port_type=port_type, ports_box=ports_box
-            ):
+            def _on_locations_change(selected, port_type=port_type):
                 port_data["locations"][port_type] = selected
-                port_data["port_numbers"][port_type] = {
-                    location: value
-                    for location, value in port_data["port_numbers"]
-                    .get(port_type, {})
-                    .items()
-                    if location in selected
-                }
-                _rebuild_port_number_rows(
-                    self, ports_box, port_type, selected, port_data["port_numbers"]
-                )
                 self.check_status()
                 _scroll_to_bottom(self.scrolled)
 
@@ -2232,14 +2159,6 @@ class PhysicalDefectsPage(Adw.Bin):
                 on_change=_on_locations_change,
             )
             block.append(location_row)
-            block.append(ports_box)
-            _rebuild_port_number_rows(
-                self,
-                ports_box,
-                port_type,
-                port_data["locations"].get(port_type, []),
-                port_data["port_numbers"],
-            )
 
             return block
 
@@ -2252,7 +2171,6 @@ class PhysicalDefectsPage(Adw.Bin):
                     types_box.remove(block)
                 self._undelegate_broken_part_port(port_type, port_data)
                 port_data["locations"].pop(port_type, None)
-                port_data["port_numbers"].pop(port_type, None)
                 port_data["custom_text"].pop(port_type, None)
 
             port_data["types"] = selected_types
@@ -2358,7 +2276,7 @@ class PhysicalDefectsPage(Adw.Bin):
         }
 
     def _build_port_physical_damage_block(self, block, usb_page, reason):
-        """Embeds the same location/port-# picker usb_page itself would
+        """Embeds the same location picker usb_page itself would
         show (see UsbPortLocationMixin.build_reason_locations) directly
         inside this Physical Defects entry -- tracked under that page's
         own datacode (UA02/UC02) instead of a Physical Defects one, with a
@@ -2575,7 +2493,6 @@ class PhysicalDefectsPage(Adw.Bin):
         if BROKEN_PART_PORT_TYPE in sub_types:
             port_data = data.get("port_damage") or {}
             locations = port_data.get("locations") or {}
-            port_numbers = port_data.get("port_numbers") or {}
             custom_text = port_data.get("custom_text") or {}
             for port_type in port_data.get("types") or []:
                 if self._usb_page_for_type(port_type) is not None:
@@ -2588,15 +2505,7 @@ class PhysicalDefectsPage(Adw.Bin):
                 else:
                     code = BROKEN_PART_PORT_CODE
                 locs = locations.get(port_type) or []
-                loc_parts = []
-                for location in locs:
-                    port_num = port_numbers.get(port_type, {}).get(location, "").strip()
-                    loc_parts.append(
-                        f"{location} (port #{port_num})" if port_num else location
-                    )
-                loc_text = (
-                    ", ".join(loc_parts) if loc_parts else "no location specified"
-                )
+                loc_text = ", ".join(locs) if locs else "no location specified"
                 items.append((code, f"{code}: {name} ({loc_text})"))
         return items
 
@@ -2613,11 +2522,9 @@ class PhysicalDefectsPage(Adw.Bin):
             locations = data.get("locations") or {}
             return bool(parts) and all(locations.get(part) for part in parts)
         if kind == "port_damage":
-            # Every selected port type needs at least one location marked
-            # (port # itself stays optional -- only needed to disambiguate
-            # multiple same-side ports); PHYSICAL_PORT_OTHER_TYPE
-            # additionally requires the custom port description to be
-            # filled in.
+            # Every selected port type needs at least one location marked;
+            # PHYSICAL_PORT_OTHER_TYPE additionally requires the custom
+            # port description to be filled in.
             types = data.get("types") or []
             if not types:
                 return False
@@ -2731,7 +2638,6 @@ class PhysicalDefectsPage(Adw.Bin):
             if not types:
                 return f"{label} (no port type specified)"
             locations = data.get("locations") or {}
-            port_numbers = data.get("port_numbers") or {}
             custom_text = data.get("custom_text") or {}
             type_details = []
             for port_type in types:
@@ -2740,15 +2646,7 @@ class PhysicalDefectsPage(Adw.Bin):
                     custom = custom_text.get(port_type, "").strip()
                     name = custom if custom else PHYSICAL_PORT_OTHER_TYPE
                 locs = locations.get(port_type) or []
-                loc_parts = []
-                for location in locs:
-                    port_num = port_numbers.get(port_type, {}).get(location, "").strip()
-                    loc_parts.append(
-                        f"{location} (port #{port_num})" if port_num else location
-                    )
-                loc_text = (
-                    ", ".join(loc_parts) if loc_parts else "no location specified"
-                )
+                loc_text = ", ".join(locs) if locs else "no location specified"
                 type_details.append(f"{name}: {loc_text}")
             return f"{label} ({'; '.join(type_details)})"
 
@@ -2836,7 +2734,6 @@ class PhysicalDefectsPage(Adw.Bin):
         if BROKEN_PART_PORT_TYPE in sub_types:
             port_data = data.get("port_damage") or {}
             locations = port_data.get("locations") or {}
-            port_numbers = port_data.get("port_numbers") or {}
             custom_text = port_data.get("custom_text") or {}
             for port_type in port_data.get("types") or []:
                 if self._usb_page_for_type(port_type) is not None:
@@ -2849,13 +2746,7 @@ class PhysicalDefectsPage(Adw.Bin):
                 else:
                     code = BROKEN_PART_PORT_CODE
                 locs = locations.get(port_type) or []
-                loc_list = []
-                for location in locs:
-                    port_num = port_numbers.get(port_type, {}).get(location, "").strip()
-                    loc_list.append(
-                        f"{location} (port #{port_num})" if port_num else location
-                    )
-                entries.append((code, _sortly_entry(code, name, loc_list or None)))
+                entries.append((code, _sortly_entry(code, name, locs or None)))
         return entries
 
     def _defect_sortly_entries(self, defect_type, data):
@@ -2886,7 +2777,6 @@ class PhysicalDefectsPage(Adw.Bin):
             if not types:
                 return [(code, _sortly_entry(code, defect_type))]
             locations = data.get("locations") or {}
-            port_numbers = data.get("port_numbers") or {}
             custom_text = data.get("custom_text") or {}
             loc_list = []
             for port_type in types:
@@ -2895,13 +2785,7 @@ class PhysicalDefectsPage(Adw.Bin):
                     custom = custom_text.get(port_type, "").strip()
                     name = custom if custom else PHYSICAL_PORT_OTHER_TYPE
                 locs = locations.get(port_type) or []
-                sub_parts = []
-                for location in locs:
-                    port_num = port_numbers.get(port_type, {}).get(location, "").strip()
-                    sub_parts.append(
-                        f"{location} (port #{port_num})" if port_num else location
-                    )
-                loc_text = ",".join(sub_parts) if sub_parts else None
+                loc_text = ",".join(locs) if locs else None
                 loc_list.append(f"{name} ({loc_text})" if loc_text else name)
             return [(code, _sortly_entry(code, defect_type, loc_list))]
 
@@ -3555,7 +3439,9 @@ class BrowserPage(TogglePage):
                 entries.extend(self._sound_reason_sortly_entries(data))
                 continue
             code = self._reason_code(reason)
-            locations = None if data.get("type") == "none" else self._locations_list(data)
+            locations = (
+                None if data.get("type") == "none" else self._locations_list(data)
+            )
             entries.append((code, _sortly_entry(code, reason, locations)))
         entries.sort(key=lambda entry: self._code_sort_key(entry[0]))
         return [text for _, text in entries]
@@ -4240,7 +4126,11 @@ class KeyboardPage(TogglePage):
         entries = []
         for code, keys in code_keys.items():
             label = PHYSICAL_DAMAGE_CODE_LABELS[code]
-            locations = ["Entire Keyboard"] if keys == ENTIRE_KEYBOARD_MARKER else (keys or None)
+            locations = (
+                ["Entire Keyboard"]
+                if keys == ENTIRE_KEYBOARD_MARKER
+                else (keys or None)
+            )
             entries.append((code, _sortly_entry(code, label, locations)))
         return entries
 
@@ -4257,7 +4147,9 @@ class KeyboardPage(TogglePage):
                 entries.extend(self._physical_damage_sortly_entries(data))
                 continue
             code = self._reason_code(reason)
-            locations = None if data.get("type") == "none" else self._locations_list(data)
+            locations = (
+                None if data.get("type") == "none" else self._locations_list(data)
+            )
             entries.append((code, _sortly_entry(code, reason, locations)))
         entries.sort(key=lambda entry: self._code_sort_key(entry[0]))
         return [text for _, text in entries]

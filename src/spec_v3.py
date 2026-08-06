@@ -158,7 +158,7 @@ class WizardWindow(Gtk.ApplicationWindow):
 
         self.set_child(content_box)
         self.current_page = 0
-        self.update_buttons()
+        self.update_buttons(focus_next=True)
 
         # Apply CSS
         css_provider = Gtk.CssProvider()
@@ -211,7 +211,7 @@ class WizardWindow(Gtk.ApplicationWindow):
         if self.current_page > 0:
             self.current_page -= 1
             self.stack.set_visible_child_name(f"page{self.current_page + 1}")
-            self.update_buttons()
+            self.update_buttons(focus_next=True)
             page = self.pages[self.current_page]
             if page.skip:
                 print(f"on_prev_clicked: page{self.current_page + 1} skipped")
@@ -286,7 +286,7 @@ class WizardWindow(Gtk.ApplicationWindow):
         if self.current_page < last_index:
             self.current_page += 1
             self.stack.set_visible_child_name(f"page{self.current_page + 1}")
-            self.update_buttons()
+            self.update_buttons(focus_next=True)
             page = self.pages[self.current_page]
             if page.skip:
                 print(f"on_next_clicked: page{self.current_page + 1} skipped")
@@ -294,7 +294,7 @@ class WizardWindow(Gtk.ApplicationWindow):
         else:
             self.complete()
 
-    def update_buttons(self):
+    def update_buttons(self, focus_next=False):
         last_index = len(self.pages) - 1
         self.prev_button.set_sensitive(self.current_page > 0)
         self.next_button.set_sensitive(self.current_page <= last_index)
@@ -325,8 +325,12 @@ class WizardWindow(Gtk.ApplicationWindow):
             self.next_button.set_sensitive(False)
             self.prev_button.set_sensitive(False)
 
-        # Focus the next button
-        self.next_button.grab_focus()
+        # Focus the next button -- only when we just navigated to a page, not
+        # on every status update (that would steal focus out from under
+        # whatever entry field the tech is typing in, e.g. Broken Part's
+        # "Some other broken part" text box).
+        if focus_next:
+            self.next_button.grab_focus()
 
     def _on_specinfo_loading_changed(self, loading):
         self._specinfo_loading = loading
@@ -339,7 +343,7 @@ class WizardWindow(Gtk.ApplicationWindow):
             return
         self.current_page = index
         self.stack.set_visible_child_name(f"page{index + 1}")
-        self.update_buttons()
+        self.update_buttons(focus_next=True)
 
     def complete(self):
         print("Complete Clicked")
