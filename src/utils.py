@@ -1264,28 +1264,13 @@ class Utils:
     def should_show_usb_c_page():
         """Whether the USB-C manual test page should be shown at all.
 
-        A device with no USB-C ports never shows it. A device with USB-C
-        ports that also has a separate primary (Mains/barrel) charging port
-        always shows it, since the USB-C port(s) aren't otherwise exercised
-        during provisioning. A device with two or more USB-C ports also
-        always shows it, since even without a separate primary port, having
-        several means at least one of them isn't required for charging and
-        could be silently broken.
-
-        The one case it's skipped: exactly one USB-C port, and it's the
-        device's only charging port (no primary port, and a secondary USB
-        charging path is confirmed present) -- that port is already
-        exercised just by powering the device on for provisioning, so
-        there's nothing left to manually verify.
+        Detection is disabled for now: it's unreliable enough (missing
+        USB-C ports it should have caught) that the page is always shown,
+        regardless of what has_usb_c()/usb_c_port_count()/
+        get_charging_port_status() report. Techs on devices with no USB-C
+        port at all can just skip the page.
         """
-        if not Utils.has_usb_c():
-            return False
-        if Utils.usb_c_port_count() != 1:
-            return True
-        status = Utils.get_charging_port_status()
-        if status["has_primary_port"] or not status["has_secondary_port"]:
-            return True
-        return False
+        return True
 
     KRAMDEN_EFIVAR_GUID = "9a8e2042-75d4-4d70-9890-6a8437367c1f"
     KRAMDEN_EFIVAR_PATH = (
