@@ -472,6 +472,12 @@ class SortlyRegister(Adw.Bin):
             self.register_button.set_sensitive(True)
             self.knumber_entry.set_sensitive(True)
 
+    def is_registered(self):
+        """Whether this machine's Sortly record has been successfully
+        updated from this page -- used by SpecCompleteV3's System Info
+        summary to flag "Sortly data not updated" before printing."""
+        return self._submitted
+
     def report_speccing_notes(self, speccing_notes, on_complete=None):
         """Push the machine's aggregated Sortly notes string (see
         SpecCompleteV3._gather_sortly_notes/manualtest_v3._sortly_entry for
@@ -597,12 +603,17 @@ class SortlyRegister(Adw.Bin):
             # "must be a datetime instance" -- this custom attribute is
             # provisioned on Sortly's side as a full Date & Time type, so
             # it needs a complete ISO 8601 datetime. Tag it with this
-            # machine's actual UTC offset via astimezone() rather than
-            # hardcoding "Z" -- midnight local time mislabeled as midnight
-            # UTC lands on the previous day once Sortly converts it back
-            # for display in any timezone behind UTC.
+            # machine's actual UTC offset via astimezone() -- but even
+            # with the correct offset attached, Sortly still displayed the
+            # previous day, which means it isn't honoring the offset on
+            # its end. Sending local *noon* instead of local midnight
+            # keeps the calendar date correct no matter how Sortly (or
+            # whatever timezone its UI renders in) interprets the
+            # timestamp, since noon survives a shift of several hours
+            # either direction without crossing into the next/previous
+            # day.
             spec_datetime = (
-                datetime.combine(spec_date, time.min)
+                datetime.combine(spec_date, time(12, 0))
                 .astimezone()
                 .isoformat(timespec="milliseconds")
             )

@@ -61,6 +61,10 @@ class SpecCompleteV3(Adw.Bin):
         self.manual_test_pages = []
         self.specinfo = None
         self.on_navigate_to_page = None
+        # Set in on_shown() -- True if any manual test page is incomplete,
+        # the K-Number is missing/invalid, or the machine's Sortly record
+        # hasn't been updated. See is_complete() below.
+        self._blocking_issues = False
 
         # Print Tracking Sheet's biggest cost (variable-font instancing,
         # discrete-GPU lookup) doesn't depend on anything the tech does in
@@ -134,6 +138,22 @@ class SpecCompleteV3(Adw.Bin):
         columns_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=20)
         columns_box.append(left_col)
         columns_box.append(right_col)
+        # Bottom padding so the last row can scroll clear of the floating
+        # action_bar overlaid on top of this (see below) instead of staying
+        # permanently hidden behind it.
+        columns_box.set_margin_bottom(140)
+
+        # The System Info / Manual Tests lists can get long (every page is
+        # listed now, not just failing ones) -- scroll them in place rather
+        # than letting their natural size grow the window itself, in either
+        # direction. Gtk.ScrolledWindow doesn't propagate its child's
+        # natural size by default, so it just takes whatever space the
+        # overlay below gives it and scrolls internally instead of pushing
+        # the window taller/wider.
+        columns_scroller = Gtk.ScrolledWindow()
+        columns_scroller.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+        columns_scroller.set_vexpand(True)
+        columns_scroller.set_child(columns_box)
 
         # Status label for tracking sheet feedback
         self.tracking_status = Gtk.Label(label="")
@@ -156,26 +176,35 @@ class SpecCompleteV3(Adw.Bin):
         self._tracking_ready_to_print = False
         self._tracking_initials = ""
         # The date.today() computed in _generate_tracking_sheet() and
-        # stamped on the PDF -- reused there to kick off the Sortly
-        # "Spec Date" report in parallel with PDF generation, so the two
-        # can't disagree. See generate_tracking_sheet_v3.py's
-        # generated_date parameter.
+        # stamped on the PDF -- reused at print time (see
+        # _start_sortly_updates) to kick off the Sortly "Spec Date" report
+        # alongside the actual print job, so the two can't disagree. See
+        # generate_tracking_sheet_v3.py's generated_date parameter.
         self._tracking_generated_date = None
-        # Tri-state outcome of the Sortly "Spec Date" report kicked off
-        # from _generate_tracking_sheet(): None while no attempt has
-        # resolved yet (still in flight, or none made because
+        # Tri-state outcomes of the two Sortly reports kicked off from
+        # _start_sortly_updates() (called when "Print Tracking Sheet" is
+        # clicked, in parallel with the actual print job): None while no
+        # attempt has resolved yet (still in flight, or none made because
         # self.sortly_register is unset), True/False once
-        # _on_spec_date_report_complete() hears back. Combined with
-        # _tracking_output_path in _refresh_tracking_status() to build the
-        # status line, and drives whether the retry button below shows.
+        # _on_speccing_notes_report_complete()/_on_spec_date_report_complete()
+        # hear back. Combined with _tracking_output_path and the print
+        # outcome in _refresh_tracking_status() to build the status line,
+        # and drive whether the retry button below shows.
+        self._speccing_notes_reported = None
+        self._speccing_notes_error = None
         self._spec_date_reported = None
         self._spec_date_error = None
-        self.spec_date_retry_button = Gtk.Button(label="Retry Spec Date Update")
-        self.spec_date_retry_button.connect(
-            "clicked", self._on_spec_date_retry_clicked
-        )
-        self.spec_date_retry_button.set_visible(False)
-        self.spec_date_retry_button.set_halign(Gtk.Align.START)
+        # Tri-state outcome of the print job itself (see _print_thread/
+        # _on_print_complete) -- kept alongside the Sortly outcomes above
+        # so _refresh_tracking_status() can report all three without one
+        # clobbering another.
+        self._print_result = None
+        self._print_error = None
+        self._print_label = None
+        self.sortly_retry_button = Gtk.Button(label="Retry Sortly Update")
+        self.sortly_retry_button.connect("clicked", self._on_sortly_retry_clicked)
+        self.sortly_retry_button.set_visible(False)
+        self.sortly_retry_button.set_halign(Gtk.Align.START)
         # Set once the tech has clicked "Print Tracking Sheet" at least
         # once, so a subsequent click (e.g. because the sheet hasn't come
         # out yet) prompts for confirmation instead of silently queuing
@@ -202,12 +231,31 @@ class SpecCompleteV3(Adw.Bin):
         # print finish, rather than waiting for the next page navigation.
         self.on_status_changed = None
 
+        # Status/retry/Review-Print sit in a floating bar overlaid on top of
+        # the scrollable lists (rather than below them in normal flow) so
+        # they're always reachable without scrolling down through every
+        # page's results first.
+        action_bar = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        action_bar.add_css_class("osd")
+        action_bar.add_css_class("toolbar")
+        action_bar.set_margin_top(8)
+        action_bar.set_margin_bottom(8)
+        action_bar.set_margin_start(8)
+        action_bar.set_margin_end(8)
+        action_bar.set_valign(Gtk.Align.END)
+        action_bar.set_halign(Gtk.Align.FILL)
+        action_bar.append(self.tracking_status)
+        action_bar.append(self.sortly_retry_button)
+        action_bar.append(self.tracking_button)
+
+        lists_overlay = Gtk.Overlay()
+        lists_overlay.set_child(columns_scroller)
+        lists_overlay.add_overlay(action_bar)
+        lists_overlay.set_vexpand(True)
+
         vbox.append(page_header)
         vbox.append(complete_list)
-        vbox.append(columns_box)
-        vbox.append(self.tracking_status)
-        vbox.append(self.spec_date_retry_button)
-        vbox.append(self.tracking_button)
+        vbox.append(lists_overlay)
 
         self.set_child(vbox)
 
@@ -224,23 +272,44 @@ class SpecCompleteV3(Adw.Bin):
         row.set_icon_name("emblem-ok-symbolic")
         return row
 
-    def _failure_row(self, reason):
+    def _title_row(self, title):
+        """A section/page that's filled out correctly -- green title text
+        with a checkmark to the left, per the Spec Complete review screen's
+        color scheme (green+check = fine to review/print; see
+        _warning_row/_review_row for the other two states)."""
+        row = Adw.ActionRow()
+        row.set_title(
+            f"<span foreground='#3fe35a'><b>{GLib.markup_escape_text(title)}</b></span>"
+        )
+        row.set_icon_name("emblem-ok-symbolic")
+        return row
+
+    def _review_row(self, reason):
+        """A reported failure/note on a page (or System Info item) that's
+        otherwise filled out correctly, or that's known not to block
+        completion (e.g. a detected BIOS password) -- plain text, no
+        color/icon, just for the tech to read over before printing."""
         row = Adw.ActionRow()
         row.set_title(GLib.markup_escape_text(reason))
+        return row
+
+    def _warning_row(self, title, target_page):
+        """Something missing or wrong that blocks Review/Print/Complete --
+        yellow text with a warning icon, clickable to jump straight to the
+        page where it needs to be fixed."""
+        row = Adw.ActionRow()
+        row.set_title(GLib.markup_escape_text(title))
         row.set_icon_name("emblem-important-symbolic")
-        row.add_css_class("text-error")
+        row.add_css_class("text-warning")
+        if target_page is not None:
+            row.set_activatable(True)
+            row.connect("activated", self._on_warning_row_activated, target_page)
         return row
 
     def _incomplete_row(self, page):
-        row = Adw.ActionRow()
-        row.set_title(GLib.markup_escape_text(f"{page.title}: not filled out"))
-        row.set_icon_name("emblem-important-symbolic")
-        row.add_css_class("text-warning")
-        row.set_activatable(True)
-        row.connect("activated", self._on_incomplete_row_activated, page)
-        return row
+        return self._warning_row(f"{page.title}: not filled out", page)
 
-    def _on_incomplete_row_activated(self, row, page):
+    def _on_warning_row_activated(self, row, page):
         if self.on_navigate_to_page:
             self.on_navigate_to_page(page)
 
@@ -505,9 +574,6 @@ class SpecCompleteV3(Adw.Bin):
         if self.specinfo is not None:
             notes_entries.extend(self.specinfo.get_notes_entries())
 
-        if self.sortly_register:
-            self.sortly_register.report_speccing_notes(self._gather_sortly_notes())
-
         self.tracking_button.set_sensitive(False)
         if not knumber:
             # TODO: remove this fallback once Sortly registration is required
@@ -521,26 +587,12 @@ class SpecCompleteV3(Adw.Bin):
         if self.tracking_status.has_css_class("text-error"):
             self.tracking_status.remove_css_class("text-error")
 
-        # Computed once here and threaded through to both the PDF (as
-        # generated_date) and the Sortly "Spec Date" report kicked off
-        # immediately below -- so the two can't disagree if generation
-        # happens to straddle a midnight boundary.
+        # Computed once here and threaded through to the PDF (as
+        # generated_date) and, later, to the Sortly "Spec Date" report
+        # kicked off when the tech actually prints (see
+        # _start_sortly_updates) -- so the two can't disagree even if
+        # generation happens to straddle a midnight boundary.
         self._tracking_generated_date = date.today()
-
-        # Fired here, in parallel with PDF generation below, rather than
-        # waiting for it to finish -- the report doesn't depend on the PDF
-        # existing, and doing both at once means a slow Sortly response
-        # doesn't add to the wait before the tech sees the reviewed sheet.
-        # _refresh_tracking_status() reconciles whichever of the two
-        # finishes last against the other's already-known outcome.
-        self._spec_date_reported = None
-        self._spec_date_error = None
-        self.spec_date_retry_button.set_visible(False)
-        if self.sortly_register:
-            self.sortly_register.report_spec_date(
-                self._tracking_generated_date,
-                on_complete=self._on_spec_date_report_complete,
-            )
 
         thread = threading.Thread(
             target=self._generate_thread,
@@ -632,11 +684,13 @@ class SpecCompleteV3(Adw.Bin):
 
     def _refresh_tracking_status(self):
         """Rebuild the tracking-sheet status line from whatever's currently
-        known about the PDF and the Sortly "Spec Date" report -- the two
-        are kicked off in parallel from _generate_tracking_sheet() and can
-        resolve in either order, so both _on_generate_complete() and
-        _on_spec_date_report_complete() funnel through here instead of each
-        writing the label directly and risking clobbering the other's
+        known about the PDF, the print job, and the two Sortly reports
+        (Speccing Notes/datacodes and Spec Date) -- the print job and both
+        Sortly reports are kicked off together from _start_sortly_updates()/
+        _print_tracking_sheet() and can resolve in any order, so
+        _on_print_complete()/_on_speccing_notes_report_complete()/
+        _on_spec_date_report_complete() all funnel through here instead of
+        each writing the label directly and risking clobbering another's
         result."""
         if self._tracking_output_path is None:
             # PDF generation hasn't finished yet -- leave whatever status
@@ -644,49 +698,94 @@ class SpecCompleteV3(Adw.Bin):
             # alone rather than getting ahead of it.
             return
 
-        line = f"Saved: {self._tracking_output_path}"
+        lines = [f"Saved: {self._tracking_output_path}"]
         if self._tracking_viewer_error:
-            line += f" (could not open viewer: {self._tracking_viewer_error})"
+            lines[-1] += f" (could not open viewer: {self._tracking_viewer_error})"
 
-        if self._spec_date_reported is None:
-            spec_line = "Spec date: updating Sortly..."
-        elif self._spec_date_reported:
-            spec_line = "Spec date: updated in Sortly."
-        else:
-            spec_line = f"Spec date: FAILED to update in Sortly ({self._spec_date_error})"
+        if self._tracking_print_requested:
+            if self._print_result is None:
+                lines.append("Printing...")
+            elif self._print_result:
+                lines.append(
+                    f"Sent to {self._print_label}."
+                    if self._print_label
+                    else "Sent to printer."
+                )
+            else:
+                lines.append(f"Print failed: {self._print_error}")
 
-        self.tracking_status.set_label(f"{line}\n{spec_line}")
+            if self._speccing_notes_reported is None:
+                lines.append("Sortly Data Codes: updating...")
+            elif self._speccing_notes_reported:
+                lines.append("Sortly Data Codes: updated.")
+            else:
+                lines.append(
+                    f"Sortly Data Codes: FAILED to update ({self._speccing_notes_error})"
+                )
 
-        has_error = bool(self._tracking_viewer_error) or self._spec_date_reported is False
+            if self._spec_date_reported is None:
+                lines.append("Sortly Spec Date: updating...")
+            elif self._spec_date_reported:
+                lines.append("Sortly Spec Date: updated.")
+            else:
+                lines.append(
+                    f"Sortly Spec Date: FAILED to update ({self._spec_date_error})"
+                )
+
+        self.tracking_status.set_label("\n".join(lines))
+
+        has_error = (
+            bool(self._tracking_viewer_error)
+            or self._print_result is False
+            or self._speccing_notes_reported is False
+            or self._spec_date_reported is False
+        )
         if has_error:
             self.tracking_status.add_css_class("text-error")
         elif self.tracking_status.has_css_class("text-error"):
             self.tracking_status.remove_css_class("text-error")
 
-        self.spec_date_retry_button.set_visible(self._spec_date_reported is False)
+        self.sortly_retry_button.set_visible(
+            self._speccing_notes_reported is False or self._spec_date_reported is False
+        )
 
-    def _on_spec_date_report_complete(self, success, error):
-        """Record the outcome of the Sortly "Spec Date" report kicked off
-        from _generate_tracking_sheet() and refresh the status line to
-        show it -- this fires asynchronously and can resolve before or
-        after PDF generation finishes, so _refresh_tracking_status()
-        reconciles it against whatever else is known rather than writing
-        the label directly here."""
-        self._spec_date_reported = success
-        self._spec_date_error = error
-        self._refresh_tracking_status()
-
-    def _on_spec_date_retry_clicked(self, button):
-        if not self.sortly_register or self._tracking_generated_date is None:
-            return
+    def _start_sortly_updates(self):
+        """Kick off both Sortly reports -- Speccing Notes/datacodes (see
+        _gather_sortly_notes) and Spec Date -- in parallel with the actual
+        print job (see _print_tracking_sheet), so Sortly's record of this
+        machine's defects and Spec Date land at the same moment the tracking
+        sheet comes out of the printer."""
+        self._speccing_notes_reported = None
+        self._speccing_notes_error = None
         self._spec_date_reported = None
         self._spec_date_error = None
-        self.spec_date_retry_button.set_visible(False)
-        self._refresh_tracking_status()
+        self.sortly_retry_button.set_visible(False)
+        if not self.sortly_register:
+            return
+        self.sortly_register.report_speccing_notes(
+            self._gather_sortly_notes(),
+            on_complete=self._on_speccing_notes_report_complete,
+        )
         self.sortly_register.report_spec_date(
             self._tracking_generated_date,
             on_complete=self._on_spec_date_report_complete,
         )
+
+    def _on_speccing_notes_report_complete(self, success, error):
+        self._speccing_notes_reported = success
+        self._speccing_notes_error = error
+        self._refresh_tracking_status()
+
+    def _on_spec_date_report_complete(self, success, error):
+        self._spec_date_reported = success
+        self._spec_date_error = error
+        self._refresh_tracking_status()
+
+    def _on_sortly_retry_clicked(self, button):
+        if not self.sortly_register or self._tracking_generated_date is None:
+            return
+        self._start_sortly_updates()
+        self._refresh_tracking_status()
 
     def _resolve_printer_name(self):
         """Pick which CUPS destination to print to, trying three tiers in
@@ -1013,9 +1112,15 @@ class SpecCompleteV3(Adw.Bin):
 
         self._tracking_print_requested = True
         self.tracking_button.set_sensitive(False)
-        self.tracking_status.set_label("Printing...")
-        if self.tracking_status.has_css_class("text-error"):
-            self.tracking_status.remove_css_class("text-error")
+        self._print_result = None
+        self._print_error = None
+        self._print_label = None
+
+        # Datacodes and Spec Date go to Sortly at the same moment the sheet
+        # is sent to the printer, not back when it was only reviewed -- see
+        # _start_sortly_updates.
+        self._start_sortly_updates()
+        self._refresh_tracking_status()
 
         thread = threading.Thread(
             target=self._print_thread, args=(output_path,), daemon=True
@@ -1062,15 +1167,12 @@ class SpecCompleteV3(Adw.Bin):
 
     def _on_print_complete(self, error, label=None):
         self.tracking_button.set_sensitive(True)
-        if error:
-            self.tracking_status.set_label(f"Print failed: {error}")
-            self.tracking_status.add_css_class("text-error")
-            return
-
-        self.tracking_status.set_label(f"Sent to {label}." if label else "Sent to printer.")
-        if self.tracking_status.has_css_class("text-error"):
-            self.tracking_status.remove_css_class("text-error")
-        self._tracking_printed = True
+        self._print_result = error is None
+        self._print_error = error
+        self._print_label = label
+        if error is None:
+            self._tracking_printed = True
+        self._refresh_tracking_status()
         if self.on_status_changed:
             self.on_status_changed()
 
@@ -1081,12 +1183,37 @@ class SpecCompleteV3(Adw.Bin):
         underlying results change), and re-disables it for as long as a
         Sortly Speccing Notes report kicked off by clicking "Complete" is still
         in flight (see _complete_with_sortly_report), so a second click
-        can't fire a duplicate report."""
+        can't fire a duplicate report. Also stays disabled outright while
+        any yellow warning (an incomplete manual test page, a missing
+        K-Number, or an un-registered Sortly record) is showing -- see
+        on_shown()'s _blocking_issues computation -- as a second guard
+        alongside tracking_button already being insensitive in that case."""
         return (
-            self._tracking_reviewed
+            not self._blocking_issues
+            and self._tracking_reviewed
             and self._tracking_printed
             and not self._sortly_send_in_progress
         )
+
+    def _knumber_ok(self):
+        """Mirrors SpecInfo._render's own K-Number validity check (must
+        start with "K" or "test") -- kept here too since the System Info
+        column needs to flag a missing/invalid K-Number even though it's
+        actually entered on the Sortly Registration page (the wizard's
+        first page), not SpecInfo."""
+        if not self.sortly_register:
+            return True
+        raw = self.sortly_register.knumber_entry.get_text().strip()
+        formatted = Utils.format_knumber(raw)
+        knumber = formatted or raw
+        return bool(knumber) and (
+            knumber.lower().startswith("k") or knumber.lower().startswith("test")
+        )
+
+    def _sortly_registered(self):
+        if not self.sortly_register:
+            return True
+        return self.sortly_register.is_registered()
 
     # on_shown is called when the page is shown in the stack
     def on_shown(self):
@@ -1103,6 +1230,14 @@ class SpecCompleteV3(Adw.Bin):
         self._tracking_print_requested = False
         self._tracking_initials = ""
         self._tracking_generated_date = None
+        self._speccing_notes_reported = None
+        self._speccing_notes_error = None
+        self._spec_date_reported = None
+        self._spec_date_error = None
+        self._print_result = None
+        self._print_error = None
+        self._print_label = None
+        self.sortly_retry_button.set_visible(False)
         self.tracking_button.set_label("Review Tracking Sheet")
         self.tracking_button.remove_css_class("button-green")
         self.tracking_button.add_css_class("suggested-action")
@@ -1115,54 +1250,95 @@ class SpecCompleteV3(Adw.Bin):
         self._clear_list(self.manualtest_list_2)
         self.manualtest_list_2.set_visible(False)
 
-        all_complete = all(page.is_complete() for page in self.manual_test_pages)
-        # A test marked "Has Issues" with no fully-filled-out reason (still)
-        # counts as incomplete (see TogglePage.is_complete), so printing a
-        # tracking sheet is blocked until every reported issue has its
-        # specifics filled in, not just an overall pass/fail.
-        self.tracking_button.set_sensitive(all_complete)
-        if not all_complete:
+        manual_tests_complete = all(
+            page.is_complete() for page in self.manual_test_pages
+        )
+        knumber_ok = self._knumber_ok()
+        sortly_registered = self._sortly_registered()
+        # Only a missing/incomplete manual test page, a missing K-Number, or
+        # an un-registered Sortly record blocks Review/Print/Complete -- a
+        # BIOS password or other informational note does not (see
+        # is_complete() below and the System Info rows built further down).
+        self._blocking_issues = not (
+            manual_tests_complete and knumber_ok and sortly_registered
+        )
+        self.tracking_button.set_sensitive(not self._blocking_issues)
+        if self._blocking_issues:
             print("SpecCompleteV3: Incomplete")
             self.complete_row.set_title("Kramden Spec Complete: <b>INCOMPLETE</b>")
+            messages = []
+            if not manual_tests_complete:
+                messages.append(
+                    "complete all manual tests (with full details for any "
+                    "reported issues)"
+                )
+            if not knumber_ok:
+                messages.append("enter a valid K-Number")
+            if not sortly_registered:
+                messages.append("update the machine's Sortly record")
             self.tracking_status.set_label(
-                "Complete all manual tests (with full details for any "
-                "reported issues) before printing the tracking sheet."
+                "Before printing the tracking sheet, " + "; ".join(messages) + "."
             )
         else:
             print("SpecCompleteV3: Complete")
             self.complete_row.set_title("Kramden Spec Complete: <b>COMPLETE</b>")
 
-        # System Info column
-        if not state.get("SpecInfo", True) and self.specinfo:
+        # System Info column -- K-Number and Sortly-registration issues are
+        # yellow and link back to the Sortly Registration page (the wizard's
+        # first page); a detected BIOS password or active Computrace is
+        # informational only (plain/white) and doesn't block anything.
+        specinfo_rows = []
+        if not knumber_ok:
+            specinfo_rows.append(
+                self._warning_row("K-Number not entered", self.sortly_register)
+            )
+        if not sortly_registered:
+            specinfo_rows.append(
+                self._warning_row(
+                    "Sortly data not updated", self.sortly_register
+                )
+            )
+        if self.specinfo:
             for reason in self.specinfo.get_failure_reasons():
-                self.specinfo_list.append(self._failure_row(reason))
-        else:
-            self.specinfo_list.append(self._passed_row())
+                specinfo_rows.append(self._review_row(reason))
+        if not specinfo_rows:
+            specinfo_rows.append(self._passed_row())
+        for row in specinfo_rows:
+            self.specinfo_list.append(row)
 
         # Manual Tests column — one page per test now, rather than one
-        # combined ManualTest page. Pages with neither toggle selected yet
-        # get a clickable orange row instead of being lumped in with failures.
-        # Rows are collected first and only assigned to list boxes afterward,
-        # since a widget can only ever belong to one container -- once we
-        # know the total count we can decide whether to split into a second
-        # column instead of letting a long list run off the bottom of the
-        # screen.
-        rows = []
+        # combined ManualTest page. Every page gets a row: green+check with
+        # its reported failures (if any) listed underneath in plain text
+        # when it's filled out correctly, or a single yellow+warning row
+        # linking straight to the page when it isn't. Each page's rows are
+        # kept together as a group and only whole groups are split between
+        # the two columns, so a page's title and its failure list never end
+        # up on opposite sides of the screen.
+        groups = []
         for page in self.manual_test_pages:
             if not page.is_complete():
-                rows.append(self._incomplete_row(page))
+                groups.append([self._incomplete_row(page)])
                 continue
+            page_rows = [self._title_row(page.title)]
             if not state.get(page.key, True):
                 for reason in page.get_failure_reasons():
-                    rows.append(self._failure_row(reason))
-        if not rows:
-            rows.append(self._passed_row())
+                    page_rows.append(self._review_row(reason))
+            groups.append(page_rows)
 
-        if len(rows) > MANUALTEST_ROWS_PER_COLUMN:
-            split = (len(rows) + 1) // 2
-            first_column, second_column = rows[:split], rows[split:]
+        total_rows = sum(len(group) for group in groups)
+        first_column, second_column = [], []
+        if total_rows > MANUALTEST_ROWS_PER_COLUMN:
+            half = (total_rows + 1) // 2
+            first_count = 0
+            for group in groups:
+                if first_count < half:
+                    first_column.extend(group)
+                    first_count += len(group)
+                else:
+                    second_column.extend(group)
         else:
-            first_column, second_column = rows, []
+            for group in groups:
+                first_column.extend(group)
 
         for row in first_column:
             self.manualtest_list.append(row)

@@ -43,7 +43,7 @@ except ImportError:
 from utils import Utils
 
 TRACKING_SHEET_TITLE = "Kramden Institute Tracking Sheet"
-TRACKING_SHEET_REV = "Rev. 1.0 - July 2026"
+TRACKING_SHEET_REV = "Rev. 2.0 - August 2026"
 
 # Step-order hints shown in the QC table header (None = no fixed order).
 # Triage is step 1 and is inferred, so it has no column of its own.
@@ -746,7 +746,7 @@ def generate_tracking_sheet(
         [
             Paragraph("Webcam:", label_style),
             test_result_cell(webcam_value),
-            Paragraph("Touchscreen?", label_style),
+            Paragraph("Touchscreen:", label_style),
             test_result_cell(touchscreen_value),
             Paragraph("Physical:", label_style),
             test_result_cell(test_value("PhysicalDefects")),
@@ -770,7 +770,7 @@ def generate_tracking_sheet(
         test_grid_data,
         test_col_widths,
         extra_cmds=[
-            # Label columns: Keyboard/Wi-Fi/Webcam, USB/Sound/Touchscreen?, Screen/Touchpad/Physical
+            # Label columns: Keyboard/Wi-Fi/Webcam, USB/Sound/Touchscreen, Screen/Touchpad/Physical
             ("BACKGROUND", (0, 0), (0, -1), LABEL_BG),
             ("BACKGROUND", (2, 0), (2, -1), LABEL_BG),
             ("BACKGROUND", (4, 0), (4, -1), LABEL_BG),

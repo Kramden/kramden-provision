@@ -1,4 +1,5 @@
 import glob
+import json
 import os
 import subprocess
 import sys
@@ -17,36 +18,55 @@ from utils import Utils
 # layout with.
 PLACEHOLDER_REASONS = ["Reason option 1", "Reason option 2", "Reason option 3"]
 
-# Fixed Physical Defects defect-type list; a defect's tracking-sheet code
-# (PD01, PD02, ...) is just its 1-based position here -- see
-# CUSTOM_REASON_CODE_SUFFIX below.
-PHYSICAL_DEFECT_TYPES = [
-    "Dents",
-    "Deep Scratches",
-    "Peeling Paint",
-    "Cracks",
-    "Broken Part",
-    "Laptop feet coming off",
-    "Significant Scuffing",
-]
-# Fixed code overrides for defect types whose position in the list above
-# doesn't match their tracking-sheet code (see
-# PhysicalDefectsPage._defect_code) -- PD01/PD02/PD07/PDOP are reserved for
-# the Hinge Broken/Loose Hinge/Port Damaged sub-types nested inside "Broken
-# Part" instead (see BROKEN_PART_HINGE_CODES/BROKEN_PART_PORT_CODE/
-# BROKEN_PART_PORT_OTHER_CODE below), so every top-level type here needs an
-# explicit code rather than one derived from its list position.
-PHYSICAL_DEFECT_CODES = {
-    "Dents": "PD03",
-    "Deep Scratches": "PD04",
-    "Peeling Paint": "PD05",
-    "Cracks": "PD06",
-    "Laptop feet coming off": "PD08",
-    "Significant Scuffing": "PD09",
-}
+# Editable defect-type buttons + datacodes live in defect_types.json
+# (validated by scripts/validate_defect_types.py) so they can be added to or
+# removed from without touching this file -- see the GitHub Issue Form
+# ".github/ISSUE_TEMPLATE/defect-type-change.yml", which opens a PR against
+# that file. Only "plain" entries (a label + a fixed code, nothing else in
+# this file keyed off them) live there; defect types with special behavior
+# here (sub-pickers, cross-page delegation, auto-triggered reasons, etc.)
+# stay hardcoded below, merged in at their recorded `order` -- see
+# _merge_defect_types.
+_DEFECT_TYPES_PATH = os.path.join(
+    os.path.dirname(os.path.realpath(__file__)), "defect_types.json"
+)
+with open(_DEFECT_TYPES_PATH) as _f:
+    _DEFECT_TYPES = json.load(_f)
+
+
+def _page_entries(page_key):
+    """This page's config-driven (label/code/...) entries, in button order."""
+    return sorted(_DEFECT_TYPES[page_key]["types"], key=lambda e: e["order"])
+
+
+def _merge_defect_types(page_key, specials=()):
+    """Interleaves a page's config-driven entries with its hardcoded special
+    entries (each a (label, order) pair matching its slot in the original
+    button list) by `order`. Returns (ordered_labels, {label: code}) --
+    codes for config entries come from defect_types.json; a special entry
+    gets no code here (the caller sets its own afterwards, same as it did
+    when everything was hardcoded)."""
+    entries = [
+        (e["order"], e["label"], e["code"]) for e in _DEFECT_TYPES[page_key]["types"]
+    ]
+    entries += [(order, label, None) for label, order in specials]
+    entries.sort(key=lambda t: t[0])
+    labels = [label for _, label, _ in entries]
+    codes = {label: code for _, label, code in entries if code is not None}
+    return labels, codes
+
+
+# Physical Defects' plain defect types (label, code, part-location-picker
+# vs. no-location) come from defect_types.json ("physical_defects"); the two
+# special types below ("Cracks"/"Broken Part") stay hardcoded and are merged
+# in at their original button position -- see _merge_defect_types.
+PHYSICAL_DEFECT_TYPES, PHYSICAL_DEFECT_CODES = _merge_defect_types(
+    "physical_defects", specials=[("Cracks", 4), ("Broken Part", 5)]
+)
+PHYSICAL_DEFECT_CODES["Cracks"] = "PD06"
 # Feet issues are self-explanatory with no meaningful location to ask for.
 PHYSICAL_NO_LOCATION_TYPES = {
-    "Laptop feet coming off",
+    e["label"] for e in _page_entries("physical_defects") if e.get("no_location")
 }
 # Defect types whose part-location picker (see
 # PhysicalDefectsPage._build_part_location_picker) offers PHYSICAL_SCREEN_PART
@@ -62,12 +82,8 @@ PHYSICAL_SCREEN_SECTION_TYPES = {"Cracks"}
 # (only offered for PHYSICAL_SCREEN_SECTION_TYPES) is the one exception --
 # see _build_part_location_picker.
 PHYSICAL_PART_LOCATION_TYPES = {
-    "Dents",
-    "Deep Scratches",
-    "Peeling Paint",
-    "Cracks",
-    "Heavy Scuffing",
-}
+    e["label"] for e in _page_entries("physical_defects") if not e.get("no_location")
+} | {"Cracks"}
 PHYSICAL_AFFECTED_PARTS = [
     "Top of the lid",
     "The Bezel (Around the screen)",
@@ -87,7 +103,7 @@ PHYSICAL_SCREEN_PART = "Screen"
 PHYSICAL_PORT_DAMAGE_TYPES = {"Port Damaged"}
 PHYSICAL_PORT_OTHER_TYPE = "Some other port is damaged"
 PHYSICAL_PORT_TYPES = [
-    "USB-A",
+    "USB",
     "USB-C",
     "Ethernet",
     "HDMI",
@@ -137,85 +153,82 @@ BROKEN_PART_PORT_OTHER_CODE = "PDOP"
 
 PLACEHOLDER_INSTRUCTIONS = "(Instructions for this test will go here)"
 
-USB_A_DEFECT_TYPES = [
-    "USB Port is finicky, connection cuts in and out",
-    "USB Port does not work",
-    "USB Port is physically damage",
-]
 # Must match an entry in USB_A_DEFECT_TYPES exactly -- when Physical Defects'
 # "Port Damaged" is reported against a USB-A port, that same reason is
 # suppressed on UsbAPage's own dropdown so it isn't double reported (see
 # PhysicalDefectsPage._on_port_damage_type_changed).
 USB_A_PORT_DAMAGE_REASON = "USB Port is physically damage"
-# Tracking-sheet codes for USB-A reasons -- "finicky" and "does not work"
-# both just mean the port doesn't work right, so they share the default
-# UA01 code; only "physically damage" gets its own (UA02). Same "several
-# reasons, one code" pattern as KeyboardPage._reason_code.
-USB_A_REASON_CODES = {
-    "USB Port is finicky, connection cuts in and out": "UA01",
-    "USB Port does not work": "UA01",
-    "USB Port is physically damage": "UA02",
+# The two plain "doesn't work right" reasons (label/code from
+# defect_types.json's "usb_a" -- both share UA01) plus the special
+# "physically damage" reason (UA02), merged in at its original position.
+# Same "several reasons, one code" pattern as KeyboardPage._reason_code.
+USB_A_DEFECT_TYPES, USB_A_REASON_CODES = _merge_defect_types(
+    "usb_a", specials=[(USB_A_PORT_DAMAGE_REASON, 3)]
+)
+USB_A_REASON_CODES[USB_A_PORT_DAMAGE_REASON] = "UA02"
+# ~1-2 word descriptors for get_failure_reasons' compact Spec Complete
+# summary -- reasons not listed here default to their own (already short)
+# label text, see TogglePage.__init__.
+USB_A_REASON_SHORT_LABELS = {
+    "USB Port is finicky, connection cuts in and out": "Finicky connection",
+    "USB Port does not work": "Not working",
+    USB_A_PORT_DAMAGE_REASON: "Physically damaged",
 }
 
-USB_C_DEFECT_TYPES = [
-    "USB-C Port is finicky, connection cuts in and out",
-    "USB-C Port does not work",
-    "USB-C Port is physically damage",
-    "USB-C Port only works one way",
-]
 # Must match an entry in USB_C_DEFECT_TYPES exactly -- see
 # USB_A_PORT_DAMAGE_REASON above, same suppression but for UsbCPage.
 USB_C_PORT_DAMAGE_REASON = "USB-C Port is physically damage"
-# See USB_A_REASON_CODES above -- "finicky"/"does not work" share UC01, and
-# the upside-down failure (unique to USB-C) gets its own UC03.
-USB_C_REASON_CODES = {
-    "USB-C Port is finicky, connection cuts in and out": "UC01",
-    "USB-C Port does not work": "UC01",
-    "USB-C Port is physically damage": "UC02",
-    "USB-C Port only works one way": "UC03",
+# See USB_A_DEFECT_TYPES above -- "finicky"/"does not work" share UC01
+# (from defect_types.json's "usb_c"), and the upside-down failure gets its
+# own UC03; the special "physically damage" reason gets UC02.
+USB_C_DEFECT_TYPES, USB_C_REASON_CODES = _merge_defect_types(
+    "usb_c", specials=[(USB_C_PORT_DAMAGE_REASON, 3)]
+)
+USB_C_REASON_CODES[USB_C_PORT_DAMAGE_REASON] = "UC02"
+# See USB_A_REASON_SHORT_LABELS above.
+USB_C_REASON_SHORT_LABELS = {
+    "USB-C Port is finicky, connection cuts in and out": "Finicky connection",
+    "USB-C Port does not work": "Not working",
+    "USB-C Port only works one way": "One-way only",
+    USB_C_PORT_DAMAGE_REASON: "Physically damaged",
 }
 
 USB_PORT_LOCATIONS = ["Left Side", "Right Side", "Back"]
 
 # "Audio" must be an exact defect-type option (not free text) so the tracking
 # sheet can key off it directly to fill in the "Sound:" field -- see
-# TogglePage.has_reason() and SpecCompleteV3._on_tracking_clicked.
-BROWSER_DEFECT_TYPES = ["Video", "Audio"]
+# TogglePage.has_reason() and SpecCompleteV3._on_tracking_clicked. "Video" is
+# the only plain entry (from defect_types.json's "browser").
+BROWSER_DEFECT_TYPES, BROWSER_DEFECT_CODES = _merge_defect_types(
+    "browser", specials=[("Audio", 2)]
+)
 
-WIFI_DEFECT_TYPES = [
-    "Wi-Fi doesn't work",
-    "Wi-Fi is extremely slow",
-    "No WiFi device detected",
-    # Reported automatically (not something a tech picks by hand) when
-    # the automated gateway ping test run in the background comes back
-    # with any packet loss -- see WiFiPage._on_connectivity_checked.
-    # Appended as the 4th entry so it becomes WF04, leaving WF01-WF03
-    # untouched.
-    "No connectivity to gateway detected",
-]
-# Must match the last WIFI_DEFECT_TYPES entry exactly -- see
+# Must match an entry in WIFI_DEFECT_TYPES exactly -- see
 # WiFiPage._on_connectivity_checked.
 WIFI_GATEWAY_PING_FAILURE_REASON = "No connectivity to gateway detected"
-
-TOUCHPAD_DEFECT_TYPES = [
-    "Touchpad does not work at all",
-    "A problem with left or right click",
-    "Touchpad looks as if it is bulging out",
-    "Something is wrong with how the cursor moves",
-    "Part of the touchpad doesn't work",
-]
+# The 3 plain reasons come from defect_types.json's "wifi"; the gateway
+# reason is reported automatically (not something a tech picks by hand) when
+# the automated gateway ping test run in the background comes back with any
+# packet loss -- see WiFiPage._on_connectivity_checked. It's merged in as
+# the 4th/last entry so it becomes WF04, leaving WF01-WF03 untouched.
+WIFI_DEFECT_TYPES, WIFI_DEFECT_CODES = _merge_defect_types(
+    "wifi", specials=[(WIFI_GATEWAY_PING_FAILURE_REASON, 4)]
+)
+WIFI_DEFECT_CODES[WIFI_GATEWAY_PING_FAILURE_REASON] = "WF04"
+# See USB_A_REASON_SHORT_LABELS above.
+WIFI_REASON_SHORT_LABELS = {
+    "Wi-Fi doesn't work": "Not working",
+    "Wi-Fi is extremely slow": "Very slow",
+    "No WiFi device detected": "Device missing",
+    WIFI_GATEWAY_PING_FAILURE_REASON: "No gateway",
+}
 
 # "Part of the touchpad doesn't work" has no location picker -- it applies
 # to the whole touchpad like "Touchpad does not work at all" (see
-# TOUCHPAD_REASON_NOTES below). It gets a fixed TP09 code (see
-# TouchpadPage._reason_code) rather than the position-based TP05 its slot
-# in the list above would otherwise imply, since TP05/TP06 are already
-# taken by the cursor sub-reasons (see TOUCHPAD_CURSOR_CODES).
+# TOUCHPAD_REASON_NOTES below). Its fixed TP09 code (from defect_types.json's
+# "touchpad") skips TP05/TP06, which are already taken by the cursor
+# sub-reasons (see TOUCHPAD_CURSOR_CODES).
 TOUCHPAD_PARTIAL_REASON = "Part of the touchpad doesn't work"
-TOUCHPAD_REASON_CODES = {
-    TOUCHPAD_PARTIAL_REASON: "TP09",
-}
-
 # "A problem with left or right click" expands into "Left click"/"Right
 # click"/"Touchpad click" instead of the generic touchpad-location section
 # picker -- see TouchpadPage._build_click_picker. "Left click"/"Right
@@ -228,6 +241,18 @@ TOUCHPAD_REASON_CODES = {
 # each side reports under its own fixed code regardless of Top vs Bottom
 # (see TOUCHPAD_CLICK_SIDE_CODES/TouchpadPage._touchpad_click_notes).
 TOUCHPAD_CLICK_REASON = "A problem with left or right click"
+# "Something is wrong with how the cursor moves" expands into a pick-list --
+# like the click reason above, it carries no single code of its own; each
+# selected behavior reports under its own fixed code instead (see
+# TOUCHPAD_CURSOR_CODES/TouchpadPage._touchpad_cursor_notes).
+TOUCHPAD_CURSOR_REASON = "Something is wrong with how the cursor moves"
+# The 3 plain reasons (including TOUCHPAD_PARTIAL_REASON) come from
+# defect_types.json's "touchpad"; the click/cursor reasons above are
+# special (no code of their own) and merged in at their original position.
+TOUCHPAD_DEFECT_TYPES, TOUCHPAD_DEFECT_CODES = _merge_defect_types(
+    "touchpad", specials=[(TOUCHPAD_CLICK_REASON, 2), (TOUCHPAD_CURSOR_REASON, 4)]
+)
+
 TOUCHPAD_CLICK_LOCATION_OPTIONS = ["Top", "Bottom"]
 TOUCHPAD_CLICK_SIDE_OPTIONS = ["Left click", "Right click", "Touchpad click"]
 # "Touchpad click" has no Top/Bottom location popup -- see
@@ -243,12 +268,15 @@ TOUCHPAD_CLICK_CODE_LABELS = {
     "TP08": "Right click broken",
     "TP02": "Touchpad click broken",
 }
+# Tighter (~1-2 word) versions of the labels above, just for
+# get_failure_reasons' compact Spec Complete summary -- CODE_LABELS itself
+# stays wordier for the tracking sheet's plain-English notes.
+TOUCHPAD_CLICK_SHORT_LABELS = {
+    "TP07": "Left click",
+    "TP08": "Right click",
+    "TP02": "Click broken",
+}
 
-# "Something is wrong with how the cursor moves" expands into this
-# pick-list -- like the click reason above, it carries no single code of
-# its own; each selected behavior reports under its own fixed code
-# instead (see TOUCHPAD_CURSOR_CODES/TouchpadPage._touchpad_cursor_notes).
-TOUCHPAD_CURSOR_REASON = "Something is wrong with how the cursor moves"
 TOUCHPAD_CURSOR_CODES = {
     "Cursor drags slowly": "TP04",
     "Cursor moves on its own": "TP05",
@@ -258,6 +286,12 @@ TOUCHPAD_CURSOR_CODE_LABELS = {
     "TP04": "Cursor drags slowly",
     "TP05": "Cursor moves on its own",
     "TP06": "Touchpad too sensitive",
+}
+# See TOUCHPAD_CLICK_SHORT_LABELS above.
+TOUCHPAD_CURSOR_SHORT_LABELS = {
+    "TP04": "Drags slowly",
+    "TP05": "Erratic movement",
+    "TP06": "Too sensitive",
 }
 TOUCHPAD_CURSOR_OPTIONS = list(TOUCHPAD_CURSOR_CODES)
 
@@ -271,79 +305,87 @@ TOUCHPAD_REASON_NOTES = {
     "Touchpad looks as if it is bulging out": "Touchpad bulging",
     TOUCHPAD_PARTIAL_REASON: "Part of touchpad not working",
 }
+# See USB_A_REASON_SHORT_LABELS above -- for the click/cursor reasons
+# themselves see TOUCHPAD_CLICK_SHORT_LABELS/TOUCHPAD_CURSOR_SHORT_LABELS,
+# merged into TouchpadPage.code_short_labels separately since those two
+# reasons carry no code of their own.
+TOUCHPAD_REASON_SHORT_LABELS = {
+    "Touchpad does not work at all": "Not working",
+    "Touchpad looks as if it is bulging out": "Bulging",
+    TOUCHPAD_PARTIAL_REASON: "Partial failure",
+}
 
-SCREEN_DEFECT_TYPES = [
-    "Light Spots",
-    "Bruises",
-    "Deep Scratches",
-    "Dead Pixels",
-    "Keyboard imprints on the screen",
-    "Screen glitches out",
-    "Backlight failing",
-    "Screen broken",
-    "Screen cracked",
-]
 # Must match an entry in SCREEN_DEFECT_TYPES exactly -- Physical Defects'
 # "Broken Part" -> "Screen" delegates to this same no-location reason
 # instead of recording its own Physical-Defects note (see
-# PhysicalDefectsPage._delegate_broken_part).
+# PhysicalDefectsPage._delegate_broken_part). The other 8 reasons (label,
+# code, whether they need a location) come from defect_types.json's
+# "screen"; this one is merged in at its original 8th-button position.
 SCREEN_BROKEN_REASON = "Screen broken"
+SCREEN_DEFECT_TYPES, SCREEN_DEFECT_CODES = _merge_defect_types(
+    "screen", specials=[(SCREEN_BROKEN_REASON, 8)]
+)
+SCREEN_DEFECT_CODES[SCREEN_BROKEN_REASON] = "SC08"
+# See USB_A_REASON_SHORT_LABELS above.
+SCREEN_REASON_SHORT_LABELS = {
+    "Keyboard imprints on the screen": "Keyboard imprints",
+    "Screen glitches out": "Glitching",
+}
 
-WEBCAM_DEFECT_TYPES = [
-    "The webcam does not work at all",
-    "The webcam reports a solid black screen",
-    "Lines going across or down webcam output",
-    "The Image is blurry",
-    "The video is choppy with low frame rate",
-    "Everything is monochrome and flashing",
-    "No webcam device found",
-]
+# All 7 reasons (label + code) come from defect_types.json's "webcam".
+WEBCAM_DEFECT_TYPES, WEBCAM_DEFECT_CODES = _merge_defect_types("webcam")
+# Must match an entry in WEBCAM_DEFECT_TYPES exactly -- WebcamPage adds a
+# "check for a physical camera cover" note under this specific reason (see
+# WebcamPage.build_reason_locations).
+WEBCAM_BLACK_SCREEN_REASON = "The webcam reports a solid black screen"
+# See USB_A_REASON_SHORT_LABELS above.
+WEBCAM_REASON_SHORT_LABELS = {
+    "The webcam does not work at all": "Not working",
+    WEBCAM_BLACK_SCREEN_REASON: "Black screen",
+    "Lines going across or down webcam output": "Video lines",
+    "The Image is blurry": "Blurry image",
+    "The video is choppy with low frame rate": "Choppy video",
+    "Everything is monochrome and flashing": "Flashing colors",
+    "No webcam device found": "Device missing",
+}
 
 # Tracking-sheet note text used when WebcamPage auto-detects no usable
 # webcam is present -- see WebcamPage.__init__/get_notes_entries.
 WEBCAM_NO_DEVICE_NOTE = "No webcam present"
 WEBCAM_IR_ONLY_NOTE = "IR camera only, no webcam present"
 
-TOUCHSCREEN_DEFECT_TYPES = [
-    "The touchscreen doesn't work at all",
-    "Where I touch is not where it registers",
-    "Areas of the touchscreen aren't working",
-    "The cursor freaks out when I touch the screen",
-]
+# All 4 reasons (label, code, whether they need a location) come from
+# defect_types.json's "touchscreen".
+TOUCHSCREEN_DEFECT_TYPES, TOUCHSCREEN_DEFECT_CODES = _merge_defect_types("touchscreen")
+# See USB_A_REASON_SHORT_LABELS above.
+TOUCHSCREEN_REASON_SHORT_LABELS = {
+    "The touchscreen doesn't work at all": "Not working",
+    "Where I touch is not where it registers": "Misaligned touch",
+    "Areas of the touchscreen aren't working": "Dead zones",
+    "The cursor freaks out when I touch the screen": "Erratic cursor",
+}
 
-# The keyboard's top-level failure-reason buttons. "Physical damage" isn't
-# one of the 9 fixed data codes below -- picking it expands into its own
-# pick-list (PHYSICAL_DAMAGE_CATEGORIES) whose individual categories carry
-# the real codes (KB03/KB04/KB05) -- see KeyboardPage.build_reason_locations,
-# KEYBOARD_REASON_CODES, and PHYSICAL_DAMAGE_CATEGORY_CODES below.
-KEYBOARD_DEFECT_TYPES = [
-    "The whole keyboard does not work",
-    "Keys do not work",
-    "Physical damage",
-    "Keys need extra pressure or massaging to work",
-    "It is an international keyboard",
-    "Keys stick when pressed, holding themselves down",
-    "Keys report the incorrect keys when typing",
-    "Keys are scratched",
-    "Trackpoint missing",
-    "Trackpoint error",
-]
-
-# Tracking-sheet/failure-summary data codes for every keyboard reason
-# except "Physical damage" (see PHYSICAL_DAMAGE_CATEGORY_CODES for that
-# one) -- fixed explicitly here, rather than derived from each reason's
-# position in KEYBOARD_DEFECT_TYPES, since "Physical damage" occupies one
-# button but represents 3 codes (KB03/KB04/KB05), which would throw off
-# position-based numbering -- see KeyboardPage._reason_code.
-KEYBOARD_REASON_CODES = {
-    "The whole keyboard does not work": "KB01",
-    "Keys do not work": "KB02",
-    "Keys need extra pressure or massaging to work": "KB06",
-    "It is an international keyboard": "KB07",
-    "Keys stick when pressed, holding themselves down": "KB08",
-    "Keys report the incorrect keys when typing": "KB09",
-    "Trackpoint missing": "KB11",
-    "Trackpoint error": "KB12",
+# "Physical damage" expands into its own pick-list (PHYSICAL_DAMAGE_CATEGORIES)
+# whose individual categories carry the real codes (KB03/KB04/KB05/KB10) --
+# see KeyboardPage.build_reason_locations, KEYBOARD_REASON_CODES, and
+# PHYSICAL_DAMAGE_CATEGORY_CODES below. The other 9 reasons (label, code,
+# whether they need the keyboard-keys picker) come from defect_types.json's
+# "keyboard"; "Physical damage" is merged in at its original 3rd-button
+# position.
+KEYBOARD_PHYSICAL_DAMAGE_REASON = "Physical damage"
+KEYBOARD_DEFECT_TYPES, KEYBOARD_REASON_CODES = _merge_defect_types(
+    "keyboard", specials=[(KEYBOARD_PHYSICAL_DAMAGE_REASON, 3)]
+)
+# See USB_A_REASON_SHORT_LABELS above -- for "Physical damage" itself see
+# PHYSICAL_DAMAGE_CODE_LABELS below, merged into KeyboardPage.code_short_labels
+# separately since that reason carries no code of its own.
+KEYBOARD_REASON_SHORT_LABELS = {
+    "The whole keyboard does not work": "Fully unresponsive",
+    "Keys do not work": "Keys unresponsive",
+    "Keys need extra pressure or massaging to work": "Needs pressure",
+    "It is an international keyboard": "Intl layout",
+    "Keys stick when pressed, holding themselves down": "Keys stuck",
+    "Keys report the incorrect keys when typing": "Wrong keys",
 }
 
 # These reasons apply to the whole keyboard (or, for the trackpoint
@@ -354,17 +396,13 @@ KEYBOARD_REASON_CODES = {
 # damage" category below) pops up the keyboard picker so the tech can mark
 # which specific keys are affected.
 KEYBOARD_NO_KEYS_REASONS = {
-    "The whole keyboard does not work",
-    "It is an international keyboard",
-    "Trackpoint missing",
-    "Trackpoint error",
+    e["label"] for e in _page_entries("keyboard") if e.get("no_keys")
 }
 
 # "Physical damage" expands into this pick-list instead of a single
 # keyboard popup -- see KeyboardPage.build_reason_locations. Each selected
 # category gets its own "Select Keys" popup and its own real code (see
 # PHYSICAL_DAMAGE_CATEGORY_CODES/PHYSICAL_DAMAGE_CODE_LABELS below).
-KEYBOARD_PHYSICAL_DAMAGE_REASON = "Physical damage"
 PHYSICAL_DAMAGE_CATEGORIES = [
     "Keys are worn through",
     "Keys are cracked",
@@ -402,18 +440,19 @@ CUSTOM_REASON_CODE_SUFFIX = "OT"
 # selection that doesn't match SOUND_REASON_CODES (there's currently no way
 # to add one, since this picker has no free-text entry) falls back to
 # SOUND_CUSTOM_CODE, same "OT" suffix pattern as CUSTOM_REASON_CODE_SUFFIX.
-SOUND_DEFECT_TYPES = [
-    "Sound does not work",
-    "Sound is crunchy",
-    "No audio device/dummy output detected",
-]
+# All 3 options (label + code) come from defect_types.json's "sound".
+SOUND_DEFECT_TYPES, SOUND_REASON_CODES = _merge_defect_types("sound")
 SOUND_CODE_PREFIX = "SD"
-SOUND_REASON_CODES = {
-    "Sound does not work": "SD01",
-    "Sound is crunchy": "SD02",
-    "No audio device/dummy output detected": "SD03",
-}
 SOUND_CUSTOM_CODE = f"{SOUND_CODE_PREFIX}{CUSTOM_REASON_CODE_SUFFIX}"
+# code -> ~1-2 word descriptor for get_failure_reasons' compact Spec
+# Complete summary -- merged into BrowserPage.code_short_labels directly
+# (keyed by code, not reason text) since Sound's codes are reported under
+# Browser's "Audio" reason, not their own top-level reason_options entry.
+SOUND_SHORT_LABELS = {
+    "SD01": "No sound",
+    "SD02": "Distorted sound",
+    "SD03": "No audio device",
+}
 
 # Simplified keyboard layout used by the keyboard failure-location picker.
 KEYBOARD_LAYOUT = [
@@ -952,6 +991,7 @@ class TogglePage(Adw.Bin):
         code_prefix=None,
         topic=None,
         gif_path=GIF_PLACEHOLDER_PATH,
+        reason_short_labels=None,
     ):
         super().__init__()
         self.key = key
@@ -977,6 +1017,23 @@ class TogglePage(Adw.Bin):
         # See CUSTOM_REASON_CODE_SUFFIX above for the tracking-sheet code
         # scheme this drives (e.g. "KB02: ...").
         self.code_prefix = code_prefix
+        # code -> ~1-2 word descriptor for get_failure_reasons' compact Spec
+        # Complete summary (e.g. "KB01: Fully unresponsive") -- defaults to
+        # each reason's own text (already short for most reasons), overridden
+        # by reason_short_labels for reasons whose full wording is too long
+        # to use verbatim (see e.g. KEYBOARD_REASON_SHORT_LABELS). Subclasses
+        # whose codes come from a sub-picker instead of reason_options
+        # directly (Touchpad's click/cursor, Keyboard's "Physical damage",
+        # Browser's "Audio") merge in their own code->label dict after
+        # calling super().__init__ instead, since those reasons carry no
+        # single code of their own -- see TouchpadPage/KeyboardPage/
+        # BrowserPage.__init__.
+        overrides = reason_short_labels or {}
+        self.code_short_labels = {}
+        for reason in self.reason_options:
+            code = self._reason_code(reason)
+            if code:
+                self.code_short_labels[code] = overrides.get(reason, reason)
         # What this page calls itself in the "Are there any {topic} defects
         # ..." question below -- defaults to row_title, but a subclass can
         # pass its own (see WiFiPage, BrowserPage, UsbAPage/UsbCPage) when
@@ -1436,19 +1493,27 @@ class TogglePage(Adw.Bin):
         items = sorted(self._reason_entries.items(), key=_sort_key)
         return [(reason, data) for reason, (entry_row, data) in items]
 
+    def _short_label_for_code(self, code):
+        """~1-2 word human descriptor for a data code, for
+        get_failure_reasons' compact Spec Complete summary -- see
+        code_short_labels, built in __init__."""
+        return self.code_short_labels.get(code, code)
+
     def get_failure_reasons(self):
-        """Reported reasons are summarized as just their data codes (e.g.
-        "Keyboard failed: KB01, KB04, KB09") rather than the full
-        reason/location text -- that detail already lives on the tracking
-        sheet (see get_notes_entries); this is just the compact Spec
-        Complete screen summary."""
+        """Reported reasons are summarized as "<code>: <short descriptor>"
+        pairs (e.g. "KB01: Fully unresponsive, KB09: Wrong keys") rather
+        than the full reason/location text -- that detail already lives on
+        the tracking sheet (see get_notes_entries); this is just the
+        compact Spec Complete screen summary."""
         if self.passed is False:
             if not self._reason_entries:
-                return [f"{self.title} failed: no reason specified"]
+                return [f"{self.title} has issues: no reason specified"]
             codes = self._failed_codes()
             if not codes:
-                return [f"{self.title} failed"]
-            return [f"{self.title} failed: " + ", ".join(codes)]
+                return [f"{self.title} has issues"]
+            return [
+                ", ".join(f"{code}: {self._short_label_for_code(code)}" for code in codes)
+            ]
         if self.passed is None:
             return [f"{self.title} not completed"]
         return []
@@ -1943,14 +2008,18 @@ class PhysicalDefectsPage(Adw.Bin):
         return data
 
     def _usb_page_for_type(self, port_type):
-        if port_type == "USB-A":
+        # "USB" here is the button label for the USB-A page's port type --
+        # see PHYSICAL_PORT_TYPES/UsbAPage.__init__ (kept as "USB-A"
+        # internally, e.g. USB_A_DEFECT_TYPES/UA-prefixed codes; only what's
+        # shown to the tech changed).
+        if port_type == "USB":
             return self.usb_a_page
         if port_type == "USB-C":
             return self.usb_c_page
         return None
 
     def _port_damage_reason_for_type(self, port_type):
-        if port_type == "USB-A":
+        if port_type == "USB":
             return USB_A_PORT_DAMAGE_REASON
         if port_type == "USB-C":
             return USB_C_PORT_DAMAGE_REASON
@@ -2678,21 +2747,44 @@ class PhysicalDefectsPage(Adw.Bin):
             codes.add(self._defect_code(defect_type))
         return sorted(codes, key=self._code_sort_key)
 
+    def _failed_code_details(self):
+        """(code, "<code>: <short description>") pairs for every reported
+        defect, deduped by code and sorted in numeric order -- like
+        _failed_codes, but keeps each defect's short label alongside its
+        code (e.g. "PD01: Dents") instead of a bare code, for
+        get_failure_reasons' compact Spec Complete summary. "Broken Part"
+        contributes whichever real codes/labels its selected sub-types map
+        to (see _broken_part_codes_and_details) instead of one generic
+        entry for the whole defect."""
+        if not self.has_defects or not self._defect_entries:
+            return []
+        details = {}
+        for defect_type, (entry_row, data) in self._defect_entries.items():
+            if defect_type == "Broken Part":
+                for code, text in self._broken_part_codes_and_details(data):
+                    details[code] = text
+                continue
+            code = self._defect_code(defect_type)
+            details[code] = f"{code}: {defect_type}"
+        return sorted(details.items(), key=lambda item: self._code_sort_key(item[0]))
+
     def get_failure_reasons(self):
-        """Reported defects are summarized as just their data codes (e.g.
-        "PD01, PD05") rather than the full defect/location text -- that
-        detail already lives on the tracking sheet (see get_notes_entries);
-        this is just the compact Spec Complete screen summary."""
+        """Reported defects are summarized as their data codes plus a short
+        description (e.g. "PD01: Dents, PD05: Peeling Paint") rather than
+        the full defect/location text -- that detail already lives on the
+        tracking sheet (see get_notes_entries); this is just the compact
+        Spec Complete screen summary, matching the "<code>: <description>"
+        style used elsewhere (see TogglePage._reason_label)."""
         if self.has_defects is None:
             return ["Physical defects check not completed"]
         if not self.has_defects:
             return []
         if not self._defect_entries:
             return ["Physical defects present"]
-        codes = self._failed_codes()
-        if not codes:
+        details = self._failed_code_details()
+        if not details:
             return ["Physical defects present"]
-        return [", ".join(codes)]
+        return [", ".join(text for _, text in details)]
 
     def get_notes_entries(self):
         """All reported defects are concatenated onto a single line (rather
@@ -2844,6 +2936,7 @@ class WiFiPage(TogglePage):
             reason_options=WIFI_DEFECT_TYPES,
             code_prefix="WF",
             topic="WiFi",
+            reason_short_labels=WIFI_REASON_SHORT_LABELS,
             instructions=(
                 "Connect to a Wi-Fi network and confirm the connection is "
                 "stable. This page is skipped automatically once a "
@@ -2919,6 +3012,9 @@ class WiFiPage(TogglePage):
             return f"{label} (Failed ping test)"
         return label
 
+    def _reason_code(self, reason):
+        return WIFI_DEFECT_CODES.get(reason) or super()._reason_code(reason)
+
     def build_reason_locations(self, entry_row, reason):
         return {"type": "none"}
 
@@ -2938,7 +3034,16 @@ class TouchpadPage(TogglePage):
                 " cursor moves cleanly and accurately. "
             ),
             gif_path=TOUCHPAD_GIF_PATH,
+            reason_short_labels=TOUCHPAD_REASON_SHORT_LABELS,
         )
+        # "A problem with left or right click"/"Something is wrong with how
+        # the cursor moves" carry no code of their own -- their selected
+        # sub-options report under these fixed codes instead (see
+        # _build_click_picker/TOUCHPAD_CURSOR_OPTIONS), so their short
+        # labels are merged in directly rather than through
+        # reason_short_labels above.
+        self.code_short_labels.update(TOUCHPAD_CLICK_SHORT_LABELS)
+        self.code_short_labels.update(TOUCHPAD_CURSOR_SHORT_LABELS)
 
     def build_reason_locations(self, entry_row, reason):
         if reason == TOUCHPAD_CLICK_REASON:
@@ -3062,17 +3167,12 @@ class TouchpadPage(TogglePage):
     def _reason_code(self, reason):
         """Overrides TogglePage._reason_code -- "A problem with left or
         right click" and "Something is wrong with how the cursor moves"
-        get no single code of their own (see class docstring above).
-        "Part of the touchpad doesn't work" gets a fixed code from
-        TOUCHPAD_REASON_CODES rather than its position in
-        TOUCHPAD_DEFECT_TYPES, since TP04-TP08 are already spoken for by
-        the click/cursor sub-reasons. Every other touchpad reason keeps
-        the default position-based code."""
+        get no single code of their own (see class docstring above). Every
+        other touchpad reason gets its fixed code from TOUCHPAD_DEFECT_CODES
+        (defect_types.json's "touchpad")."""
         if reason in (TOUCHPAD_CLICK_REASON, TOUCHPAD_CURSOR_REASON):
             return None
-        if reason in TOUCHPAD_REASON_CODES:
-            return TOUCHPAD_REASON_CODES[reason]
-        return super()._reason_code(reason)
+        return TOUCHPAD_DEFECT_CODES.get(reason) or super()._reason_code(reason)
 
     def _touchpad_click_notes(self, data):
         """Each selected click side reports under its own fixed code (see
@@ -3221,16 +3321,15 @@ class ScreenSectionMixin:
 
 
 class ScreenPage(ScreenSectionMixin, TogglePage):
-    # "Screen not responding" (no display at all), "Screen broken"
+    # "Screen not responding" (no display at all) and "Screen broken"
     # (physically cracked/shattered -- see
     # PhysicalDefectsPage._build_screen_broken_block for the "Broken Part"
-    # -> "Screen" delegation, which gets "type": "none" the same way), and
-    # "Screen glitches out" all apply to the whole screen with nothing
-    # meaningful to point at.
-    NO_LOCATION_REASONS = {
-        "Screen not responding",
-        "Screen broken",
-        "Screen glitches out",
+    # -> "Screen" delegation, which gets "type": "none" the same way) apply
+    # to the whole screen with nothing meaningful to point at, same as any
+    # defect_types.json "screen" entry flagged "no_location" (currently just
+    # "Screen glitches out").
+    NO_LOCATION_REASONS = {"Screen not responding", "Screen broken"} | {
+        e["label"] for e in _page_entries("screen") if e.get("no_location")
     }
 
     def __init__(self):
@@ -3248,8 +3347,12 @@ class ScreenPage(ScreenSectionMixin, TogglePage):
                 "dirtiness. (Please never spray directly onto the screen)"
             ),
             gif_path=SCREEN_GIF_PATH,
+            reason_short_labels=SCREEN_REASON_SHORT_LABELS,
         )
         self.utils = Utils()
+
+    def _reason_code(self, reason):
+        return SCREEN_DEFECT_CODES.get(reason) or super()._reason_code(reason)
 
     def build_action(self, box):
         launch_row = Adw.ActionRow()
@@ -3313,6 +3416,11 @@ class BrowserPage(TogglePage):
             gif_path=None,
         )
         self.utils = Utils()
+        # "Audio" carries no code of its own -- each Sound option selected
+        # under it reports under its own fixed SD code instead (see
+        # _sound_reason_notes), so its short labels are merged in directly
+        # rather than through reason_short_labels.
+        self.code_short_labels.update(SOUND_SHORT_LABELS)
 
     def build_action(self, box):
         launch_row = Adw.ActionRow()
@@ -3348,10 +3456,12 @@ class BrowserPage(TogglePage):
         """Overrides TogglePage._reason_code -- "Audio" gets no code of
         its own; each Sound issue selected under it reports under its own
         real SD code instead (see _sound_reason_notes), same "no single
-        code" pattern as TouchpadPage's click/cursor reasons."""
+        code" pattern as TouchpadPage's click/cursor reasons. "Video" gets
+        its fixed code from BROWSER_DEFECT_CODES (defect_types.json's
+        "browser")."""
         if reason == "Audio":
             return None
-        return super()._reason_code(reason)
+        return BROWSER_DEFECT_CODES.get(reason) or super()._reason_code(reason)
 
     def _sound_reason_notes(self, data):
         """Each Sound option selected under "Audio" reports under its own
@@ -3460,6 +3570,7 @@ class WebcamPage(TogglePage):
                 "picture is clear and accurate."
             ),
             gif_path=None,
+            reason_short_labels=WEBCAM_REASON_SHORT_LABELS,
         )
         self.utils = Utils()
         # Detected once at startup, since webcam hardware presence doesn't
@@ -3471,6 +3582,9 @@ class WebcamPage(TogglePage):
         self.skip = self.webcam_status != "present"
         if self.webcam_status != "present":
             self.passed = True
+
+    def _reason_code(self, reason):
+        return WEBCAM_DEFECT_CODES.get(reason) or super()._reason_code(reason)
 
     def build_action(self, box):
         launch_row = Adw.ActionRow()
@@ -3522,7 +3636,7 @@ class WebcamPage(TogglePage):
 
     def build_reason_locations(self, entry_row, reason):
         # No webcam defect has a meaningful location to narrow down.
-        if reason == WEBCAM_DEFECT_TYPES[1]:  # "...solid black screen"
+        if reason == WEBCAM_BLACK_SCREEN_REASON:
             # Many laptops have a physical privacy shutter over the camera
             # lens -- easy to mistake for a dead webcam if it's slid shut.
             entry_row.add_row(
@@ -3579,17 +3693,18 @@ class UsbAPage(UsbPortLocationMixin, TogglePage):
     def __init__(self):
         super().__init__(
             "USBA",
-            "USB-A Ports",
-            "USB-A Ports",
+            "USB Ports",
+            "USB Ports",
             reason_options=USB_A_DEFECT_TYPES,
             code_prefix="UA",
-            topic="USB-A port",
+            topic="USB port",
             instructions=(
-                "Using a USB mouse, please plug the mouse into each USB-A port "
+                "Using a USB mouse, please plug the mouse into each USB port "
                 "and move it around, ensuring that the cursor moves around on "
-                "the screen. Place tape over any USB-A ports that do not work "
+                "the screen. Place tape over any USB ports that do not work "
                 "and report it below."
             ),
+            reason_short_labels=USB_A_REASON_SHORT_LABELS,
         )
 
     def _reason_code(self, reason):
@@ -3611,6 +3726,7 @@ class UsbCPage(UsbPortLocationMixin, TogglePage):
                 "it that way as well. Place tape over any defective USB-C "
                 "ports and report it below."
             ),
+            reason_short_labels=USB_C_REASON_SHORT_LABELS,
         )
 
     def _reason_code(self, reason):
@@ -3620,12 +3736,10 @@ class UsbCPage(UsbPortLocationMixin, TogglePage):
 class TouchscreenPage(ScreenSectionMixin, TogglePage):
     # Only "Areas of the touchscreen aren't working" (and custom entries,
     # which never match a preset reason) need a location -- the other
-    # three reasons apply to the whole touchscreen with nothing to point
-    # at.
+    # reasons (flagged "no_location" in defect_types.json's "touchscreen")
+    # apply to the whole touchscreen with nothing to point at.
     NO_LOCATION_REASONS = {
-        "The touchscreen doesn't work at all",
-        "The cursor freaks out when I touch the screen",
-        "Where I touch is not where it registers",
+        e["label"] for e in _page_entries("touchscreen") if e.get("no_location")
     }
 
     def __init__(self):
@@ -3640,7 +3754,11 @@ class TouchscreenPage(ScreenSectionMixin, TogglePage):
                 "please tap each grey dot with your finger."
             ),
             gif_path=None,
+            reason_short_labels=TOUCHSCREEN_REASON_SHORT_LABELS,
         )
+
+    def _reason_code(self, reason):
+        return TOUCHSCREEN_DEFECT_CODES.get(reason) or super()._reason_code(reason)
 
     def build_action(self, box):
         launch_row = Adw.ActionRow()
@@ -3716,7 +3834,13 @@ class KeyboardPage(TogglePage):
                 "with a normal amount of effort."
             ),
             gif_path=KEYBOARD_GIF_PATH,
+            reason_short_labels=KEYBOARD_REASON_SHORT_LABELS,
         )
+        # "Physical damage" carries no code of its own -- each selected
+        # category reports under its own fixed code instead (see
+        # _physical_damage_notes), so its short labels are merged in
+        # directly rather than through reason_short_labels.
+        self.code_short_labels.update(PHYSICAL_DAMAGE_CODE_LABELS)
 
     def _can_mark_no_issues(self):
         return self.typing_test_complete
