@@ -24,7 +24,7 @@ from sortly import (
 
 # Master switch for reporting each manual test page's failure reasons (e.g.
 # "KB02|Keys do not work:A,B/TP01|Touchpad does not work at all" --
-# see SpecCompleteV3._gather_sortly_notes) back to Sortly as a follow-up
+# see SpecComplete._gather_sortly_notes) back to Sortly as a follow-up
 # update after the initial registration on this page -- see
 # report_speccing_notes() below.
 REPORT_SPECCING_NOTES_TO_SORTLY = True
@@ -62,6 +62,11 @@ class SortlyRegister(Adw.Bin):
         self._system_info = None
         self._user_edited = False
         self._folder_ids = []
+        # Staff bypass for the "must submit to Sortly first" gate in
+        # WizardWindow.on_next_clicked -- set once the override password is
+        # accepted. Sortly is still not updated, so is_registered() stays
+        # False and SpecComplete keeps flagging it on the tracking sheet.
+        self.sortly_override = False
 
         # Main vertical layout
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
@@ -121,10 +126,18 @@ class SortlyRegister(Adw.Bin):
         self.register_button.set_visible(False)
         self.register_button.connect("clicked", self._on_register_clicked)
 
+        # Staff-only bypass for techs who can't submit to Sortly (item not
+        # found, Sortly down, etc.) -- same shared staff password as the
+        # SpecInfo overrides.
+        self.override_button = Gtk.Button(label="Override")
+        self.override_button.set_halign(Gtk.Align.END)
+        self.override_button.connect("clicked", self._on_override_clicked)
+
         vbox.append(knumber_box)
         vbox.append(self.status_label)
         vbox.append(info_outer_list)
         vbox.append(self.register_button)
+        vbox.append(self.override_button)
 
         self.set_child(vbox)
 
@@ -472,19 +485,80 @@ class SortlyRegister(Adw.Bin):
             self.register_button.set_sensitive(True)
             self.knumber_entry.set_sensitive(True)
 
+    def _on_override_clicked(self, button):
+        dialog = Gtk.Window()
+        dialog.set_title("Sortly Override")
+        dialog.set_transient_for(self.get_root())
+        dialog.set_modal(True)
+        dialog.set_default_size(350, -1)
+        dialog.set_resizable(False)
+
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        box.set_margin_top(24)
+        box.set_margin_bottom(24)
+        box.set_margin_start(24)
+        box.set_margin_end(24)
+
+        label = Gtk.Label(label="Enter staff password to override:")
+        box.append(label)
+
+        entry = Gtk.PasswordEntry()
+        entry.set_show_peek_icon(True)
+        box.append(entry)
+
+        error_label = Gtk.Label(label="")
+        error_label.add_css_class("text-error")
+        box.append(error_label)
+
+        btn_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        btn_box.set_halign(Gtk.Align.END)
+
+        cancel_btn = Gtk.Button(label="Cancel")
+        cancel_btn.connect("clicked", lambda b: dialog.close())
+        btn_box.append(cancel_btn)
+
+        ok_btn = Gtk.Button(label="OK")
+        ok_btn.add_css_class("suggested-action")
+        ok_btn.connect("clicked", self._on_override_ok, entry, error_label, dialog)
+        btn_box.append(ok_btn)
+
+        entry.connect(
+            "activate",
+            lambda e: self._on_override_ok(ok_btn, entry, error_label, dialog),
+        )
+
+        box.append(btn_box)
+        dialog.set_child(box)
+        dialog.present()
+
+    def _on_override_ok(self, button, entry, error_label, dialog):
+        if entry.get_text() == "kramdenok":
+            self.sortly_override = True
+            self.override_button.set_visible(False)
+            self._set_status("Sortly update overridden by staff.")
+            dialog.close()
+        else:
+            error_label.set_label("Incorrect password")
+
+    def is_registered(self):
+        """Whether this machine's Sortly record has been successfully
+        updated from this page -- used by SpecComplete's System Info
+        summary to flag "Sortly data not updated" before printing."""
+        return self._submitted
+
     def report_speccing_notes(self, speccing_notes, on_complete=None):
         """Push the machine's aggregated Sortly notes string (see
-        SpecCompleteV3._gather_sortly_notes/manualtest_v3._sortly_entry for
+        SpecComplete._gather_sortly_notes/manualtest._sortly_entry for
         the "<code>|<description>[:<locations>]" format, entries joined by
         "/") to Sortly as a follow-up update to the item registered on this
-        page. Called from SpecCompleteV3 once every manual test page has
+        page. Called from SpecComplete once every manual test page has
         reported in -- those results don't exist yet when _do_register()
         runs at the start of the wizard, so this fires later instead.
 
         `on_complete`, if given, is called as `on_complete(success, error)`
         -- via GLib.idle_add once the background request finishes, so it's
         always safe to touch widgets from it -- so a caller that needs to
-        know the outcome (see SpecCompleteV3.complete(), which blocks
+        know the outcome (see SpecComplete.complete(), which blocks
         powering off the machine on this) can react to it. It still fires
         (with success=True) for every case below that skips the network
         call entirely, since none of them represent an actual failure to
@@ -549,7 +623,7 @@ class SortlyRegister(Adw.Bin):
         follow-up update to the item registered on this page, mirroring
         report_speccing_notes() above but gated by its own
         REPORT_SPEC_DATE_TO_SORTLY switch (testing-only, independent of
-        Speccing Notes reporting) instead. Called from SpecCompleteV3 as
+        Speccing Notes reporting) instead. Called from SpecComplete as
         soon as tracking sheet generation starts, in parallel with the PDF
         itself, passing the same date that gets stamped in the PDF's
         "Generated" line. May be called again by the same caller's retry
@@ -597,12 +671,17 @@ class SortlyRegister(Adw.Bin):
             # "must be a datetime instance" -- this custom attribute is
             # provisioned on Sortly's side as a full Date & Time type, so
             # it needs a complete ISO 8601 datetime. Tag it with this
-            # machine's actual UTC offset via astimezone() rather than
-            # hardcoding "Z" -- midnight local time mislabeled as midnight
-            # UTC lands on the previous day once Sortly converts it back
-            # for display in any timezone behind UTC.
+            # machine's actual UTC offset via astimezone() -- but even
+            # with the correct offset attached, Sortly still displayed the
+            # previous day, which means it isn't honoring the offset on
+            # its end. Sending local *noon* instead of local midnight
+            # keeps the calendar date correct no matter how Sortly (or
+            # whatever timezone its UI renders in) interprets the
+            # timestamp, since noon survives a shift of several hours
+            # either direction without crossing into the next/previous
+            # day.
             spec_datetime = (
-                datetime.combine(spec_date, time.min)
+                datetime.combine(spec_date, time(12, 0))
                 .astimezone()
                 .isoformat(timespec="milliseconds")
             )

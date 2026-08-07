@@ -1,0 +1,89 @@
+name: Defect type request
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  apply:
+    # Restricted to org members/collaborators -- this workflow parses
+    # arbitrary issue text and pushes a branch + opens a PR with repo
+    # write access, so it shouldn't be triggerable by an arbitrary public
+    # issue author even though the Issue Form auto-labels every submission.
+    if: >-
+      contains(github.event.issue.labels.*.name, 'defect-type-request') &&
+      contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.issue.author_association)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Apply request
+        id: apply
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          gh issue view "$ISSUE_NUMBER" --json body -q .body > /tmp/issue_body.txt
+
+          set +e
+          result=$(python3 scripts/apply_defect_type_request.py < /tmp/issue_body.txt)
+          status=$?
+          set -e
+
+          echo "result<<DEFECT_TYPE_REQUEST_EOF" >> "$GITHUB_OUTPUT"
+          echo "$result" >> "$GITHUB_OUTPUT"
+          echo "DEFECT_TYPE_REQUEST_EOF" >> "$GITHUB_OUTPUT"
+          if [ "$status" -eq 0 ]; then
+            echo "applied=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "applied=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Validate (safety net)
+        if: steps.apply.outputs.applied == 'true'
+        run: python3 scripts/validate_defect_types.py
+
+      - name: Comment rejection reason
+        if: steps.apply.outputs.applied != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          RESULT: ${{ steps.apply.outputs.result }}
+        run: |
+          message=$(python3 -c "import json, os; print(json.loads(os.environ['RESULT'])['message'])")
+          body="Couldn't apply this request: ${message}"$'\n\n'"Edit the issue to fix it, or open a new one -- this workflow only runs once, on a freshly opened issue."
+          gh issue comment "$ISSUE_NUMBER" --body "$body"
+
+      - name: Open pull request
+        if: steps.apply.outputs.applied == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          RESULT: ${{ steps.apply.outputs.result }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          LOGIN: ${{ github.event.issue.user.login }}
+        run: |
+          message=$(python3 -c "import json, os; print(json.loads(os.environ['RESULT'])['message'])")
+          branch="defect-type-request-$ISSUE_NUMBER"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add src/defect_types.json
+          git commit -m "$message" -m "Requested in #$ISSUE_NUMBER."
+          git push origin "$branch"
+
+          pr_body="Requested in #${ISSUE_NUMBER} by @${LOGIN}."$'\n\n'"Closes #${ISSUE_NUMBER}"
+          pr_url=$(gh pr create \
+            --title "$message" \
+            --body "$pr_body" \
+            --base "$DEFAULT_BRANCH" \
+            --head "$branch")
+
+          gh issue comment "$ISSUE_NUMBER" --body "Opened $pr_url -- a maintainer needs to review and merge it before this takes effect."

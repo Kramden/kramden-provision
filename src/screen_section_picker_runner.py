@@ -2,11 +2,11 @@
 """Standalone fullscreen "click the affected screen section(s)" picker.
 
 Run as a subprocess by the manual test page (see _build_section_picker in
-manualtest_v3.py) so the tech can point directly at the physical screen --
+manualtest.py) so the tech can point directly at the physical screen --
 which is split into a 2x3 grid of sections -- instead of picking from a
 small button grid embedded in the app. Prints the selected section
 name(s), comma-separated (may be empty), on a single line to stdout, then
-exits. Kept standalone (no import of manualtest_v3.py) to match
+exits. Kept standalone (no import of manualtest.py) to match
 touchscreen_test_runner.py; SECTIONS below must be kept in sync with
 SCREEN_SECTIONS there.
 """

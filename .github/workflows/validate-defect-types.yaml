@@ -1,0 +1,17 @@
+name: Validate defect types
+
+on:
+  pull_request:
+    paths:
+      - 'src/defect_types.json'
+      - 'scripts/validate_defect_types.py'
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Validate src/defect_types.json
+        run: python3 scripts/validate_defect_types.py

@@ -1,0 +1,116 @@
+{
+  "_comment": "Editable defect-type buttons + tracking-sheet datacodes for src/manualtest.py, one entry per test page. `order` preserves button position; `code` is a fixed, order-independent tracking-sheet code -- never derive a new one from position. `reserved_codes` lists codes already claimed by that page's hardcoded special entries (sub-pickers, delegated reasons, etc., which live in manualtest.py and are not editable here). Validate with scripts/validate_defect_types.py after any hand-edit.",
+  "physical_defects": {
+    "code_prefix": "PD",
+    "reserved_codes": ["PD01", "PD02", "PD06", "PD07", "PDOP"],
+    "types": [
+      {"label": "Dents", "code": "PD03", "order": 1},
+      {"label": "Deep Scratches", "code": "PD04", "order": 2},
+      {"label": "Peeling Paint", "code": "PD05", "order": 3},
+      {"label": "Laptop feet coming off", "code": "PD08", "order": 6, "no_location": true},
+      {"label": "Significant Scuffing", "code": "PD09", "order": 7}
+    ]
+  },
+  "screen": {
+    "code_prefix": "SC",
+    "reserved_codes": ["SC08"],
+    "types": [
+      {"label": "Light Spots", "code": "SC01", "order": 1},
+      {"label": "Bruises", "code": "SC02", "order": 2},
+      {"label": "Deep Scratches", "code": "SC03", "order": 3},
+      {"label": "Dead Pixels", "code": "SC04", "order": 4},
+      {"label": "Keyboard imprints on the screen", "code": "SC05", "order": 5},
+      {"label": "Screen glitches out", "code": "SC06", "order": 6, "no_location": true},
+      {"label": "Backlight failing", "code": "SC07", "order": 7},
+      {"label": "Screen cracked", "code": "SC09", "order": 9}
+    ]
+  },
+  "touchscreen": {
+    "code_prefix": "TS",
+    "reserved_codes": [],
+    "types": [
+      {"label": "The touchscreen doesn't work at all", "code": "TS01", "order": 1, "no_location": true},
+      {"label": "Where I touch is not where it registers", "code": "TS02", "order": 2, "no_location": true},
+      {"label": "Areas of the touchscreen aren't working", "code": "TS03", "order": 3},
+      {"label": "The cursor freaks out when I touch the screen", "code": "TS04", "order": 4, "no_location": true}
+    ]
+  },
+  "webcam": {
+    "code_prefix": "WC",
+    "reserved_codes": [],
+    "types": [
+      {"label": "The webcam does not work at all", "code": "WC01", "order": 1},
+      {"label": "The webcam reports a solid black screen", "code": "WC02", "order": 2},
+      {"label": "Lines going across or down webcam output", "code": "WC03", "order": 3},
+      {"label": "The Image is blurry", "code": "WC04", "order": 4},
+      {"label": "The video is choppy with low frame rate", "code": "WC05", "order": 5},
+      {"label": "Everything is monochrome and flashing", "code": "WC06", "order": 6},
+      {"label": "No webcam device found", "code": "WC07", "order": 7}
+    ]
+  },
+  "keyboard": {
+    "code_prefix": "KB",
+    "reserved_codes": ["KB03", "KB04", "KB05", "KB10"],
+    "types": [
+      {"label": "The whole keyboard does not work", "code": "KB01", "order": 1, "no_keys": true},
+      {"label": "Keys do not work", "code": "KB02", "order": 2},
+      {"label": "Keys need extra pressure or massaging to work", "code": "KB06", "order": 4},
+      {"label": "It is an international keyboard", "code": "KB07", "order": 5, "no_keys": true},
+      {"label": "Keys stick when pressed, holding themselves down", "code": "KB08", "order": 6},
+      {"label": "Keys report the incorrect keys when typing", "code": "KB09", "order": 7},
+      {"label": "Trackpoint missing", "code": "KB11", "order": 9, "no_keys": true},
+      {"label": "Trackpoint error", "code": "KB12", "order": 10, "no_keys": true}
+    ]
+  },
+  "usb_a": {
+    "code_prefix": "UA",
+    "reserved_codes": ["UA02"],
+    "types": [
+      {"label": "USB Port is finicky, connection cuts in and out", "code": "UA01", "order": 1},
+      {"label": "USB Port does not work", "code": "UA03", "order": 2}
+    ]
+  },
+  "usb_c": {
+    "code_prefix": "UC",
+    "reserved_codes": ["UC02"],
+    "types": [
+      {"label": "USB-C Port is finicky, connection cuts in and out", "code": "UC01", "order": 1},
+      {"label": "USB-C Port does not work", "code": "UC04", "order": 2},
+      {"label": "USB-C Port only works one way", "code": "UC03", "order": 4}
+    ]
+  },
+  "wifi": {
+    "code_prefix": "WF",
+    "reserved_codes": ["WF04"],
+    "types": [
+      {"label": "Wi-Fi doesn't work", "code": "WF01", "order": 1},
+      {"label": "Wi-Fi is extremely slow", "code": "WF02", "order": 2},
+      {"label": "No WiFi device detected", "code": "WF03", "order": 3}
+    ]
+  },
+  "touchpad": {
+    "code_prefix": "TP",
+    "reserved_codes": ["TP02", "TP04", "TP05", "TP06", "TP07", "TP08"],
+    "types": [
+      {"label": "Touchpad does not work at all", "code": "TP01", "order": 1},
+      {"label": "Touchpad looks as if it is bulging out", "code": "TP03", "order": 3},
+      {"label": "Part of the touchpad doesn't work", "code": "TP09", "order": 5}
+    ]
+  },
+  "browser": {
+    "code_prefix": "BR",
+    "reserved_codes": [],
+    "types": [
+      {"label": "Video", "code": "BR01", "order": 1}
+    ]
+  },
+  "sound": {
+    "code_prefix": "SD",
+    "reserved_codes": [],
+    "types": [
+      {"label": "Sound does not work", "code": "SD01", "order": 1},
+      {"label": "Sound is crunchy", "code": "SD02", "order": 2},
+      {"label": "No audio device/dummy output detected", "code": "SD03", "order": 3}
+    ]
+  }
+}
