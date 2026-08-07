@@ -44,6 +44,11 @@ PAGE_DISPLAY_TO_KEY = {
 # response (or "_No response_" for an empty optional field).
 _FIELD_PATTERN = re.compile(r"^###\s+(.+?)\s*$", re.MULTILINE)
 
+# A `type: checkboxes` field with one option renders as a single markdown
+# checklist item -- "- [X] ..." (checked) or "- [ ] ..." (unchecked) --
+# never "_No response_", even when left unchecked.
+_CHECKED_PATTERN = re.compile(r"-\s*\[[xX]\]")
+
 
 def parse_issue_body(body):
     """Returns {field label: response text} for every "### label" block in
@@ -77,6 +82,12 @@ def apply_request(defect_types, fields):
     page_display = fields.get("Page", "").strip()
     label = fields.get("Button label", "").strip()
     datacode = fields.get("Datacode", "").strip()
+    sub_buttons = [
+        line.strip()
+        for line in fields.get("Sub-buttons (optional)", "").splitlines()
+        if line.strip()
+    ]
+    no_sub_buttons = bool(_CHECKED_PATTERN.search(fields.get("No sub-buttons", "")))
 
     if action not in ("Add", "Remove"):
         return False, f'Unrecognized action "{action}" (expected Add or Remove).', {}
@@ -110,6 +121,19 @@ def apply_request(defect_types, fields):
     if label in existing_labels:
         return False, f'"{label}" already exists on the {page_display} page.', {}
 
+    if sub_buttons and no_sub_buttons:
+        return False, (
+            'Choose either Sub-buttons or "No sub-buttons", not both.'
+        ), {}
+    if len(set(sub_buttons)) != len(sub_buttons):
+        return False, "Sub-buttons has duplicate entries.", {}
+    if (sub_buttons or no_sub_buttons) and page_key == "sound":
+        return False, (
+            "Sub-buttons/\"No sub-buttons\" don't apply to the Sound page "
+            '(its entries are themselves sub-buttons under Browser\'s '
+            '"Audio").'
+        ), {}
+
     used_codes = reserved | {e["code"] for e in entries}
     if datacode:
         if not re.match(rf"^{re.escape(prefix)}[0-9A-Z]{{2}}$", datacode):
@@ -130,7 +154,12 @@ def apply_request(defect_types, fields):
             return False, f"No free codes left with prefix {prefix}.", {}  # pragma: no cover
 
     next_order = max((e["order"] for e in entries), default=0) + 1
-    entries.append({"label": label, "code": datacode, "order": next_order})
+    entry = {"label": label, "code": datacode, "order": next_order}
+    if sub_buttons:
+        entry["sub_buttons"] = sub_buttons
+    elif no_sub_buttons:
+        entry["no_sub_buttons"] = True
+    entries.append(entry)
     return (
         True,
         f'Added "{label}" ({datacode}) to {page_display}.',
