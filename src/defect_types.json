@@ -1,5 +1,5 @@
 {
-  "_comment": "Editable defect-type buttons + tracking-sheet datacodes for src/manualtest_v3.py, one entry per test page. `order` preserves button position; `code` is a fixed, order-independent tracking-sheet code -- never derive a new one from position. `reserved_codes` lists codes already claimed by that page's hardcoded special entries (sub-pickers, delegated reasons, etc., which live in manualtest_v3.py and are not editable here). Validate with scripts/validate_defect_types.py after any hand-edit.",
+  "_comment": "Editable defect-type buttons + tracking-sheet datacodes for src/manualtest.py, one entry per test page. `order` preserves button position; `code` is a fixed, order-independent tracking-sheet code -- never derive a new one from position. `reserved_codes` lists codes already claimed by that page's hardcoded special entries (sub-pickers, delegated reasons, etc., which live in manualtest.py and are not editable here). Validate with scripts/validate_defect_types.py after any hand-edit.",
   "physical_defects": {
     "code_prefix": "PD",
     "reserved_codes": ["PD01", "PD02", "PD06", "PD07", "PDOP"],

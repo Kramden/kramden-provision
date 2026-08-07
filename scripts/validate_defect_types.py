@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Validates src/defect_types.json -- the editable defect-type buttons +
-tracking-sheet datacodes for src/manualtest_v3.py (see that file's
+tracking-sheet datacodes for src/manualtest.py (see that file's
 _merge_defect_types/_page_entries for how it's loaded).
 
 Run directly (`python3 scripts/validate_defect_types.py`), imported from
@@ -57,7 +57,7 @@ def validate(defect_types):
                 errors.append(
                     f'{page_key}: "{label}" uses code "{code}", which is '
                     f"reserved for a hardcoded special entry in "
-                    f"manualtest_v3.py -- pick a different code"
+                    f"manualtest.py -- pick a different code"
                 )
 
             if order is None or not isinstance(order, int):

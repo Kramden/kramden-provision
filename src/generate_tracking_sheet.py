@@ -2,9 +2,8 @@
 """
 Generate a PDF tracking sheet with system hardware information.
 
-Layout follows the Kramden Institute paper tracking sheet: a single
-portrait page with a spec grid, a hardware test grid, a notes area, an
-OS selection line, and a QC sign-off table.
+Adds auto-populated, coded "Notes & Cosmetics" entries (e.g. "KB02: Key(s)
+Sticking (F, G)") built from each manual test page's get_notes_entries().
 
 Usage: python3 generate_tracking_sheet.py <item_name> [output_path]
 """
@@ -12,7 +11,9 @@ Usage: python3 generate_tracking_sheet.py <item_name> [output_path]
 import io
 import sys
 import os
+import threading
 from datetime import date
+from xml.sax.saxutils import escape
 
 try:
     from reportlab.lib.pagesizes import A5
@@ -25,6 +26,7 @@ try:
         Paragraph,
         Spacer,
         Image,
+        KeepInFrame,
     )
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib.enums import TA_LEFT, TA_RIGHT, TA_CENTER
@@ -40,7 +42,7 @@ except ImportError:
 from utils import Utils
 
 TRACKING_SHEET_TITLE = "Kramden Institute Tracking Sheet"
-TRACKING_SHEET_REV = "Rev. 1.0 - July 2026"
+TRACKING_SHEET_REV = "Rev. 2.0 - August 2026"
 
 # Step-order hints shown in the QC table header (None = no fixed order).
 # Triage is step 1 and is inferred, so it has no column of its own.
@@ -53,9 +55,40 @@ QC_STAGES = [
     ("Activated?", 5),
 ]
 
+# Target number of note-line-equivalents to budget for in the Notes &
+# Cosmetics box (matches the original's fixed 13 blank lines). Whatever's
+# left over after each entry's wrapped height is filled with blank ruled
+# lines for handwritten notes.
+NOTE_LINE_BUDGET = 13
+NOTE_LINE_HEIGHT = 0.19 * inch
+MIN_BLANK_NOTE_LINES = 2
 
-def get_system_info():
-    """Retrieve system hardware information using Utils."""
+
+_system_info_cache = None
+_system_info_lock = threading.Lock()
+
+
+def get_system_info(force_refresh=False):
+    """Retrieve system hardware information using Utils.
+
+    Some of these queries (discrete-GPU detection in particular, which
+    shells out to glxinfo) can take a second or more, and the hardware they
+    inspect can't change mid-session, so the result is cached for the life
+    of the process. See prefetch_tracking_sheet_data() to warm this cache
+    in the background well before the tech clicks Print.
+    """
+    global _system_info_cache
+    if _system_info_cache is not None and not force_refresh:
+        return _system_info_cache
+    with _system_info_lock:
+        if _system_info_cache is not None and not force_refresh:
+            return _system_info_cache
+        info = _gather_system_info()
+        _system_info_cache = info
+        return info
+
+
+def _gather_system_info():
     utils = Utils()
 
     brand = utils.get_vendor()
@@ -68,12 +101,14 @@ def get_system_info():
     batteries = utils.get_battery_capacities()
     device_type = utils.get_chassis_type()
 
-    # Format storage as "<size>GB <TYPE>", one line per disk.
+    # Format storage as "<size>GB <TYPE>", one line per disk. Devices with no
+    # drive installed (the common case for this line) get a blank field
+    # instead of a misleading "None".
     if disks:
         storage_lines = [f"{d['size']}GB {d['type']}" for d in disks.values()]
         total_storage = ",<br/>".join(storage_lines)
     else:
-        total_storage = "None"
+        total_storage = ""
 
     info = {
         "Brand": brand,
@@ -127,7 +162,32 @@ def _static_bold_stream(path):
     return buf
 
 
+# Instantiating the wght=700 static font from Ubuntu's variable-weight file
+# via fontTools is by far the slowest step in generating a tracking sheet
+# (measured at ~12s on typical hardware) -- far more than every hardware
+# query in get_system_info() combined. It's also pure, input-only-changes-
+# with-the-OS-image work, so it's cached to disk (survives repeat prints in
+# the same session/boot) and only ever runs once per process (guarded by
+# _fonts_registered, so a background prefetch and a real print racing each
+# other don't both pay the cost).
+BOLD_FONT_CACHE_PATH = "/tmp/kramden_ubuntu_bold_instance.ttf"
+
+_fonts_registered = False
+_fonts_lock = threading.Lock()
+
+
 def _register_fonts():
+    global _fonts_registered
+    if _fonts_registered:
+        return
+    with _fonts_lock:
+        if _fonts_registered:
+            return
+        _do_register_fonts()
+        _fonts_registered = True
+
+
+def _do_register_fonts():
     font_dir = "/usr/share/fonts/truetype/ubuntu"
     ubuntu_regular = os.path.join(font_dir, "Ubuntu-R.ttf")
     ubuntu_bold = os.path.join(font_dir, "Ubuntu-B.ttf")
@@ -142,15 +202,35 @@ def _register_fonts():
     pdfmetrics.registerFont(TTFont("Ubuntu", ubuntu_regular))
 
     bold_font_source = ubuntu_bold
-    try:
-        bold_stream = _static_bold_stream(ubuntu_bold)
-        if bold_stream is not None:
-            bold_font_source = bold_stream
-    except ImportError:
-        pass  # python3-fonttools not installed; fall back to the raw file
+    if os.path.exists(BOLD_FONT_CACHE_PATH) and os.path.getmtime(
+        BOLD_FONT_CACHE_PATH
+    ) >= os.path.getmtime(ubuntu_bold):
+        bold_font_source = BOLD_FONT_CACHE_PATH
+    else:
+        try:
+            bold_stream = _static_bold_stream(ubuntu_bold)
+            if bold_stream is not None:
+                bold_font_source = bold_stream
+                try:
+                    with open(BOLD_FONT_CACHE_PATH, "wb") as f:
+                        f.write(bold_stream.getvalue())
+                    bold_font_source = BOLD_FONT_CACHE_PATH
+                except OSError:
+                    bold_stream.seek(0)  # cache write failed; use the stream as-is
+        except ImportError:
+            pass  # python3-fonttools not installed; fall back to the raw file
 
     pdfmetrics.registerFont(TTFont("Ubuntu-Bold", bold_font_source))
     pdfmetrics.registerFontFamily("Ubuntu", normal="Ubuntu", bold="Ubuntu-Bold")
+
+
+def prefetch_tracking_sheet_data():
+    """Kick off the slow, one-time-per-session work (variable-font
+    instancing, discrete-GPU detection, etc.) on background threads as soon
+    as possible, so it's already done/cached by the time the tech reaches
+    the Spec Complete page and clicks Print Tracking Sheet."""
+    threading.Thread(target=_register_fonts, daemon=True).start()
+    threading.Thread(target=get_system_info, daemon=True).start()
 
 
 LABEL_BG = colors.HexColor("#f0f0f0")
@@ -158,12 +238,6 @@ LABEL_BG = colors.HexColor("#f0f0f0")
 # Matches the "text-error" red libadwaita applies to emblem-important-symbolic
 # elsewhere in the app (specinfo.py, sysinfo.py, etc).
 IMPORTANT_RED = colors.HexColor("#e01b24")
-
-
-def _bool_result(value):
-    if value is None:
-        return ""
-    return "GOOD" if value else "BAD"
 
 
 def _important_symbol(size=9):
@@ -209,16 +283,88 @@ def _grid_table(data, col_widths, row_heights=None, extra_cmds=None):
     return table
 
 
+def _notes_table_rows(notes_entries, notes_label_style, value_style, content_width):
+    """Build the [row, ...]/[height, ...] pairs for the Notes & Cosmetics
+    box: the auto-filled entries first, then enough blank ruled lines to
+    fill out the usual line budget.
+
+    Entry text is concatenated (comma-separated) by the callers, so a
+    single entry can be longer than one line's worth of characters; its
+    row height is measured via Paragraph.wrap() and rounded up to a whole
+    number of NOTE_LINE_HEIGHT-tall lines so wrapped text pushes later
+    rows down instead of overlapping them.
+    """
+    rows = [[Paragraph("Notes &amp; Cosmetics:", notes_label_style)]]
+    heights = [0.28 * inch]
+    used_lines = 0
+
+    from math import ceil
+
+    wrapped_value_style = ParagraphStyle(
+        "NotesValueWrapped", parent=value_style, leading=NOTE_LINE_HEIGHT
+    )
+
+    for entry in notes_entries or []:
+        text = entry.get("text")
+        if text:
+            para = Paragraph(text, wrapped_value_style)
+            _, wrapped_height = para.wrap(
+                content_width, NOTE_LINE_BUDGET * NOTE_LINE_HEIGHT
+            )
+            line_count = max(1, ceil(wrapped_height / NOTE_LINE_HEIGHT))
+            rows.append([para])
+            heights.append(line_count * NOTE_LINE_HEIGHT)
+            used_lines += line_count
+
+        strokes_list = entry.get("image_strokes_list")
+        if strokes_list and _DIAGRAM_RENDER_AVAILABLE:
+            rows.append([_diagrams_row(strokes_list, content_width)])
+            heights.append(3 * NOTE_LINE_HEIGHT)
+            used_lines += 3
+
+    blank_lines = max(MIN_BLANK_NOTE_LINES, NOTE_LINE_BUDGET - used_lines)
+    for _ in range(blank_lines):
+        rows.append([""])
+        heights.append(NOTE_LINE_HEIGHT)
+
+    return rows, heights
+
+
 def generate_tracking_sheet(
-    item_name, output_path=None, spec_passed=None, manual_test_results=None
+    item_name,
+    output_path=None,
+    spec_passed=None,
+    manual_test_results=None,
+    notes_entries=None,
+    initials=None,
+    generated_date=None,
 ):
-    """Generate a single-page portrait PDF tracking sheet for a computer."""
+    """Generate a single-page portrait PDF tracking sheet for a computer.
+
+    notes_entries, if given, is a list of {"text": str} dicts (see
+    manualtest.TogglePage.get_notes_entries) that are pre-filled into the
+    "Notes & Cosmetics" box.
+
+    initials, if given, is the tech's initials (collected via a dialog when
+    they click "Review Tracking Sheet") and is printed next to "Initials:"
+    in the header instead of leaving it blank for handwriting.
+
+    generated_date, if given, is the datetime.date stamped in the header's
+    "Generated" line (and used for the fallback output filename below) --
+    callers that also need to report that same date elsewhere (e.g.
+    SpecComplete reporting it to Sortly) should pass it in explicitly so
+    both places agree, rather than each independently calling
+    date.today() and risking disagreement across a midnight boundary.
+    Defaults to date.today() if not given.
+    """
+    if generated_date is None:
+        generated_date = date.today()
     if output_path is None:
         if item_name:
             output_path = f"/tmp/{item_name}_tracking_sheet.pdf"
         else:
             # No K-Number entered yet; keep output paths unique per run.
-            stamp = date.today().strftime("%Y%m%d") + f"-{os.getpid()}"
+            stamp = generated_date.strftime("%Y%m%d") + f"-{os.getpid()}"
             output_path = f"/tmp/tracking_sheet_{stamp}.pdf"
 
     print("Gathering system information...")
@@ -341,8 +487,9 @@ def generate_tracking_sheet(
     elements = []
 
     # ===== Header: Generated/Initials (left) + K-Number (right) =====
+    initials_display = escape(initials) if initials else "__________"
     meta_para = Paragraph(
-        f"Generated {date.today().strftime('%m-%d-%Y')}<br/>Initials: __________",
+        f"Generated {generated_date.strftime('%m-%d-%Y')}<br/>Initials: {initials_display}",
         meta_style,
     )
     knum_para = Paragraph(item_name or "_____________", knum_style)
@@ -405,7 +552,8 @@ def generate_tracking_sheet(
     ram_label_width = _fit_width("RAM")
     storage_label_width = _fit_width("Storage")
 
-    spec_label_col0 = 62  # Model / Graphics label
+    model_label_width = _fit_width("Model")
+    spec_label_col0 = 62  # Graphics label
     spec_label_col4 = 42  # CPU / Bat0 / Bat1 label
 
     row0_col_widths = [
@@ -440,13 +588,13 @@ def generate_tracking_sheet(
         ],
     )
 
-    row12_col_widths = [
-        spec_label_col0,
-        usable_width - spec_label_col0 - spec_label_col4 - bat_val_width,
+    model_row_widths = [
+        model_label_width,
+        usable_width - model_label_width - spec_label_col4 - bat_val_width,
         spec_label_col4,
         bat_val_width,
     ]
-    row12_table = _grid_table(
+    model_row_table = _grid_table(
         [
             [
                 Paragraph("Model", label_style),
@@ -454,34 +602,76 @@ def generate_tracking_sheet(
                 Paragraph(bat0_label, label_style),
                 Paragraph(bat0_value, value_style),
             ],
-            [
-                Paragraph("Graphics", label_style),
-                Paragraph(system_info.get("Graphics", "N/A"), value_style),
-                Paragraph(bat1_label, label_style),
-                Paragraph(bat1_value, value_style),
-            ],
         ],
-        row12_col_widths,
+        model_row_widths,
         extra_cmds=[
             ("BACKGROUND", (0, 0), (0, -1), LABEL_BG),
             ("BACKGROUND", (2, 0), (2, -1), LABEL_BG),
         ],
     )
+
+    # When there's no second battery, drop the Bat1 label/value columns and
+    # hand the freed width to the Graphics value column instead.
+    if not bat1_value:
+        graphics_row_widths = [
+            spec_label_col0,
+            usable_width - spec_label_col0,
+        ]
+        graphics_row_table = _grid_table(
+            [
+                [
+                    Paragraph("Graphics", label_style),
+                    Paragraph(system_info.get("Graphics", "N/A"), value_style),
+                ],
+            ],
+            graphics_row_widths,
+            extra_cmds=[
+                ("BACKGROUND", (0, 0), (0, -1), LABEL_BG),
+            ],
+        )
+    else:
+        graphics_row_widths = [
+            spec_label_col0,
+            usable_width - spec_label_col0 - spec_label_col4 - bat_val_width,
+            spec_label_col4,
+            bat_val_width,
+        ]
+        graphics_row_table = _grid_table(
+            [
+                [
+                    Paragraph("Graphics", label_style),
+                    Paragraph(system_info.get("Graphics", "N/A"), value_style),
+                    Paragraph(bat1_label, label_style),
+                    Paragraph(bat1_value, value_style),
+                ],
+            ],
+            graphics_row_widths,
+            extra_cmds=[
+                ("BACKGROUND", (0, 0), (0, -1), LABEL_BG),
+                ("BACKGROUND", (2, 0), (2, -1), LABEL_BG),
+            ],
+        )
     elements.append(row0_table)
-    elements.append(row12_table)
+    elements.append(model_row_table)
+    elements.append(graphics_row_table)
     elements.append(Spacer(1, 4))
 
     # ===== Hardware test grid (3x3) =====
     mt = manual_test_results or {}
 
-    def test_value(name):
-        if name not in mt:
-            return ""
-        return _bool_result(mt[name])
+    # manual_test_results values are the "Pass"/"Fail"/"Untested" (or, for
+    # WebCam, also "N/A") strings returned by each page's get_result().
+    RESULT_LABELS = {"Pass": "GOOD", "Fail": "BAD", "N/A": "N/A", "Untested": ""}
 
-    webcam_map = {"Pass": "GOOD", "Fail": "BAD", "N/A": "N/A", "Untested": ""}
-    webcam_value = webcam_map.get(mt.get("WebCam"), "")
-    touchscreen_value = "YES" if Utils.has_touchscreen() else "NO"
+    def test_value(name):
+        return RESULT_LABELS.get(mt.get(name), "")
+
+    webcam_value = test_value("WebCam")
+    # A "Touchscreen" key is only present in manual_test_results at all on
+    # devices that have one (see spec.py's has_touchscreen() gating);
+    # its absence is what distinguishes "not a touchscreen" from "not
+    # tested yet".
+    touchscreen_value = test_value("Touchscreen") if "Touchscreen" in mt else "N/A"
 
     def test_result_cell(value):
         if value != "BAD":
@@ -500,12 +690,47 @@ def generate_tracking_sheet(
             ),
         )
 
+    def usb_result_cell():
+        """USB-A and USB-C are separate manual test pages (see
+        manualtest.UsbAPage/UsbCPage) but share one "USB:" cell here.
+        "USBC" is only present in manual_test_results on devices where the
+        USB-C page was shown (see spec.py's Utils.should_show_usb_c_page()
+        gating), mirroring the Touchscreen key's presence-means-applicable
+        convention above."""
+        segments = [("A", test_value("USBA"))]
+        if "USBC" in mt:
+            segments.append(("C", test_value("USBC")))
+        lines = []
+        any_bad = False
+        for label, value in segments:
+            if value == "BAD":
+                any_bad = True
+                lines.append(f'{label}: <font name="Ubuntu-Bold">BAD</font>')
+            else:
+                lines.append(f"{label}: {value}" if value else f"{label}:")
+        para = Paragraph("<br/>".join(lines), value_style)
+        if not any_bad:
+            return para
+        return Table(
+            [[para, _important_symbol()]],
+            colWidths=[None, 12],
+            style=TableStyle(
+                [
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("TOPPADDING", (0, 0), (-1, -1), 0),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                ]
+            ),
+        )
+
     test_grid_data = [
         [
             Paragraph("Keyboard:", label_style),
             test_result_cell(test_value("Keyboard")),
             Paragraph("USB:", label_style),
-            test_result_cell(test_value("USB")),
+            usb_result_cell(),
             Paragraph("Screen:", label_style),
             test_result_cell(test_value("ScreenTest")),
         ],
@@ -513,17 +738,17 @@ def generate_tracking_sheet(
             Paragraph("Wi-Fi:", label_style),
             test_result_cell(test_value("WiFi")),
             Paragraph("Sound:", label_style),
-            Paragraph("", value_style),
+            test_result_cell(test_value("Sound")),
             Paragraph("Touchpad:", label_style),
             test_result_cell(test_value("Touchpad")),
         ],
         [
             Paragraph("Webcam:", label_style),
             test_result_cell(webcam_value),
-            Paragraph("Touchscreen?", label_style),
-            Paragraph(touchscreen_value, value_style),
+            Paragraph("Touchscreen:", label_style),
+            test_result_cell(touchscreen_value),
             Paragraph("Physical:", label_style),
-            Paragraph("", value_style),
+            test_result_cell(test_value("PhysicalDefects")),
         ],
     ]
     test_label_col0 = 62
@@ -544,7 +769,7 @@ def generate_tracking_sheet(
         test_grid_data,
         test_col_widths,
         extra_cmds=[
-            # Label columns: Keyboard/Wi-Fi/Webcam, USB/Sound/Touchscreen?, Screen/Touchpad/Physical
+            # Label columns: Keyboard/Wi-Fi/Webcam, USB/Sound/Touchscreen, Screen/Touchpad/Physical
             ("BACKGROUND", (0, 0), (0, -1), LABEL_BG),
             ("BACKGROUND", (2, 0), (2, -1), LABEL_BG),
             ("BACKGROUND", (4, 0), (4, -1), LABEL_BG),
@@ -554,15 +779,15 @@ def generate_tracking_sheet(
     elements.append(Spacer(1, 4))
 
     # ===== Notes & Cosmetics =====
-    note_line_count = 13
-    notes_rows = [[Paragraph("Notes &amp; Cosmetics:", notes_label_style)]]
-    for _ in range(note_line_count):
-        notes_rows.append([""])
+    notes_content_width = usable_width - 12  # minus cell LEFT/RIGHTPADDING
+    notes_rows, notes_row_heights = _notes_table_rows(
+        notes_entries, notes_label_style, value_style, notes_content_width
+    )
 
     notes_table = Table(
         notes_rows,
         colWidths=[usable_width],
-        rowHeights=[0.28 * inch] + [0.19 * inch] * note_line_count,
+        rowHeights=notes_row_heights,
     )
     notes_table.setStyle(
         TableStyle(
@@ -704,6 +929,14 @@ def generate_tracking_sheet(
         elements.append(footer_table)
     else:
         elements.append(footer_text)
+
+    # Safety net: however the notes budget above works out, never hard-fail
+    # with a "flowable too large" error if a page's worth of content still
+    # doesn't fit (e.g. an unusually large number of failure notes) -- shrink
+    # the whole page to fit instead, same as it would if hand-tuned to fit.
+    frame_padding = 12  # default SimpleDocTemplate frame padding (6 top + 6 bottom)
+    available_height = page_size[1] - doc.topMargin - doc.bottomMargin - frame_padding
+    elements = [KeepInFrame(usable_width, available_height, elements, mode="shrink")]
 
     # Build PDF
     print(f"\nGenerating PDF: {output_path}")

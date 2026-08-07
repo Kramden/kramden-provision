@@ -14,7 +14,7 @@ from utils import Utils
 BLOCK_NEXT_WHEN_DRIVE_PRESENT = True
 
 # Tracking-sheet/failure-summary data code for a detected BIOS password --
-# see manualtest_v3.py's CUSTOM_REASON_CODE_SUFFIX comment for the same
+# see manualtest.py's CUSTOM_REASON_CODE_SUFFIX comment for the same
 # "<code> <reason>" scheme used by every manual test page's notes.
 BIOS_PASSWORD_CODE = "BP00"
 
@@ -31,11 +31,9 @@ class SpecInfo(Adw.Bin):
         self.batteries_populated = False
         self.disks_populated = False
         self.disk_override = False
-        self.bios_password_override = False
         self.asset_info_override = False
         self.has_disks = False
         self._disk_error_widgets = []
-        self._bios_password_override_button = None
         self._asset_info_override_button = None
         self.sortly_register = None
 
@@ -324,43 +322,20 @@ class SpecInfo(Adw.Bin):
 
         bios_password = self._gathered["bios_password"]
         bios_password_warning = self._gathered.get("bios_password_warning")
-        if bios_password and not self.bios_password_override:
+        if bios_password:
             # True: password detected -- flagged on the tracking sheet (see
             # get_notes_entries) but does not block Next/completion.
             self.bios_password_row.set_subtitle("Has Password")
             self.bios_password_row.set_icon_name("emblem-important-symbolic")
             self.bios_password_row.add_css_class("text-error")
-            if not self._bios_password_override_button:
-                self._bios_password_override_button = self._add_override_button(
-                    self.bios_password_row,
-                    "BIOS Password Override",
-                    self._on_bios_password_override_accepted,
-                )
-        elif bios_password is None and not self.bios_password_override:
+        elif bios_password is None:
             # None: indeterminate – warning state, does NOT block completion
             self.bios_password_row.set_subtitle(
                 bios_password_warning or "Could not determine BIOS password state"
             )
             self.bios_password_row.set_icon_name("dialog-warning-symbolic")
-            if not self._bios_password_override_button:
-                self._bios_password_override_button = self._add_override_button(
-                    self.bios_password_row,
-                    "BIOS Password Override",
-                    self._on_bios_password_override_accepted,
-                )
         else:
-            # Overridden or no password
-            if bios_password is False:
-                self.bios_password_row.set_subtitle("No Password")
-            elif bios_password is None:
-                # Warning state was overridden by operator
-                self.bios_password_row.set_subtitle(
-                    f"{bios_password_warning} (Overridden)"
-                    if bios_password_warning
-                    else "BIOS Password State Unknown (Overridden)"
-                )
-            else:
-                self.bios_password_row.set_subtitle("Has Password (Overridden)")
+            self.bios_password_row.set_subtitle("No Password")
             self.bios_password_row.set_icon_name("emblem-ok-symbolic")
             if self.bios_password_row.has_css_class("text-error"):
                 self.bios_password_row.remove_css_class("text-error")
@@ -490,7 +465,7 @@ class SpecInfo(Adw.Bin):
         if not self._data_ready:
             return ["System info not yet gathered"]
         reasons = []
-        if self._gathered.get("bios_password") and not self.bios_password_override:
+        if self._gathered.get("bios_password"):
             reasons.append(f"{BIOS_PASSWORD_CODE} HAS BIOS PASSWORD")
         if self._gathered.get("computrace") is True:
             reasons.append("Computrace/Absolute is active")
@@ -502,7 +477,7 @@ class SpecInfo(Adw.Bin):
         page's Next button before a tracking sheet can even be generated
         (see is_complete()), so neither is reported here."""
         entries = []
-        if self._gathered.get("bios_password") and not self.bios_password_override:
+        if self._gathered.get("bios_password"):
             entries.append({"text": f"<b>{BIOS_PASSWORD_CODE} HAS BIOS PASSWORD</b>"})
         if self._gathered.get("computrace") is True:
             entries.append({"text": "Computrace/Absolute is active"})
@@ -611,9 +586,6 @@ class SpecInfo(Adw.Bin):
             widget.set_icon_name("emblem-ok-symbolic")
             if widget.has_css_class("text-error"):
                 widget.remove_css_class("text-error")
-
-    def _on_bios_password_override_accepted(self):
-        self.bios_password_override = True
 
     def _on_asset_info_override_accepted(self):
         self.asset_info_override = True
