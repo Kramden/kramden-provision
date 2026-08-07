@@ -159,9 +159,9 @@ PLACEHOLDER_INSTRUCTIONS = "(Instructions for this test will go here)"
 # PhysicalDefectsPage._on_port_damage_type_changed).
 USB_A_PORT_DAMAGE_REASON = "USB Port is physically damage"
 # The two plain "doesn't work right" reasons (label/code from
-# defect_types.json's "usb_a" -- both share UA01) plus the special
-# "physically damage" reason (UA02), merged in at its original position.
-# Same "several reasons, one code" pattern as KeyboardPage._reason_code.
+# defect_types.json's "usb_a") plus the special "physically damage" reason
+# (UA02, reserved in defect_types.json since it's assigned below), merged
+# in at its original position.
 USB_A_DEFECT_TYPES, USB_A_REASON_CODES = _merge_defect_types(
     "usb_a", specials=[(USB_A_PORT_DAMAGE_REASON, 3)]
 )
@@ -178,9 +178,10 @@ USB_A_REASON_SHORT_LABELS = {
 # Must match an entry in USB_C_DEFECT_TYPES exactly -- see
 # USB_A_PORT_DAMAGE_REASON above, same suppression but for UsbCPage.
 USB_C_PORT_DAMAGE_REASON = "USB-C Port is physically damage"
-# See USB_A_DEFECT_TYPES above -- "finicky"/"does not work" share UC01
-# (from defect_types.json's "usb_c"), and the upside-down failure gets its
-# own UC03; the special "physically damage" reason gets UC02.
+# See USB_A_DEFECT_TYPES above -- the plain reasons (including the
+# upside-down failure, UC03) come from defect_types.json's "usb_c"; the
+# special "physically damage" reason gets UC02 (reserved in
+# defect_types.json since it's assigned below).
 USB_C_DEFECT_TYPES, USB_C_REASON_CODES = _merge_defect_types(
     "usb_c", specials=[(USB_C_PORT_DAMAGE_REASON, 3)]
 )

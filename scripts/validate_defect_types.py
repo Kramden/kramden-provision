@@ -34,6 +34,7 @@ def validate(defect_types):
         code_pattern = re.compile(rf"^{re.escape(prefix)}[0-9A-Z]{{2}}$")
 
         labels_seen = set()
+        codes_seen = set()
         orders_seen = set()
         for entry in page.get("types", []):
             label = entry.get("label")
@@ -59,6 +60,10 @@ def validate(defect_types):
                     f"reserved for a hardcoded special entry in "
                     f"manualtest.py -- pick a different code"
                 )
+            elif code in codes_seen:
+                errors.append(f'{page_key}: duplicate code "{code}" (label "{label}")')
+            else:
+                codes_seen.add(code)
 
             if order is None or not isinstance(order, int):
                 errors.append(f'{page_key}: "{label}" has a missing/invalid order')

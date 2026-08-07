@@ -64,18 +64,18 @@
   },
   "usb_a": {
     "code_prefix": "UA",
-    "reserved_codes": [],
+    "reserved_codes": ["UA02"],
     "types": [
       {"label": "USB Port is finicky, connection cuts in and out", "code": "UA01", "order": 1},
-      {"label": "USB Port does not work", "code": "UA01", "order": 2}
+      {"label": "USB Port does not work", "code": "UA03", "order": 2}
     ]
   },
   "usb_c": {
     "code_prefix": "UC",
-    "reserved_codes": [],
+    "reserved_codes": ["UC02"],
     "types": [
       {"label": "USB-C Port is finicky, connection cuts in and out", "code": "UC01", "order": 1},
-      {"label": "USB-C Port does not work", "code": "UC01", "order": 2},
+      {"label": "USB-C Port does not work", "code": "UC04", "order": 2},
       {"label": "USB-C Port only works one way", "code": "UC03", "order": 4}
     ]
   },

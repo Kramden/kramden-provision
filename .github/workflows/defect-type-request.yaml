@@ -67,6 +67,7 @@ jobs:
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           RESULT: ${{ steps.apply.outputs.result }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          LOGIN: ${{ github.event.issue.user.login }}
         run: |
           message=$(python3 -c "import json, os; print(json.loads(os.environ['RESULT'])['message'])")
           branch="defect-type-request-$ISSUE_NUMBER"
@@ -78,7 +79,7 @@ jobs:
           git commit -m "$message" -m "Requested in #$ISSUE_NUMBER."
           git push origin "$branch"
 
-          pr_body="Requested in #${ISSUE_NUMBER} by @${{ github.event.issue.user.login }}."$'\n\n'"Closes #${ISSUE_NUMBER}"
+          pr_body="Requested in #${ISSUE_NUMBER} by @${LOGIN}."$'\n\n'"Closes #${ISSUE_NUMBER}"
           pr_url=$(gh pr create \
             --title "$message" \
             --body "$pr_body" \
