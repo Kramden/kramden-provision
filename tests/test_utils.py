@@ -486,7 +486,8 @@ Memory Device
             ["sudo", "dmidecode", "-t", "17"],
             capture_output=True,
             text=True,
-            check=True
+            check=True,
+            timeout=5
         )
 
     @patch('subprocess.run')

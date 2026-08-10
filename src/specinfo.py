@@ -109,7 +109,6 @@ class SpecInfo(Adw.Bin):
 
         self.mem_row = Adw.ActionRow()
         self.mem_row.set_title("Memory")
-        self.mem_row.set_subtitle(utils.get_mem() + " GB")
 
         igpu_row = Adw.ActionRow()
         igpu_row.set_title("Integrated Graphics")
@@ -322,6 +321,7 @@ class SpecInfo(Adw.Bin):
 
         # Set Memory row to emblem-ok-symbolic if memory is greater than or equal to 7 GB, else set row to emblem-important-symbolic
         mem = int(self._gathered["mem"])
+        self.mem_row.set_subtitle(str(mem) + " GB")
         if mem >= 7:
             self.mem_row.set_icon_name("emblem-ok-symbolic")
             if self.mem_row.has_css_class("text-error"):

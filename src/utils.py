@@ -410,6 +410,7 @@ class Utils:
                 capture_output=True,
                 text=True,
                 check=True,
+                timeout=5,
             )
 
             total_mb = 0
@@ -440,9 +441,15 @@ class Utils:
                 # Convert MB to GiB
                 return total_mb / 1024
 
-        except (subprocess.CalledProcessError, OSError, ValueError):
-            # If dmidecode is unavailable, fails, or returns unexpected output,
-            # gracefully fall back to /proc/meminfo via get_mem().
+        except (
+            subprocess.CalledProcessError,
+            subprocess.TimeoutExpired,
+            OSError,
+            ValueError,
+        ):
+            # If dmidecode is unavailable, fails, times out, or returns
+            # unexpected output, gracefully fall back to /proc/meminfo via
+            # get_mem().
             pass
 
         return None
