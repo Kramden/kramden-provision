@@ -72,6 +72,49 @@ def validate(defect_types):
             else:
                 orders_seen.add(order)
 
+            # sub_buttons/no_sub_buttons (see manualtest.py's
+            # _sub_buttons_override) supersede a page's own default
+            # sub-picker for this entry, so they're mutually exclusive with
+            # each other and with the older no_location/no_keys flags,
+            # which only mean something to a page's own default dispatch.
+            behavior_flags = [
+                flag
+                for flag in ("sub_buttons", "no_sub_buttons", "no_location", "no_keys")
+                if flag in entry
+            ]
+            if len(behavior_flags) > 1:
+                errors.append(
+                    f'{page_key}: "{label}" sets more than one of '
+                    f"sub_buttons/no_sub_buttons/no_location/no_keys "
+                    f"({', '.join(behavior_flags)}) -- pick at most one"
+                )
+
+            if "sub_buttons" in entry:
+                sub_buttons = entry["sub_buttons"]
+                if (
+                    not isinstance(sub_buttons, list)
+                    or not sub_buttons
+                    or not all(
+                        isinstance(b, str) and b.strip() for b in sub_buttons
+                    )
+                ):
+                    errors.append(
+                        f'{page_key}: "{label}" has an invalid "sub_buttons" '
+                        f"-- must be a non-empty list of non-empty strings"
+                    )
+                elif len(set(sub_buttons)) != len(sub_buttons):
+                    errors.append(
+                        f'{page_key}: "{label}" has duplicate entries in '
+                        f'"sub_buttons"'
+                    )
+
+            if "no_sub_buttons" in entry and not isinstance(
+                entry["no_sub_buttons"], bool
+            ):
+                errors.append(
+                    f'{page_key}: "{label}" has a non-boolean "no_sub_buttons"'
+                )
+
     return errors
 
 

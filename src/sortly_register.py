@@ -485,7 +485,7 @@ class SortlyRegister(Adw.Bin):
             self.register_button.set_sensitive(True)
             self.knumber_entry.set_sensitive(True)
 
-    def _on_override_clicked(self, button):
+    def _on_override_clicked(self, button, on_success=None):
         dialog = Gtk.Window()
         dialog.set_title("Sortly Override")
         dialog.set_transient_for(self.get_root())
@@ -519,24 +519,30 @@ class SortlyRegister(Adw.Bin):
 
         ok_btn = Gtk.Button(label="OK")
         ok_btn.add_css_class("suggested-action")
-        ok_btn.connect("clicked", self._on_override_ok, entry, error_label, dialog)
+        ok_btn.connect(
+            "clicked", self._on_override_ok, entry, error_label, dialog, on_success
+        )
         btn_box.append(ok_btn)
 
         entry.connect(
             "activate",
-            lambda e: self._on_override_ok(ok_btn, entry, error_label, dialog),
+            lambda e: self._on_override_ok(
+                ok_btn, entry, error_label, dialog, on_success
+            ),
         )
 
         box.append(btn_box)
         dialog.set_child(box)
         dialog.present()
 
-    def _on_override_ok(self, button, entry, error_label, dialog):
+    def _on_override_ok(self, button, entry, error_label, dialog, on_success=None):
         if entry.get_text() == "kramdenok":
             self.sortly_override = True
             self.override_button.set_visible(False)
             self._set_status("Sortly update overridden by staff.")
             dialog.close()
+            if on_success:
+                on_success()
         else:
             error_label.set_label("Incorrect password")
 

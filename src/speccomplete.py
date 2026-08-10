@@ -1213,7 +1213,10 @@ class SpecComplete(Adw.Bin):
     def _sortly_registered(self):
         if not self.sortly_register:
             return True
-        return self.sortly_register.is_registered()
+        # Staff override on the first page (see sortly_register.py's
+        # sortly_override) also unblocks the Review/Print/Complete gate here,
+        # since the tech was never able to submit to Sortly in that case.
+        return self.sortly_register.is_registered() or self.sortly_register.sortly_override
 
     # on_shown is called when the page is shown in the stack
     def on_shown(self):

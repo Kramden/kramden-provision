@@ -8,7 +8,7 @@ body:
       value: |
         This opens a pull request that adds or removes one defect-type button (and its tracking-sheet datacode) on a Kramden Provision test page. A maintainer still has to review and merge it.
 
-        Only "plain" buttons can be changed this way -- ones that are just a label + a fixed code with no special behavior. Some buttons on these pages (e.g. Physical Defects' "Cracks"/"Broken Part", Keyboard's "Physical damage", Browser's "Audio") have extra logic wired to them and can't be added/removed here; those need a developer.
+        Only "plain" buttons can be changed this way -- ones that are just a label + a fixed code, optionally with a custom Sub-buttons list or "No sub-buttons" below, but no other special behavior. Some buttons on these pages (e.g. Physical Defects' "Cracks"/"Broken Part", Keyboard's "Physical damage", Browser's "Audio") have extra logic wired to them and can't be added/removed here; those need a developer.
   - type: dropdown
     id: action
     attributes:
@@ -51,6 +51,40 @@ body:
       label: Datacode
       description: 'Only for Add. Format "<PREFIX><NN>", e.g. "SC10" -- leave blank to auto-assign the next free code for this page. Ignored for Remove.'
       placeholder: e.g. SC10 (optional)
+    validations:
+      required: false
+  - type: textarea
+    id: sub_buttons
+    attributes:
+      label: Sub-buttons (optional)
+      description: >-
+        Only for Add, and not for the Sound page (its entries are
+        themselves sub-buttons under Browser's "Audio", so this doesn't
+        apply). One button label per line to pop up under your new button
+        when it's clicked, instead of that page's normal default picker --
+        still shown using that page's usual picker style (the fullscreen
+        location picker on Screen/Touchscreen, a plain button grid
+        everywhere else). Leave blank to just use the page's normal default
+        for this button. Ignored (and should be left blank) if "No
+        sub-buttons" below is checked.
+      placeholder: |
+        Top Left
+        Top Right
+        Bottom
+    validations:
+      required: false
+  - type: checkboxes
+    id: no_sub_buttons
+    attributes:
+      label: No sub-buttons
+      description: >-
+        Only for Add. Check this if your new button should report directly
+        with no popup at all when clicked -- no location, no picker,
+        nothing else to fill in. Leave unchecked (and use Sub-buttons above,
+        or leave both blank) otherwise.
+      options:
+        - label: This button should have no sub-buttons at all
+          required: false
     validations:
       required: false
   - type: textarea

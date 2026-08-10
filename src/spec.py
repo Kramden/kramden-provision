@@ -245,14 +245,23 @@ class WizardWindow(Gtk.ApplicationWindow):
             transient_for=self,
             modal=True,
             message_type=Gtk.MessageType.WARNING,
-            buttons=Gtk.ButtonsType.OK,
+            buttons=Gtk.ButtonsType.NONE,
             text="Hardware info not submitted",
             secondary_text="You must submit the updated hardware info to Sortly "
-            "before continuing. If Sortly is unavailable, use the Override "
-            "button on this page with the staff password.",
+            "before continuing. Click OK to go back and retry searching or "
+            "updating Sortly, or use Override to skip this step with the "
+            "staff password.",
         )
-        dialog.connect("response", lambda d, r: d.close())
+        dialog.add_button("OK", Gtk.ResponseType.CANCEL)
+        dialog.add_button("Override", Gtk.ResponseType.ACCEPT)
+        dialog.connect("response", self._on_sortly_blocked_response)
         dialog.present()
+
+    def _on_sortly_blocked_response(self, dialog, response):
+        dialog.close()
+        if response == Gtk.ResponseType.ACCEPT:
+            sortly_page = self.pages[0]
+            sortly_page._on_override_clicked(None, on_success=self._advance_next)
 
     def _show_specinfo_blocked_warning(self):
         dialog = Gtk.MessageDialog(

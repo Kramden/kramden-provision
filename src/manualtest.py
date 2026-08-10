@@ -56,6 +56,59 @@ def _merge_defect_types(page_key, specials=()):
     return labels, codes
 
 
+# Maps each TogglePage subclass's code_prefix to its defect_types.json page
+# key, so build_reason_locations can look up a reason's config entry (see
+# _entry_for_label/_sub_buttons_override below) without every subclass
+# having to declare its own page_key by hand. Physical Defects isn't a
+# TogglePage subclass and uses its "physical_defects" key directly.
+_CODE_PREFIX_TO_PAGE_KEY = {
+    "WF": "wifi",
+    "TP": "touchpad",
+    "SC": "screen",
+    "BR": "browser",
+    "WC": "webcam",
+    "UA": "usb_a",
+    "UC": "usb_c",
+    "TS": "touchscreen",
+    "KB": "keyboard",
+}
+
+
+def _entry_for_label(page_key, label):
+    """This page's defect_types.json entry for `label`, if any -- hardcoded
+    "special" reasons (Cracks, Broken Part, Physical damage, the click/
+    cursor sub-reasons, ...) have no entry here and always return None."""
+    if page_key is None:
+        return None
+    for entry in _DEFECT_TYPES[page_key]["types"]:
+        if entry["label"] == label:
+            return entry
+    return None
+
+
+def _sub_buttons_override(owner, entry_row, page_key, reason, fullscreen=False):
+    """A defect type requested through the GitHub Issue Form can specify its
+    own "sub_buttons" list, or opt out of a sub-picker entirely with
+    "no_sub_buttons", instead of taking the page's normal default sub-picker
+    -- see .github/ISSUE_TEMPLATE/defect-type-change.yml. `fullscreen`
+    should match whatever the page's own default picker uses (True for
+    Screen/Touchscreen, False everywhere else) so a custom sub_buttons list
+    still renders with that page's usual picker style. Returns the location
+    `data` dict when `reason` has such an override, or None so the caller
+    falls back to its own default build_reason_locations logic."""
+    entry = _entry_for_label(page_key, reason)
+    if entry is None:
+        return None
+    if entry.get("no_sub_buttons"):
+        return {"type": "none"}
+    sub_buttons = entry.get("sub_buttons")
+    if sub_buttons:
+        return _build_section_picker(
+            owner, entry_row, options=sub_buttons, fullscreen=fullscreen
+        )
+    return None
+
+
 # Physical Defects' plain defect types (label, code, part-location-picker
 # vs. no-location) come from defect_types.json ("physical_defects"); the two
 # special types below ("Cracks"/"Broken Part") stay hardcoded and are merged
@@ -1018,6 +1071,10 @@ class TogglePage(Adw.Bin):
         # See CUSTOM_REASON_CODE_SUFFIX above for the tracking-sheet code
         # scheme this drives (e.g. "KB02: ...").
         self.code_prefix = code_prefix
+        # This page's defect_types.json key, for the sub_buttons/
+        # no_sub_buttons override lookup in build_reason_locations -- see
+        # _CODE_PREFIX_TO_PAGE_KEY/_sub_buttons_override.
+        self.page_key = _CODE_PREFIX_TO_PAGE_KEY.get(code_prefix)
         # code -> ~1-2 word descriptor for get_failure_reasons' compact Spec
         # Complete summary (e.g. "KB01: Fully unresponsive") -- defaults to
         # each reason's own text (already short for most reasons), overridden
@@ -1170,6 +1227,9 @@ class TogglePage(Adw.Bin):
         with a custom one (see KeyboardPage, UsbPortLocationMixin), or to
         skip location entirely for reasons where it doesn't apply (see
         BrowserPage, WebcamPage)."""
+        override = _sub_buttons_override(self, entry_row, self.page_key, reason)
+        if override is not None:
+            return override
         title = "Location" if reason in self.reason_options else "Location (optional)"
         return _build_section_picker(
             self, entry_row, title=title, select_all_label="Select All"
@@ -1804,6 +1864,11 @@ class PhysicalDefectsPage(Adw.Bin):
         self._remove_defect(defect_type)
 
     def _build_defect_details(self, defect_type, entry_row):
+        override = _sub_buttons_override(
+            self, entry_row, "physical_defects", defect_type
+        )
+        if override is not None:
+            return override
         if defect_type in PHYSICAL_NO_LOCATION_TYPES:
             return {"type": "none"}
 
@@ -3017,6 +3082,9 @@ class WiFiPage(TogglePage):
         return WIFI_DEFECT_CODES.get(reason) or super()._reason_code(reason)
 
     def build_reason_locations(self, entry_row, reason):
+        override = _sub_buttons_override(self, entry_row, self.page_key, reason)
+        if override is not None:
+            return override
         return {"type": "none"}
 
 
@@ -3047,6 +3115,9 @@ class TouchpadPage(TogglePage):
         self.code_short_labels.update(TOUCHPAD_CURSOR_SHORT_LABELS)
 
     def build_reason_locations(self, entry_row, reason):
+        override = _sub_buttons_override(self, entry_row, self.page_key, reason)
+        if override is not None:
+            return override
         if reason == TOUCHPAD_CLICK_REASON:
             return self._build_click_picker(entry_row)
         if reason == TOUCHPAD_CURSOR_REASON:
@@ -3305,6 +3376,11 @@ class ScreenSectionMixin:
     NO_LOCATION_REASONS = set()
 
     def build_reason_locations(self, entry_row, reason):
+        override = _sub_buttons_override(
+            self, entry_row, self.page_key, reason, fullscreen=True
+        )
+        if override is not None:
+            return override
         if reason in self.NO_LOCATION_REASONS:
             return {"type": "none"}
         title = (
@@ -3444,6 +3520,9 @@ class BrowserPage(TogglePage):
         self.utils.launch_app("xdg-open https://vimeo.com/116979416")
 
     def build_reason_locations(self, entry_row, reason):
+        override = _sub_buttons_override(self, entry_row, self.page_key, reason)
+        if override is not None:
+            return override
         if reason == "Audio":
             return _build_section_picker(
                 self,
@@ -3636,6 +3715,9 @@ class WebcamPage(TogglePage):
             )
 
     def build_reason_locations(self, entry_row, reason):
+        override = _sub_buttons_override(self, entry_row, self.page_key, reason)
+        if override is not None:
+            return override
         # No webcam defect has a meaningful location to narrow down.
         if reason == WEBCAM_BLACK_SCREEN_REASON:
             # Many laptops have a physical privacy shutter over the camera
@@ -3669,6 +3751,9 @@ class UsbPortLocationMixin:
     here."""
 
     def build_reason_locations(self, entry_row, reason):
+        override = _sub_buttons_override(self, entry_row, self.page_key, reason)
+        if override is not None:
+            return override
         data = {"type": "usb_port", "locations": []}
 
         def _on_locations_change(selected):
@@ -4033,6 +4118,9 @@ class KeyboardPage(TogglePage):
         return super()._reason_code(reason)
 
     def build_reason_locations(self, entry_row, reason):
+        override = _sub_buttons_override(self, entry_row, self.page_key, reason)
+        if override is not None:
+            return override
         if reason == KEYBOARD_PHYSICAL_DAMAGE_REASON:
             return self._build_physical_damage_picker(entry_row)
         if reason in KEYBOARD_NO_KEYS_REASONS:
