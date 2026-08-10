@@ -35,7 +35,7 @@ class Utils:
         self.os = ""
         try:
             result = subprocess.run(
-                ["sudo", "hostnamectl", "status", "--json=pretty"],
+                ["sudo", "-n", "hostnamectl", "status", "--json=pretty"],
                 capture_output=True,
                 text=True,
                 check=True,
@@ -72,6 +72,7 @@ class Utils:
                     result = subprocess.run(
                         [
                             "sudo",
+                            "-n",
                             "cat",
                             os.path.join("/sys/devices/virtual/dmi/id/", serial_file),
                         ],
@@ -155,8 +156,11 @@ class Utils:
     def sync_clock(self):
         clock_sh = "/usr/share/kramden-provision/scripts/clock.sh"
         if self.file_exists_and_executable(clock_sh):
-            result = subprocess.run(["sudo", clock_sh])
-            return result.returncode == 0
+            try:
+                result = subprocess.run(["sudo", "-n", clock_sh], timeout=5)
+                return result.returncode == 0
+            except subprocess.TimeoutExpired:
+                return False
         return False
 
     # Check if BIOS Password is set, returns True if set.
@@ -171,13 +175,35 @@ class Utils:
     #
     # Callers that only consume the boolean must treat None as unverified, not
     # as "no password".
+    @staticmethod
+    def _sudo_auth_unavailable(stderr):
+        """True if `sudo -n ...` failed because no cached/NOPASSWD credential
+        was available, rather than the wrapped command itself failing. Lets
+        callers that treat "nonzero exit" as a positive result (has_bios_
+        password, has_asset_info) avoid a false positive when sudo can't
+        authenticate non-interactively."""
+        text = (stderr or "").lower()
+        return "a password is required" in text or "no tty present" in text
+
     def has_bios_password(self):
         self.bios_password_warning = None
         bios_password_sh = "/usr/share/kramden-provision/scripts/bios_password.sh"
         if self.file_exists_and_executable(bios_password_sh):
-            result = subprocess.run(
-                ["sudo", bios_password_sh], capture_output=True, text=True
-            )
+            try:
+                result = subprocess.run(
+                    ["sudo", "-n", bios_password_sh],
+                    capture_output=True,
+                    text=True,
+                    timeout=15,
+                )
+            except subprocess.TimeoutExpired:
+                self.bios_password_warning = "BIOS password check timed out"
+                return None
+            if self._sudo_auth_unavailable(result.stderr):
+                self.bios_password_warning = (
+                    "Passwordless sudo isn't configured for bios_password.sh"
+                )
+                return None
             for line in (result.stderr or "").splitlines():
                 if line.startswith("WARNING:"):
                     self.bios_password_warning = line[len("WARNING:") :].strip()
@@ -191,7 +217,17 @@ class Utils:
     def has_asset_info(self):
         asset_sh = "/usr/share/kramden-provision/scripts/asset.sh"
         if self.file_exists_and_executable(asset_sh):
-            result = subprocess.run(["sudo", asset_sh])
+            try:
+                result = subprocess.run(
+                    ["sudo", "-n", asset_sh],
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    timeout=15,
+                )
+            except subprocess.TimeoutExpired:
+                return False
+            if self._sudo_auth_unavailable(result.stderr):
+                return False
             return result.returncode != 0
         return False
 
@@ -244,9 +280,10 @@ class Utils:
                     )
                     if os.path.exists(current_value_path):
                         result = subprocess.run(
-                            ["sudo", "cat", current_value_path],
+                            ["sudo", "-n", "cat", current_value_path],
                             capture_output=True,
                             text=True,
+                            timeout=5,
                         )
                         if result.returncode == 0:
                             value = result.stdout.strip().lower()
@@ -267,9 +304,10 @@ class Utils:
                     )
                     if os.path.exists(current_value_path):
                         result = subprocess.run(
-                            ["sudo", "cat", current_value_path],
+                            ["sudo", "-n", "cat", current_value_path],
                             capture_output=True,
                             text=True,
+                            timeout=5,
                         )
                         if result.returncode == 0:
                             value = result.stdout.strip().lower()
@@ -296,9 +334,10 @@ class Utils:
         try:
             # Check activation-style attribute first (Enable = activated)
             result = subprocess.run(
-                ["sudo", cctk_path, "--AbsoluteEnable"],
+                ["sudo", "-n", cctk_path, "--AbsoluteEnable"],
                 capture_output=True,
                 text=True,
+                timeout=5,
             )
             if result.returncode == 0:
                 output = result.stdout.strip().lower()
@@ -311,9 +350,10 @@ class Utils:
             # Check standard attributes (Activate = activated)
             for attr in ["Computrace", "Absolute"]:
                 result = subprocess.run(
-                    ["sudo", cctk_path, f"--{attr}"],
+                    ["sudo", "-n", cctk_path, f"--{attr}"],
                     capture_output=True,
                     text=True,
+                    timeout=5,
                 )
                 if result.returncode == 0:
                     output = result.stdout.strip().lower()
@@ -332,9 +372,10 @@ class Utils:
             # Check BIOS information (type 0) and System Configuration Options (type 12)
             # for Computrace-related strings
             result = subprocess.run(
-                ["sudo", "dmidecode"],
+                ["sudo", "-n", "dmidecode"],
                 capture_output=True,
                 text=True,
+                timeout=5,
             )
             if result.returncode != 0:
                 return None
@@ -414,7 +455,7 @@ class Utils:
     def _get_installed_ram_from_dmi(self):
         try:
             result = subprocess.run(
-                ["sudo", "dmidecode", "-t", "17"],
+                ["sudo", "-n", "dmidecode", "-t", "17"],
                 capture_output=True,
                 text=True,
                 check=True,
@@ -495,12 +536,13 @@ class Utils:
         """
         try:
             result = subprocess.run(
-                ["sudo", "dmidecode", "-t", "17"],
+                ["sudo", "-n", "dmidecode", "-t", "17"],
                 capture_output=True,
                 text=True,
                 check=True,
+                timeout=5,
             )
-        except (subprocess.CalledProcessError, OSError):
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
             return None
 
         soldered_mb = 0
