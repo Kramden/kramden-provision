@@ -12,6 +12,7 @@ import subprocess
 import tempfile
 import threading
 from datetime import date
+from urllib.parse import unquote
 
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gtk, GLib
@@ -24,10 +25,11 @@ from sortly_register import REPORT_SPECCING_NOTES_TO_SORTLY
 # screen.
 MANUALTEST_ROWS_PER_COLUMN = 5
 
-# The tracking sheet printer at every station is a Brother MFC-L2710DW
-# series; used to pick its CUPS queue out of whatever else is configured
-# when falling back to USB or an existing cups-browsed queue (see
-# _find_ipp_usb_port/_resolve_browsed_printer_name).
+# The tracking sheet printer at every station is normally a Brother
+# MFC-L2710DW series; used to prefer its CUPS queue out of whatever else is
+# configured (see _find_ipp_usb_port/_resolve_browsed_printer_name). It's
+# no longer a hard requirement, though -- see _resolve_printer_name for the
+# fallback tiers that kick in when no L2710DW can be found at all.
 TRACKING_SHEET_PRINTER_MODEL = "mfc-l2710dw"
 
 # Over the network there are two of these printers, physically labeled 1
@@ -837,15 +839,20 @@ class SpecComplete(Adw.Bin):
         self._refresh_tracking_status()
 
     def _resolve_printer_name(self):
-        """Pick which CUPS destination to print to, trying three tiers in
+        """Pick which CUPS destination to print to, trying four tiers in
         order and re-resolving from scratch every time (never trusting a
         queue found on a previous print attempt), since which of these is
         reachable can change between one tracking sheet and the next:
 
-        1. USB, if the printer is plugged in -- talk straight to the local
-           loopback IPP service Ubuntu's ipp-usb daemon already runs for
-           it, via our own dedicated queue (see _find_ipp_usb_port/
-           _ensure_direct_usb_queue).
+        1. USB -- a printer plugged directly into this laptop always wins,
+           even over a Brother MFC-L2710DW reachable on the network,
+           because a tech who physically connected a printer clearly means
+           to use it right now. Talk straight to the local loopback IPP
+           service Ubuntu's ipp-usb daemon already runs for it, via our
+           own dedicated queue (see _find_ipp_usb_port/
+           _ensure_direct_usb_queue). If more than one USB-connected
+           printer is being served this way at once, the Brother is still
+           preferred between them.
         2. The network otherwise -- there are two network printers
            ("KramdenSpec1"/"KramdenSpec2" over mDNS, physically labeled 1
            and 2 so volunteers can tell them apart), so resolve both of
@@ -860,34 +867,44 @@ class SpecComplete(Adw.Bin):
            This is tried automatically whenever USB isn't available, so
            WiFi (or Ethernet) is always the default the moment USB isn't
            an option.
-        3. Matching an existing cups-browsed-discovered queue by name, as
-           a last resort if neither of the above found anything (e.g.
-           avahi-browse isn't installed, or a printer answers IPP
-           requests but isn't advertising itself over mDNS for some
-           reason).
+        3. Matching an existing cups-browsed-discovered Brother queue by
+           name, if neither of the above found one (e.g. avahi-browse
+           isn't installed, or the printer answers IPP requests but isn't
+           advertising itself over mDNS for some reason).
+        4. Any other printer at all, once none of the above found a
+           Brother MFC-L2710DW anywhere -- another USB-connected printer
+           ipp-usb isn't serving (see _find_other_usb_printer), or failing
+           that any other cups-browsed-discovered queue regardless of
+           model (see _resolve_any_browsed_printer_name). This only
+           exists so a station never sits dead in the water for lack of
+           the specific Brother model; the Brother is still preferred
+           everywhere above this.
 
-        Both dedicated-queue tiers deliberately bypass cups-browsed's own
-        auto-discovered queues, since those have repeatedly proven
-        unreliable: an "implicitclass" queue hangs/fails whenever
-        cups-browsed sees the same printer over more than one path (USB
-        and network at once) and can't resolve a destination, and a
-        "dnssd" (network) queue fails outright if the printer isn't
-        actually reachable on the network at that moment (e.g. it's only
-        really connected via USB right now, even though a stale mDNS
-        record for it is still floating around).
+        Tiers 1 and 2's dedicated queues deliberately bypass
+        cups-browsed's own auto-discovered queues, since those have
+        repeatedly proven unreliable: an "implicitclass" queue
+        hangs/fails whenever cups-browsed sees the same printer over more
+        than one path (USB and network at once) and can't resolve a
+        destination, and a "dnssd" (network) queue fails outright if the
+        printer isn't actually reachable on the network at that moment
+        (e.g. it's only really connected via USB right now, even though a
+        stale mDNS record for it is still floating around).
 
         Returns (queue_name, display_label). display_label is a
-        tech-facing name like "Kramden Spec Printer 1" for the network
-        tier, so the UI can tell the tech which of the two physical,
-        physically-labeled printers the job actually went to -- or None
-        for the USB and last-resort tiers, which only ever deal with a
-        single printer.
+        tech-facing name -- "Kramden Spec Printer 1"/"2" for the network
+        tier, the printer's model for a non-Brother USB tier-1 fallback,
+        or a description of whatever tier 4 fell back to -- or None for
+        the plain Brother USB and tier-3 cases, which only ever deal with
+        a single, expected printer.
         """
-        usb_port = self._find_ipp_usb_port()
+        usb_port, usb_model = self._find_ipp_usb_port()
         if usb_port:
             queue = self._ensure_direct_usb_queue(usb_port)
             if queue:
-                return queue, None
+                is_brother = bool(usb_model) and (
+                    TRACKING_SHEET_PRINTER_MODEL in usb_model.lower().replace("_", "-")
+                )
+                return queue, None if is_brother else usb_model
 
         network_printers = self._find_network_printers()
         if network_printers:
@@ -917,30 +934,43 @@ class SpecComplete(Adw.Bin):
                 _, label, queue = candidates[0]
                 return queue, f"Kramden Spec Printer {label}"
 
-        return self._resolve_browsed_printer_name(), None
+        browsed = self._resolve_browsed_printer_name()
+        if browsed:
+            return browsed, None
+
+        return self._resolve_any_available_printer()
 
     def _find_ipp_usb_port(self):
-        """Return the local loopback port ipp-usb is serving the tracking
-        sheet printer on, if it's currently plugged in via USB."""
+        """Return (port, model) for the local loopback port ipp-usb is
+        serving a directly-connected USB printer on, preferring the
+        tracking sheet's Brother MFC-L2710DW if more than one USB-served
+        printer is currently reachable this way, but falling back to
+        whichever other one is present -- see _resolve_printer_name for
+        why any direct USB connection outranks even a Brother reachable
+        on the network. Returns (None, None) if nothing is being served
+        over ipp-usb at all right now."""
         try:
             result = subprocess.run(
                 ["ipp-usb", "status"], capture_output=True, text=True, timeout=5
             )
         except Exception:
-            return None
+            return None, None
 
         lines = result.stdout.splitlines()
+        candidates = []
         for i, line in enumerate(lines):
             match = re.match(r"\s*\d+\.\s+.*\s(\d+)\s+\"(.+)\"\s*$", line)
             if not match:
                 continue
             port, model = match.group(1), match.group(2)
-            if TRACKING_SHEET_PRINTER_MODEL not in model.lower().replace("_", "-"):
-                continue
             status_line = lines[i + 1].strip().lower() if i + 1 < len(lines) else ""
             if "status: ok" in status_line:
-                return port
-        return None
+                candidates.append((port, model))
+
+        for port, model in candidates:
+            if TRACKING_SHEET_PRINTER_MODEL in model.lower().replace("_", "-"):
+                return port, model
+        return candidates[0] if candidates else (None, None)
 
     def _ensure_direct_usb_queue(self, port):
         """Create (or update, harmlessly, if it already exists) a queue
@@ -1102,9 +1132,24 @@ class SpecComplete(Adw.Bin):
         return int(match.group(1)) if match else None
 
     def _resolve_browsed_printer_name(self):
-        """Match an existing cups-browsed-discovered queue by name/
-        description, preferring a non-implicitclass one, least-busy first.
-        See _resolve_printer_name() for why this is only a fallback."""
+        """Match an existing cups-browsed-discovered Brother MFC-L2710DW
+        queue by name/description. See _resolve_printer_name() for why
+        this is only a fallback."""
+        return self._match_browsed_printer(TRACKING_SHEET_PRINTER_MODEL)
+
+    def _resolve_any_browsed_printer_name(self):
+        """Tier-4 last resort: match any cups-browsed-discovered queue at
+        all, regardless of model. Only reached once nothing -- USB,
+        network, or a browsed Brother queue -- turned up an actual
+        MFC-L2710DW; see _resolve_printer_name."""
+        return self._match_browsed_printer(None)
+
+    def _match_browsed_printer(self, model_filter):
+        """Shared implementation for _resolve_browsed_printer_name and
+        _resolve_any_browsed_printer_name: match cups-browsed-discovered
+        queues by name/description, optionally restricted to those whose
+        name/description contains model_filter, preferring a
+        non-implicitclass one, least-busy first."""
         try:
             result = subprocess.run(
                 ["lpstat", "-l", "-p"], capture_output=True, text=True, timeout=5
@@ -1130,7 +1175,7 @@ class SpecComplete(Adw.Bin):
             elif current_name and line.strip().startswith("Description:"):
                 description = line.split(":", 1)[1].strip()
                 haystack = f"{current_name} {description}".lower().replace("_", "-")
-                if TRACKING_SHEET_PRINTER_MODEL in haystack:
+                if model_filter is None or model_filter in haystack:
                     candidates.append(current_name)
 
         if not candidates:
@@ -1144,6 +1189,81 @@ class SpecComplete(Adw.Bin):
         if len(pool) == 1:
             return pool[0]
         return min(pool, key=self._queued_job_count)
+
+    def _find_other_usb_printer(self):
+        """Tier-4 fallback for a printer plugged directly into USB that
+        ipp-usb isn't already serving (e.g. one without IPP-over-USB/
+        driverless support), by asking CUPS what local USB device URIs it
+        currently sees. Sets up (or reuses) a dedicated queue for the
+        first one found, via CUPS's driverless "everywhere" fallback --
+        which won't produce great output for a printer that isn't
+        driverless-capable, but this tier only runs once nothing else was
+        found at all, so any output beats none.
+
+        Returns (queue_name, display_label), or (None, None) if nothing
+        is directly connected via USB right now (beyond whatever
+        _find_ipp_usb_port already tried)."""
+        try:
+            result = subprocess.run(
+                ["lpinfo", "-v"], capture_output=True, text=True, timeout=10
+            )
+        except Exception:
+            return None, None
+
+        for line in result.stdout.splitlines():
+            parts = line.split()
+            if len(parts) < 2 or not parts[1].startswith("usb://"):
+                continue
+            uri = parts[1]
+            queue_name = "KramdenTrackingSheetPrinterUSBOther"
+            try:
+                subprocess.run(
+                    [
+                        "lpadmin",
+                        "-p", queue_name,
+                        "-E",
+                        "-v", uri,
+                        "-m", "everywhere",
+                    ],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
+            except Exception:
+                continue
+            return queue_name, self._describe_usb_uri(uri)
+        return None, None
+
+    @staticmethod
+    def _describe_usb_uri(uri):
+        """Turn a CUPS usb:// device URI like
+        "usb://EPSON/WF-2830%20Series?serial=..." into a human-readable
+        "EPSON WF-2830 Series" for the tech-facing status label."""
+        path = uri[len("usb://"):].split("?", 1)[0]
+        return unquote(path).replace("/", " ").strip() or "USB printer"
+
+    def _resolve_any_available_printer(self):
+        """Tier 4: some other printer entirely, reached only once no
+        Brother MFC-L2710DW was found via USB, network, or a browsed
+        queue (see _resolve_printer_name). Tries a directly-connected USB
+        printer ipp-usb isn't already serving first -- same "direct
+        connection wins" preference as tier 1 -- then falls back to
+        whatever else cups-browsed has discovered, regardless of model,
+        least-busy first.
+
+        Returns (queue_name, display_label) -- label always describes the
+        printer actually used, since it won't be the Brother the tech is
+        expecting -- or (None, None) if truly nothing is reachable at
+        all."""
+        usb_queue, usb_label = self._find_other_usb_printer()
+        if usb_queue:
+            return usb_queue, usb_label
+
+        browsed = self._resolve_any_browsed_printer_name()
+        if browsed:
+            return browsed, browsed
+        return None, None
 
     def _queued_job_count(self, printer_name):
         try:
@@ -1181,9 +1301,9 @@ class SpecComplete(Adw.Bin):
         if not printer:
             GLib.idle_add(
                 self._on_print_complete,
-                "No Brother MFC-L2710DW printer found. Check the USB cable, "
-                "or that Kramden Spec Printer 1 or 2 is powered on and "
-                "connected to the network.",
+                "No printer found at all. Check the USB cable, or that a "
+                "printer -- ideally Kramden Spec Printer 1 or 2 -- is "
+                "powered on and connected to the network.",
                 None,
             )
             return
