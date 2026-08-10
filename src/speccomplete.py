@@ -230,12 +230,6 @@ class SpecComplete(Adw.Bin):
         # Review/Print state above survives navigating away and back
         # unless the underlying results actually changed.
         self._tracking_snapshot = None
-        # Set while complete() is waiting on the Sortly Speccing Notes update
-        # it kicked off (see _complete_with_sortly_report) -- keeps
-        # is_complete() (and so the wizard's "Complete" button) disabled
-        # for that window so a second click can't fire a duplicate report
-        # or race the power-off dialog.
-        self._sortly_send_in_progress = False
         # Tracks the "Power off in N seconds" dialog/countdown so a
         # response can cancel the pending timeout -- see
         # _show_sortly_success_dialog/_on_sortly_success_response.
@@ -331,41 +325,22 @@ class SpecComplete(Adw.Bin):
     def complete(self):
         print("SpecComplete: complete")
         if REPORT_SPECCING_NOTES_TO_SORTLY and self.sortly_register:
-            self._complete_with_sortly_report()
+            self._complete_after_sortly_report()
         else:
             self._power_off()
 
-    def _complete_with_sortly_report(self):
-        """Send this machine's aggregated Speccing Notes to Sortly and block
-        powering off until that's confirmed one way or the other -- see
-        _on_sortly_report_complete for what happens next. Disables the
-        "Complete" button for the duration (see is_complete()) so a
-        double-click can't fire this twice."""
-        self._sortly_send_in_progress = True
-        if self.on_status_changed:
-            self.on_status_changed()
-        self.tracking_status.set_label("Sending Speccing Notes to Sortly...")
-        if self.tracking_status.has_css_class("text-error"):
-            self.tracking_status.remove_css_class("text-error")
-
-        notes = self._gather_sortly_notes()
-        self.sortly_register.report_speccing_notes(
-            notes, on_complete=self._on_sortly_report_complete
-        )
-
-    def _on_sortly_report_complete(self, success, error):
-        self._sortly_send_in_progress = False
-        if self.on_status_changed:
-            self.on_status_changed()
-        if success:
-            self.tracking_status.set_label("Sortly information updated.")
-            if self.tracking_status.has_css_class("text-error"):
-                self.tracking_status.remove_css_class("text-error")
+    def _complete_after_sortly_report(self):
+        """Act on the outcome of the Speccing Notes report already sent to
+        Sortly when "Print Tracking Sheet" was clicked (see
+        _start_sortly_updates) -- resending it here would just be a
+        redundant round trip. is_complete() keeps the "Complete" button
+        disabled until that report has resolved one way or the other, so
+        by the time this runs _speccing_notes_reported is always True or
+        False, never None."""
+        if self._speccing_notes_reported:
             self._show_sortly_success_dialog()
         else:
-            self.tracking_status.set_label(f"Sortly update failed: {error}")
-            self.tracking_status.add_css_class("text-error")
-            self._show_sortly_failure_dialog(error)
+            self._show_sortly_failure_dialog(self._speccing_notes_error)
 
     def _show_sortly_success_dialog(self):
         """Confirms the Sortly update succeeded and gives the tech a
@@ -425,8 +400,11 @@ class SpecComplete(Adw.Bin):
     def _show_sortly_failure_dialog(self, error):
         """Explains why the Sortly update failed and how to move past it
         -- does NOT power off the machine, since the whole point is that
-        Sortly is not yet confirmed up to date. Clicking "Complete" again
-        (once whatever's wrong is fixed) re-attempts the whole thing."""
+        Sortly is not yet confirmed up to date. Retrying happens via the
+        "Retry Sortly Update" button below the tracking sheet status (see
+        _on_sortly_retry_clicked), not by clicking "Complete" again --
+        this dialog only reports the already-known outcome (see
+        _complete_after_sortly_report)."""
         dialog = Adw.MessageDialog(
             transient_for=self.get_root(),
             heading="Couldn't update Sortly",
@@ -439,8 +417,10 @@ class SpecComplete(Adw.Bin):
                 "this machine's Sortly record needs fixing (e.g. the "
                 "wrong K-Number was entered on the Sortly Registration "
                 "page). Check the network connection, then click "
-                '"Complete" again to retry. If it keeps failing, find a '
-                "Staff member or Super Geek for help."
+                '"Retry Sortly Update" below the tracking sheet status. '
+                'Once it shows as updated, click "Complete" again. If it '
+                "keeps failing, find a Staff member or Super Geek for "
+                "help."
             ),
         )
         dialog.add_response("ok", "OK")
@@ -1349,19 +1329,25 @@ class SpecComplete(Adw.Bin):
         """The wizard's "Complete" button stays disabled until the tech has
         both reviewed and printed the tracking sheet at least once (see
         on_shown(), which resets this if they navigate away and the
-        underlying results change), and re-disables it for as long as a
-        Sortly Speccing Notes report kicked off by clicking "Complete" is still
-        in flight (see _complete_with_sortly_report), so a second click
-        can't fire a duplicate report. Also stays disabled outright while
-        any yellow warning (an incomplete manual test page, a missing
-        K-Number, or an un-registered Sortly record) is showing -- see
-        on_shown()'s _blocking_issues computation -- as a second guard
-        alongside tracking_button already being insensitive in that case."""
+        underlying results change), and -- since clicking "Complete" no
+        longer sends its own Speccing Notes report but just acts on the
+        one already kicked off by "Print Tracking Sheet" (see
+        _start_sortly_updates/_complete_after_sortly_report) -- stays
+        disabled until that report has actually resolved one way or the
+        other, so there's always a real outcome to act on. Also stays
+        disabled outright while any yellow warning (an incomplete manual
+        test page, a missing K-Number, or an un-registered Sortly record)
+        is showing -- see on_shown()'s _blocking_issues computation -- as
+        a second guard alongside tracking_button already being
+        insensitive in that case."""
         return (
             not self._blocking_issues
             and self._tracking_reviewed
             and self._tracking_printed
-            and not self._sortly_send_in_progress
+            and (
+                not (REPORT_SPECCING_NOTES_TO_SORTLY and self.sortly_register)
+                or self._speccing_notes_reported is not None
+            )
         )
 
     def _knumber_ok(self):
