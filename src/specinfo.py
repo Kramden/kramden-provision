@@ -332,13 +332,12 @@ class SpecInfo(Adw.Bin):
 
         # Append soldered/replaceable breakdown lines to the Memory row's
         # subtitle, when dmidecode gave us enough to tell (see
-        # get_memory_module_breakdown). Each line only shows if that kind
-        # of RAM is actually present.
+        # get_memory_module_breakdown). Only clarified at all if soldered
+        # RAM is present -- an all-replaceable machine just shows the total.
         subtitle_lines = [f"{mem} GB"]
         breakdown = self._gathered.get("memory_breakdown")
-        if breakdown:
-            if breakdown["soldered_gb"]:
-                subtitle_lines.append(f"Soldered: {breakdown['soldered_gb']:g} GB")
+        if breakdown and breakdown["soldered_gb"]:
+            subtitle_lines.append(f"Soldered: {breakdown['soldered_gb']:g} GB")
             if breakdown["replaceable_gb"]:
                 subtitle_lines.append(
                     f"Replaceable: {breakdown['replaceable_gb']:g} GB"

@@ -452,8 +452,9 @@ class Utils:
         DIMM/SODIMM, using SMBIOS Memory Device data (dmidecode -t 17).
         No single SMBIOS field reliably says "soldered", so this combines
         several real-world signals seen on Kramden's donated fleet:
-          - Form Factor of "Onboard" or "FB-DIMM", or blank/missing
-            (vendors often leave this field out entirely for onboard RAM)
+          - Form Factor of "Onboard", "FB-DIMM", or "Row Of Chips" (the
+            latter seen on some Lenovos), or blank/missing (vendors often
+            leave this field out entirely for onboard RAM)
           - Bank Locator or Device Locator mentioning "Onboard",
             "Soldered", or "Node"
           - Memory Type starting with "LPDDR" (LPDDR is only ever soldered)
@@ -560,6 +561,7 @@ class Utils:
                 not form_factor
                 or "onboard" in form_factor.lower()
                 or "fb-dimm" in form_factor.lower()
+                or "row of chips" in form_factor.lower()
                 or any(kw in locator.lower() for kw in soldered_keywords)
                 or any(kw in bank_locator.lower() for kw in soldered_keywords)
                 or mem_type.upper().startswith("LPDDR")

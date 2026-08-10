@@ -537,15 +537,15 @@ def generate_tracking_sheet(
 
     # Soldered/replaceable breakdown, when dmidecode gave us enough to tell
     # (see Utils.get_memory_module_breakdown), replaces the plain total --
-    # each line only shows if that kind of RAM is actually present. Falls
-    # back to the plain total when no breakdown could be determined.
+    # only clarified at all if soldered RAM is present. Falls back to the
+    # plain total when no breakdown could be determined or none is soldered.
     ram_lines = []
     ram_soldered = system_info.get("RAM Soldered")
     if ram_soldered:
         ram_lines.append(f"S:{ram_soldered}GB")
-    ram_replaceable = system_info.get("RAM Replaceable")
-    if ram_replaceable:
-        ram_lines.append(f"R:{ram_replaceable}GB")
+        ram_replaceable = system_info.get("RAM Replaceable")
+        if ram_replaceable:
+            ram_lines.append(f"R:{ram_replaceable}GB")
     if ram_lines:
         ram_value = "<br/>".join(ram_lines)
     else:
