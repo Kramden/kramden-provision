@@ -459,11 +459,17 @@ class Utils:
           - Memory Type starting with "LPDDR" (LPDDR is only ever soldered)
           - Manufacturer, Serial Number, and Part Number all missing/
             placeholder ("Unknown", "None", "Not Specified", etc.) --
-            soldered chips have no SPD EEPROM for the BIOS to read, so
-            these come back blank even when Form Factor/Locator/Type look
-            like a normal SODIMM (seen on some Lenovo ThinkPads, e.g. the
-            T470s's fixed 4GB chip, which reports as a plain DDR3L SODIMM
-            with no onboard/soldered wording anywhere)
+            soldered chips generally have no SPD EEPROM for the BIOS to
+            read, so these come back blank even when Form Factor/Locator/
+            Type look like a normal SODIMM
+          - Serial Number is all zeros ("00000000", "0x00000000", etc.)
+            while Manufacturer/Part Number otherwise look legitimate --
+            confirmed on a Lenovo ThinkPad T470s, where the fixed DDR4
+            chip soldered to the systemboard (per Lenovo's PSREF: "4GB or
+            8GB memory soldered to systemboard, one DDR4 SO-DIMM socket")
+            reports as a plain SODIMM with a real-looking Manufacturer/
+            Part Number, differing from the actual SO-DIMM only in this
+            zeroed-out serial
         Also reports has_sodimm_slot: whether any Memory Device entry --
         populated or empty -- has a SODIMM Form Factor, i.e. whether
         there's a socket replaceable RAM could physically go into.
@@ -542,6 +548,14 @@ class Utils:
                 and part_number in placeholder_values
             )
 
+            # Some boards (seen on a Lenovo T470s) write a real-looking
+            # Manufacturer/Part Number for the soldered chip but leave its
+            # Serial Number all zeros -- e.g. "00000000", "0x00000000" --
+            # while a genuine SODIMM has an actual varying serial from its
+            # SPD EEPROM.
+            serial_digits = serial_number[2:] if serial_number.startswith("0x") else serial_number
+            is_zero_serial = serial_digits != "" and set(serial_digits) == {"0"}
+
             is_soldered = (
                 not form_factor
                 or "onboard" in form_factor.lower()
@@ -550,6 +564,7 @@ class Utils:
                 or any(kw in bank_locator.lower() for kw in soldered_keywords)
                 or mem_type.upper().startswith("LPDDR")
                 or spd_fields_blank
+                or is_zero_serial
             )
 
             if is_soldered:
