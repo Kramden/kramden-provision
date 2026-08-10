@@ -3498,6 +3498,7 @@ class ScreenPage(ScreenSectionMixin, TogglePage):
             gif_path=SCREEN_GIF_PATH,
             reason_short_labels=SCREEN_REASON_SHORT_LABELS,
         )
+        self.utils = Utils()
 
     def _reason_code(self, reason):
         return SCREEN_DEFECT_CODES.get(reason) or super()._reason_code(reason)
@@ -3563,6 +3564,7 @@ class BrowserPage(TogglePage):
             ),
             gif_path=None,
         )
+        self.utils = Utils()
         # "Audio" carries no code of its own -- each Sound option selected
         # under it reports under its own fixed SD code instead (see
         # _sound_reason_notes), so its short labels are merged in directly
@@ -3587,7 +3589,7 @@ class BrowserPage(TogglePage):
 
     def _on_launch_clicked(self, button):
         _set_status(self.launch_status, "Opening browser...", auto_clear_ms=4000)
-        Utils().launch_app("xdg-open https://vimeo.com/116979416")
+        self.utils.launch_app("xdg-open https://vimeo.com/116979416")
 
     def build_reason_locations(self, entry_row, reason):
         override = _sub_buttons_override(self, entry_row, self.page_key, reason)
@@ -3722,6 +3724,7 @@ class WebcamPage(TogglePage):
             gif_path=None,
             reason_short_labels=WEBCAM_REASON_SHORT_LABELS,
         )
+        self.utils = Utils()
         # Detected once at startup, since webcam hardware presence doesn't
         # change during a session -- "present"/"ir_only"/"absent". Anything
         # other than "present" auto-skips this page (see WizardWindow's use
@@ -3765,18 +3768,17 @@ class WebcamPage(TogglePage):
         return None
 
     def _on_launch_clicked(self, button):
-        utils = Utils()
-        if utils.file_exists_and_executable("/usr/bin/guvcview"):
+        if self.utils.file_exists_and_executable("/usr/bin/guvcview"):
             device = self._find_non_ir_video_device()
             cmd = f"guvcview --device={device}" if device else "guvcview"
             _set_status(self.launch_status, "Launching guvcview...", auto_clear_ms=4000)
-            utils.launch_app(cmd)
-        elif utils.file_exists_and_executable("/usr/bin/cheese"):
+            self.utils.launch_app(cmd)
+        elif self.utils.file_exists_and_executable("/usr/bin/cheese"):
             _set_status(self.launch_status, "Launching cheese...", auto_clear_ms=4000)
-            utils.launch_app("cheese")
-        elif utils.file_exists_and_executable("/usr/bin/snapshot"):
+            self.utils.launch_app("cheese")
+        elif self.utils.file_exists_and_executable("/usr/bin/snapshot"):
             _set_status(self.launch_status, "Launching snapshot...", auto_clear_ms=4000)
-            utils.launch_app("snapshot")
+            self.utils.launch_app("snapshot")
         else:
             _set_status(
                 self.launch_status,

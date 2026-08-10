@@ -54,6 +54,8 @@ class SpecInfo(Adw.Bin):
         self._stdout_capture = None
         self.on_loading_changed = None
 
+        utils = Utils()
+
         # Create a box to hold the content
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
 
@@ -67,13 +69,15 @@ class SpecInfo(Adw.Bin):
         self.knumber_row = Adw.ActionRow()
         self.knumber_row.set_title("K-Number")
 
-        self.vendor_row = Adw.ActionRow()
-        self.vendor_row.set_title("Manufacturer")
-        self.vendor_row.set_icon_name("emblem-ok-symbolic")
+        vendor_row = Adw.ActionRow()
+        vendor_row.set_title("Manufacturer")
+        vendor_row.set_subtitle(utils.get_vendor())
+        vendor_row.set_icon_name("emblem-ok-symbolic")
 
-        self.model_row = Adw.ActionRow()
-        self.model_row.set_title("Model")
-        self.model_row.set_icon_name("emblem-ok-symbolic")
+        model_row = Adw.ActionRow()
+        model_row.set_title("Model")
+        model_row.set_subtitle(utils.get_model())
+        model_row.set_icon_name("emblem-ok-symbolic")
 
         self.bios_password_row = Adw.ActionRow()
         self.bios_password_row.set_title("BIOS Password")
@@ -85,8 +89,8 @@ class SpecInfo(Adw.Bin):
         self.computrace_row.set_title("Computrace/Absolute")
 
         left_list_box.append(self.knumber_row)
-        left_list_box.append(self.vendor_row)
-        left_list_box.append(self.model_row)
+        left_list_box.append(vendor_row)
+        left_list_box.append(model_row)
         left_list_box.append(self.bios_password_row)
         left_list_box.append(self.asset_info_row)
         left_list_box.append(self.computrace_row)
@@ -98,20 +102,25 @@ class SpecInfo(Adw.Bin):
         right_list_box.set_valign(Gtk.Align.START)
         right_list_box.add_css_class("boxed-list")
 
-        self.cpu_row = Adw.ActionRow()
-        self.cpu_row.set_title("CPU")
-        self.cpu_row.set_icon_name("emblem-ok-symbolic")
+        cpu_row = Adw.ActionRow()
+        cpu_row.set_title("CPU")
+        cpu_row.set_subtitle(utils.get_cpu_info())
+        cpu_row.set_icon_name("emblem-ok-symbolic")
 
         self.mem_row = Adw.ActionRow()
         self.mem_row.set_title("Memory")
 
-        self.igpu_row = Adw.ActionRow()
-        self.igpu_row.set_title("Integrated Graphics")
-        self.igpu_row.set_icon_name("emblem-ok-symbolic")
+        igpu_row = Adw.ActionRow()
+        igpu_row.set_title("Integrated Graphics")
+        igpu = utils.get_integrated_gpu()
+        igpu_row.set_subtitle(igpu if igpu else "Unknown")
+        igpu_row.set_icon_name("emblem-ok-symbolic")
 
-        self.dgpu_row = Adw.ActionRow()
-        self.dgpu_row.set_title("Discrete Graphics")
-        self.dgpu_row.set_icon_name("emblem-ok-symbolic")
+        dgpu_row = Adw.ActionRow()
+        dgpu_row.set_title("Discrete Graphics")
+        discrete_gpu = utils.get_discrete_gpu()
+        dgpu_row.set_subtitle(discrete_gpu if discrete_gpu else "None")
+        dgpu_row.set_icon_name("emblem-ok-symbolic")
 
         self.disks_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
 
@@ -119,10 +128,10 @@ class SpecInfo(Adw.Bin):
         self.battery_row.set_visible(False)
         self.battery_row.set_expanded(True)
 
-        right_list_box.append(self.cpu_row)
+        right_list_box.append(cpu_row)
         right_list_box.append(self.mem_row)
-        right_list_box.append(self.igpu_row)
-        right_list_box.append(self.dgpu_row)
+        right_list_box.append(igpu_row)
+        right_list_box.append(dgpu_row)
         right_list_box.append(self.disks_box)
         right_list_box.append(self.battery_row)
 
@@ -225,11 +234,6 @@ class SpecInfo(Adw.Bin):
         see progress in the loading TextView while subprocess scripts run.
         """
         utils = Utils()
-        vendor = utils.get_vendor()
-        model = utils.get_model()
-        cpu_info = utils.get_cpu_info()
-        igpu = utils.get_integrated_gpu()
-        dgpu = utils.get_discrete_gpu()
         print("Syncing system clock...")
         utils.sync_clock()
         print("Reading memory size...")
@@ -255,11 +259,6 @@ class SpecInfo(Adw.Bin):
         print("System information gathering complete.")
 
         self._gathered = {
-            "vendor": vendor,
-            "model": model,
-            "cpu_info": cpu_info,
-            "igpu": igpu,
-            "dgpu": dgpu,
             "mem": mem,
             "memory_breakdown": memory_breakdown,
             "bios_password": bios_password,
@@ -302,14 +301,6 @@ class SpecInfo(Adw.Bin):
     def _render(self):
         # Widget update only; reads from self._gathered. Runs on main thread.
         passed = True
-
-        self.vendor_row.set_subtitle(self._gathered.get("vendor", ""))
-        self.model_row.set_subtitle(self._gathered.get("model", ""))
-        self.cpu_row.set_subtitle(self._gathered.get("cpu_info", ""))
-        igpu = self._gathered.get("igpu")
-        self.igpu_row.set_subtitle(igpu if igpu else "Unknown")
-        dgpu = self._gathered.get("dgpu")
-        self.dgpu_row.set_subtitle(dgpu if dgpu else "None")
 
         # Read K-Number from the Sortly registration page
         knumber = ""
