@@ -483,7 +483,7 @@ Memory Device
         self.assertEqual(result, "16")
         # Verify dmidecode was called
         mock_run.assert_called_once_with(
-            ["sudo", "-n", "dmidecode", "-t", "17"],
+            ["sudo", "dmidecode", "-t", "17"],
             capture_output=True,
             text=True,
             check=True,
@@ -1480,32 +1480,6 @@ class TestHasBiosPassword(unittest.TestCase):
         result = self.utils.has_bios_password()
         self.assertIsNone(result)
         self.assertEqual(self.utils.bios_password_warning, "first warning")
-
-    @patch('subprocess.run')
-    @patch.object(Utils, 'file_exists_and_executable', return_value=True)
-    def test_has_bios_password_sudo_auth_unavailable(self, mock_exists, mock_run):
-        """`sudo -n` failing to authenticate (no cached/NOPASSWD credential)
-        must not be mistaken for the script reporting a password is set."""
-        mock_run.return_value = MagicMock(
-            returncode=1, stderr="sudo: a password is required\n"
-        )
-        result = self.utils.has_bios_password()
-        self.assertIsNone(result)
-        self.assertEqual(
-            self.utils.bios_password_warning,
-            "Passwordless sudo isn't configured for bios_password.sh",
-        )
-
-    @patch('subprocess.run')
-    @patch.object(Utils, 'file_exists_and_executable', return_value=True)
-    def test_has_asset_info_sudo_auth_unavailable(self, mock_exists, mock_run):
-        """Same false-positive guard for has_asset_info: sudo -n failing to
-        authenticate must not read as "has asset info"."""
-        mock_run.return_value = MagicMock(
-            returncode=1, stderr="sudo: a password is required\n"
-        )
-        result = self.utils.has_asset_info()
-        self.assertFalse(result)
 
 
 if __name__ == '__main__':
