@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+"""OS Load wizard entry point (kramden-provision-osload): steps a tech
+through Identify (K-number + Sortly), Landscape registration, System
+Information, and OS Load Complete."""
+
 
 import gi
 
@@ -16,6 +20,8 @@ from observable import ObservableProperty, StateObserver
 
 
 class WizardWindow(Gtk.ApplicationWindow):
+    """OS Load main window: a Gtk.Stack of pages with Prev/Next navigation."""
+
     def __init__(self, app):
         super().__init__(application=app, title="Kramden - OS Load")
 
@@ -136,7 +142,7 @@ class WizardWindow(Gtk.ApplicationWindow):
             self.current_page -= 1
             self.stack.set_visible_child_name(f"page{self.current_page + 1}")
             self.update_buttons()
-            page = eval(f"self.page{self.current_page + 1}")
+            page = getattr(self, f"page{self.current_page + 1}")
             if page.skip:
                 print(f"on_prev_clicked: page{self.current_page + 1} skipped")
                 self.on_prev_clicked()
@@ -146,7 +152,7 @@ class WizardWindow(Gtk.ApplicationWindow):
             self.current_page += 1
             self.stack.set_visible_child_name(f"page{self.current_page + 1}")
             self.update_buttons()
-            page = eval(f"self.page{self.current_page + 1}")
+            page = getattr(self, f"page{self.current_page + 1}")
             if page.skip:
                 print(f"on_next_clicked: page{self.current_page + 1} skipped")
                 self.on_next_clicked()

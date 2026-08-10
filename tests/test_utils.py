@@ -47,7 +47,9 @@ class TestUtils(unittest.TestCase):
         self.assertTrue(result)
 
         # Assert that subprocess.run was called with the correct arguments
-        mock_run.assert_called_with(['hostnamectl', 'set-hostname', 'new-hostname'])
+        # (on success set_hostname also writes the KramdenNumber EFI variable,
+        # so the hostnamectl call isn't the last subprocess.run call)
+        mock_run.assert_any_call(['hostnamectl', 'set-hostname', 'new-hostname'])
 
     @patch('subprocess.run')
     def test_set_hostname_failure(self, mock_run):

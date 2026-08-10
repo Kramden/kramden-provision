@@ -113,9 +113,13 @@ def reset_api_call_count():
 
 
 def _sortly_request(method, url, **kwargs):
-    """Send a Sortly API request with debug output and a running call counter."""
+    """Send a Sortly API request with debug output and a running call counter.
+
+    Applies a default timeout so a dropped connection can't hang the
+    calling thread forever (callers may override via kwargs)."""
     global SORTLY_API_CALL_COUNT
 
+    kwargs.setdefault("timeout", 30)
     SORTLY_API_CALL_COUNT += 1
     call_number = SORTLY_API_CALL_COUNT
     debug_details = _format_request_debug(

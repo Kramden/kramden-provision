@@ -1,3 +1,7 @@
+"""Final Test wizard page that verifies the device has the expected
+software: each snap in constants.snap_packages and each deb in
+constants.deb_packages gets a pass/fail row under an expander."""
+
 import gi
 gi.require_version('Adw', '1')
 from gi.repository import Adw, Gtk
@@ -5,6 +9,8 @@ from utils import Utils
 from constants import snap_packages, deb_packages
 
 class CheckPackages(Adw.Bin):
+    """Wizard page listing pass/fail rows for each expected snap and deb."""
+
     def __init__(self):
         super().__init__()
         self.utils = Utils()

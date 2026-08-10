@@ -1,3 +1,7 @@
+"""Kramden Guide page (used by the Device app): renders the Kramden
+Computer Info PDF from /usr/share/kramden-provision/documents/ in an
+embedded WebKit view."""
+
 import gi
 gi.require_version('Adw', '1')
 gi.require_version('Gtk', '4.0')
@@ -7,6 +11,8 @@ from utils import Utils
 import os
 
 class KramdenGuide(Adw.Bin):
+    """Page embedding the Kramden Computer Info PDF in a WebKit view."""
+
     def __init__(self):
         super().__init__()
         self.set_margin_top(20)

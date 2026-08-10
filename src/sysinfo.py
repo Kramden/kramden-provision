@@ -1,3 +1,7 @@
+"""System Information page shared by OS Load, Final Test, and the Device
+app: gathers hostname/model/CPU/RAM/storage/battery details in a
+background thread (behind a loading screen) and lists them."""
+
 import threading
 
 import gi
@@ -10,6 +14,8 @@ from utils import Utils
 
 
 class SysInfo(Adw.Bin):
+    """System Information page; gathers data in a background thread on first show."""
+
     def __init__(self):
         super().__init__()
         self.set_margin_top(20)

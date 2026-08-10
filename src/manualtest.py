@@ -1,3 +1,9 @@
+"""Manual hardware test pages shared by the Spec and Final Test wizards:
+one page per component (physical defects, screen, touchscreen, webcam,
+keyboard, USB-A/C, WiFi, touchpad, browser/audio...), each collecting
+pass/fail plus defect-type buttons and datacodes (see defect_types.json)
+that feed the tracking sheet and Sortly Speccing Notes."""
+
 import glob
 import json
 import os

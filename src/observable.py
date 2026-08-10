@@ -1,16 +1,9 @@
-class Observable:
-    def __init__(self):
-        self._observers = []
-
-    def add_observer(self, observer):
-        self._observers.append(observer)
-
-    def notify_observers(self, property_name):
-        for observer in self._observers:
-            observer.update(property_name)
-
+"""Minimal observer-pattern helpers used by the wizard windows to react
+to page-state changes (e.g. enabling Next when a page reports done)."""
 
 class ObservableProperty:
+    """Single observed value; notifies observers when it changes."""
+
     def __init__(self, initial_value=None):
         self._value = initial_value
         self._observers = []
@@ -33,9 +26,13 @@ class ObservableProperty:
             observer.update(self)
 
 class Observer:
+    """Observer interface: subclasses implement update()."""
+
     def update(self, observable):
         raise NotImplementedError("Subclass must implement the update method")
 
 class StateObserver(Observer):
+    """Observer that logs state changes from the wizard pages."""
+
     def update(self, observable):
         print(f"Property changed to {observable.get_value()}")

@@ -1,9 +1,14 @@
+"""Last page of the OS Load wizard: confirms completion and runs the
+"osload" stage reset script."""
+
 import gi
 gi.require_version('Adw', '1')
 from gi.repository import Adw, Gtk
 from utils import Utils
 
 class OSLoadComplete(Adw.Bin):
+    """Wizard page shown when OS Load is done; runs the stage reset."""
+
     def __init__(self):
         super().__init__()
         self.set_margin_top(20)

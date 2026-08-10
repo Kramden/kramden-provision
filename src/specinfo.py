@@ -1,3 +1,8 @@
+"""Spec "Hardware Info" page: gathers system info in a background thread,
+surfaces spec-blocking conditions (BIOS password, asset tags, Computrace,
+a drive already installed), and blocks Next until the machine is safe to
+spec (or staff override)."""
+
 import threading
 
 import gi
@@ -20,6 +25,8 @@ BIOS_PASSWORD_CODE = "BP00"
 
 
 class SpecInfo(Adw.Bin):
+    """Spec Hardware Info page; blocks Next on spec-blocking conditions."""
+
     def __init__(self):
         super().__init__()
         self.set_margin_top(24)

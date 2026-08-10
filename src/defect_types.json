@@ -172,7 +172,7 @@
     ],
     "types": [
       {
-        "label": "The whole keyboard does not work",
+        "label": "The keyboard doesn't work at all",
         "code": "KB01",
         "order": 1,
         "no_keys": true
@@ -204,13 +204,13 @@
         "order": 7
       },
       {
-        "label": "Trackpoint missing",
+        "label": "The trackpoint is missing (and should be there)",
         "code": "KB11",
         "order": 9,
         "no_keys": true
       },
       {
-        "label": "Trackpoint error",
+        "label": "The trackpoint has a problem",
         "code": "KB12",
         "order": 10,
         "no_keys": true

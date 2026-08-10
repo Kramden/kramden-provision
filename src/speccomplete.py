@@ -1,3 +1,9 @@
+"""Spec Complete -- the final review screen of the Spec wizard. Summarizes
+system info and every manual test's failures, gates completion on a
+K-number + Sortly submission, generates and prints the tracking-sheet PDF
+(load-balanced across the WiFi printers), and pushes the aggregated
+Speccing Notes/datacodes and Spec Date back to Sortly."""
+
 import gi
 import os
 import re
@@ -49,6 +55,8 @@ QUEUED_JOB_COUNT_TEST = """{
 
 
 class SpecComplete(Adw.Bin):
+    """Final Spec review page: failure summary, K-number gate, tracking-sheet print, Sortly reporting."""
+
     def __init__(self):
         super().__init__()
         self.set_margin_top(24)

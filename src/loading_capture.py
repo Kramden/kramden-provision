@@ -1,3 +1,7 @@
+"""Helper for the loading screens in SysInfo/SpecInfo: temporarily
+captures process stdout (including subprocess output) so in-progress
+gathering messages can be streamed into the UI."""
+
 import os
 import sys
 import threading

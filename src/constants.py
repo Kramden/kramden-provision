@@ -1,3 +1,6 @@
+"""Shared constants: expected snap/deb package lists, chassis-type
+mapping, and hardware brand normalization."""
+
 from enum import Enum
 
 

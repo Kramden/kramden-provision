@@ -4,7 +4,7 @@ import unittest
 
 sys.path.insert(1, os.path.dirname(os.path.realpath(__file__)) + "/../src/")
 
-from manualtest import TouchscreenTest
+from touchscreen_test_runner import TouchscreenTest
 
 
 class TestTouchscreenTest(unittest.TestCase):

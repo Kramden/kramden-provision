@@ -72,7 +72,6 @@ sources = [
   'sortly_register.py',
   'sortly_lookup_by_name.py',
   'sortly_lookup_by_serial.py',
-  'sortly_register.py',
   'sortly_update_system_info.py',
   'spec.py',
   'speccomplete.py',

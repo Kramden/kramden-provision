@@ -34,6 +34,7 @@ class TestSortlyDebugOutput(unittest.TestCase):
             params={"page": 1},
             json={"query": "ABC123"},
             headers={"Authorization": "Bearer test"},
+            timeout=30,
         )
         self.assertEqual(
             mock_print.call_args_list[0].args[0],
