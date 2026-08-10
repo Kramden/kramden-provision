@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+"""Spec wizard entry point (kramden-spec): steps a tech through Sortly
+registration, hardware info gathering, the per-component manual test
+pages (from manualtest.py), and the Spec Complete review screen that
+prints the tracking sheet and reports results to Sortly."""
+
 
 import gi
 import sys
@@ -29,6 +34,8 @@ from utils import Utils
 
 
 class WizardWindow(Gtk.ApplicationWindow):
+    """Spec main window: a Gtk.Stack of pages with Prev/Next navigation and per-page completion gating."""
+
     def __init__(self, app):
         super().__init__(application=app, title="Kramden - Spec")
 

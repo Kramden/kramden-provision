@@ -1,4 +1,10 @@
+"""Grab-bag of system helpers used across all the Kramden apps: hardware
+info gathering (serial, disks, RAM, battery), hostname/K-number handling,
+Landscape registration, BIOS password/asset/Computrace checks, package
+checks, and stage reset scripts."""
+
 import psutil
+import shlex
 import subprocess
 import threading
 import os
@@ -17,8 +23,10 @@ import json
 import math
 
 
-# Utility class for functions used throughout the app
 class Utils:
+    """Utility class for functions used throughout the app; gathers
+    hostname/model/vendor/serial once at construction."""
+
     def __init__(self):
         self.model = ""
         self.vendor = ""
@@ -747,7 +755,7 @@ class Utils:
         try:
             result = subprocess.run(command, capture_output=True, text=True, check=True)
             val = result.returncode == 0
-        except:
+        except Exception:
             pass
         return val
 
@@ -827,14 +835,17 @@ class Utils:
             spinner.stop()
         return False
 
-    # Launch arbitrary app
     def launch_app(self, command):
+        """Launch an external helper app (e.g. "cheese", "xdg-open <url>")
+        without waiting for it to exit. `command` is a command-line string;
+        it is split with shlex rather than run through a shell so its
+        arguments can't be reinterpreted as shell syntax."""
         print("Utils:launch_app")
         try:
             subprocess.Popen(
-                command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True
+                shlex.split(command), stdout=subprocess.PIPE, stderr=subprocess.PIPE
             )
-        except:
+        except Exception:
             pass
 
     def file_exists_and_readable(self, filepath):
@@ -859,7 +870,7 @@ class Utils:
                     [script], capture_output=True, text=True, check=True
                 )
                 val = result.returncode == 0
-            except:
+            except Exception:
                 pass
         return val
 
@@ -889,7 +900,7 @@ class Utils:
                         check=True,
                     )
                     asset_tag = result.stdout.split("=")[1]
-                except:
+                except Exception:
                     pass
         elif "lenovo" in self.vendor.lower():
             print("Vendor is Lenovo")

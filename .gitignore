@@ -79,3 +79,15 @@ m4/
 *.stamp
 Makefile
 Makefile.in
+
+# Meson / Debian package build artifacts
+builddir/
+obj-*/
+debian/.debhelper/
+debian/debhelper-build-stamp
+debian/files
+debian/*.substvars
+debian/tmp/
+debian/kramden-provision/
+debian/kramden-device/
+debian/kramden-spec/

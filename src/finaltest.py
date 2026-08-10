@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+"""Final Test wizard entry point (kramden-provision-finaltest): steps a
+tech through System Information, software checks, the manual hardware
+tests, and Final Test Complete."""
+
 
 import gi
 
@@ -16,6 +20,8 @@ from observable import ObservableProperty, StateObserver
 
 
 class WizardWindow(Gtk.ApplicationWindow):
+    """Final Test main window: a Gtk.Stack of pages with Prev/Next navigation."""
+
     def __init__(self, app):
         super().__init__(application=app, title="Kramden - Final Test")
 
@@ -133,7 +139,7 @@ class WizardWindow(Gtk.ApplicationWindow):
             self.current_page -= 1
             self.stack.set_visible_child_name(f"page{self.current_page + 1}")
             self.update_buttons()
-            page = eval(f"self.page{self.current_page + 1}")
+            page = getattr(self, f"page{self.current_page + 1}")
             if page.skip:
                 print(f"on_prev_clicked: page{self.current_page - 1} skipped")
                 self.on_prev_clicked()
@@ -143,7 +149,7 @@ class WizardWindow(Gtk.ApplicationWindow):
             self.current_page += 1
             self.stack.set_visible_child_name(f"page{self.current_page + 1}")
             self.update_buttons()
-            page = eval(f"self.page{self.current_page + 1}")
+            page = getattr(self, f"page{self.current_page + 1}")
             if page.skip:
                 print(f"on_next_clicked: page{self.current_page + 1} skipped")
                 self.on_next_clicked()

@@ -1,3 +1,9 @@
+"""Spec Complete -- the final review screen of the Spec wizard. Summarizes
+system info and every manual test's failures, gates completion on a
+K-number + Sortly submission, generates and prints the tracking-sheet PDF
+(load-balanced across the WiFi printers), and pushes the aggregated
+Speccing Notes/datacodes and Spec Date back to Sortly."""
+
 import gi
 import os
 import re
@@ -49,6 +55,8 @@ QUEUED_JOB_COUNT_TEST = """{
 
 
 class SpecComplete(Adw.Bin):
+    """Final Spec review page: failure summary, K-number gate, tracking-sheet print, Sortly reporting."""
+
     def __init__(self):
         super().__init__()
         self.set_margin_top(24)
@@ -215,6 +223,11 @@ class SpecComplete(Adw.Bin):
         # is_complete() and on_shown() below.
         self._tracking_reviewed = False
         self._tracking_printed = False
+        # _result_snapshot() taken at the moment the currently-reviewed
+        # sheet was generated -- compared against in on_shown() so the
+        # Review/Print state above survives navigating away and back
+        # unless the underlying results actually changed.
+        self._tracking_snapshot = None
         # Set while complete() is waiting on the Sortly Speccing Notes update
         # it kicked off (see _complete_with_sortly_report) -- keeps
         # is_complete() (and so the wizard's "Complete" button) disabled
@@ -496,12 +509,7 @@ class SpecComplete(Adw.Bin):
         dialog.set_extra_child(entry)
 
         dialog.set_response_enabled("continue", False)
-        entry.connect(
-            "changed",
-            lambda e: dialog.set_response_enabled(
-                "continue", bool(e.get_text().strip())
-            ),
-        )
+        entry.connect("changed", self._on_initials_entry_changed, dialog)
         # Makes Enter in the entry activate the dialog's default response
         # ("continue") exactly as if its button were clicked -- same code
         # path, so it respects "continue" being disabled while the entry
@@ -517,11 +525,28 @@ class SpecComplete(Adw.Bin):
         dialog.present()
         entry.grab_focus()
 
+    def _on_initials_entry_changed(self, entry, dialog):
+        """Force-uppercases initials as they're typed (e.g. "dv" -> "DV")
+        so the tracking sheet always prints them consistently, and keeps
+        the dialog's "Continue" response enabled only while something's
+        actually been entered."""
+        text = entry.get_text()
+        upper = text.upper()
+        if upper != text:
+            # set_text() re-emits "changed" recursively, so let that
+            # nested call (where upper == text) do the sensitivity update
+            # and just restore the cursor position here afterward.
+            pos = entry.get_position()
+            entry.set_text(upper)
+            entry.set_position(pos)
+            return
+        dialog.set_response_enabled("continue", bool(upper.strip()))
+
     def _on_initials_response(self, dialog, response, entry):
         if response != "continue":
             self.tracking_button.set_sensitive(True)
             return
-        self._tracking_initials = entry.get_text().strip()
+        self._tracking_initials = entry.get_text().strip().upper()
         self._generate_tracking_sheet()
 
     def _gather_sortly_notes(self):
@@ -539,6 +564,29 @@ class SpecComplete(Adw.Bin):
             if hasattr(page, "get_sortly_entries"):
                 entries.extend(page.get_sortly_entries())
         return "/".join(entries)
+
+    def _result_snapshot(self):
+        """Fingerprint of everything the tracking sheet PDF is built from
+        -- K-Number, each manual test page's result, and every notes
+        entry (manual test pages + System Info). Captured in
+        _on_generate_complete() and compared against in on_shown() so
+        navigating away from Spec Complete and back without changing
+        anything doesn't throw away a completed Review/Print (see
+        is_complete()) -- only a real change (e.g. the tech went back and
+        redid a test, or edited the K-Number) resets it."""
+        knumber = ""
+        if self.sortly_register:
+            raw = self.sortly_register.knumber_entry.get_text().strip()
+            formatted = Utils.format_knumber(raw)
+            knumber = formatted or raw
+        results = tuple((page.key, page.get_result()) for page in self.manual_test_pages)
+        notes = []
+        for page in self.manual_test_pages:
+            if hasattr(page, "get_notes_entries"):
+                notes.extend(page.get_notes_entries())
+        if self.specinfo is not None:
+            notes.extend(self.specinfo.get_notes_entries())
+        return (knumber, results, tuple(entry["text"] for entry in notes))
 
     def _generate_tracking_sheet(self):
         knumber = ""
@@ -635,6 +683,7 @@ class SpecComplete(Adw.Bin):
         self._refresh_tracking_status()
         self._tracking_ready_to_print = True
         self._tracking_reviewed = True
+        self._tracking_snapshot = self._result_snapshot()
         self.tracking_button.set_label("Print Tracking Sheet")
         self.tracking_button.remove_css_class("suggested-action")
         self.tracking_button.add_css_class("button-green")
@@ -1224,29 +1273,35 @@ class SpecComplete(Adw.Bin):
         state = self.state.get_value()
 
         # Results may have changed since the last visit (e.g. the tech went
-        # back and redid a test), so any previously generated sheet is
-        # stale -- reset to "Review" rather than risk printing outdated data.
-        self._tracking_output_path = None
-        self._tracking_ready_to_print = False
-        self._tracking_reviewed = False
-        self._tracking_printed = False
-        self._tracking_print_requested = False
-        self._tracking_initials = ""
-        self._tracking_generated_date = None
-        self._speccing_notes_reported = None
-        self._speccing_notes_error = None
-        self._spec_date_reported = None
-        self._spec_date_error = None
-        self._print_result = None
-        self._print_error = None
-        self._print_label = None
-        self.sortly_retry_button.set_visible(False)
-        self.tracking_button.set_label("Review Tracking Sheet")
-        self.tracking_button.remove_css_class("button-green")
-        self.tracking_button.add_css_class("suggested-action")
-        self.tracking_status.set_label("")
-        if self.tracking_status.has_css_class("text-error"):
-            self.tracking_status.remove_css_class("text-error")
+        # back and redid a test, or edited the K-Number) -- only then is any
+        # previously generated sheet stale and Review/Print reset, rather
+        # than unconditionally on every visit; otherwise a tech who's
+        # already reviewed and printed, then just navigated away and back
+        # (e.g. to double check something), would be forced to print again
+        # before "Complete" unlocks (see is_complete()/_result_snapshot()).
+        if self._tracking_snapshot is None or self._result_snapshot() != self._tracking_snapshot:
+            self._tracking_output_path = None
+            self._tracking_ready_to_print = False
+            self._tracking_reviewed = False
+            self._tracking_printed = False
+            self._tracking_print_requested = False
+            self._tracking_initials = ""
+            self._tracking_generated_date = None
+            self._tracking_snapshot = None
+            self._speccing_notes_reported = None
+            self._speccing_notes_error = None
+            self._spec_date_reported = None
+            self._spec_date_error = None
+            self._print_result = None
+            self._print_error = None
+            self._print_label = None
+            self.sortly_retry_button.set_visible(False)
+            self.tracking_button.set_label("Review Tracking Sheet")
+            self.tracking_button.remove_css_class("button-green")
+            self.tracking_button.add_css_class("suggested-action")
+            self.tracking_status.set_label("")
+            if self.tracking_status.has_css_class("text-error"):
+                self.tracking_status.remove_css_class("text-error")
 
         self._clear_list(self.specinfo_list)
         self._clear_list(self.manualtest_list)

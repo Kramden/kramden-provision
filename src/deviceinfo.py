@@ -1,4 +1,10 @@
 #!/usr/bin/env python3
+"""Entry point for the Kramden Device app -- the end-user application
+preinstalled on refurbished machines. Shows the Kramden guide (a PDF
+rendered in WebKit) and a read-only System Information page, and writes
+the ~/.config/kramden-intro-done marker on close so autostart only shows
+it on first login."""
+
 
 import gi
 gi.require_version('Gdk', '4.0')
@@ -12,6 +18,8 @@ from guide import KramdenGuide
 from observable import ObservableProperty, StateObserver
 
 class KramdenDevice(Adw.ApplicationWindow):
+    """Main window: view switcher between the Kramden Guide and System Information pages."""
+
     def __init__(self, app):
         super().__init__(application=app, title="Kramden - Guide")
 

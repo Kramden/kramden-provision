@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+"""Kramden Secure Erase (kramden-secure-erase): detects non-removable
+SATA/NVMe drives and wipes them -- NVMe format for NVMe drives, hdparm
+SANITIZE block erase for SATA with fallback to ATA Security Erase.
+Run with --test to simulate without erasing anything."""
+
 
 import concurrent.futures
 import gi

@@ -1,3 +1,8 @@
+"""Spec "Sortly" page: looks the device up in Sortly by serial number or
+K-number, creates/updates its inventory record with gathered system info,
+and later pushes the Speccing Notes datacode summary. Leaving the page
+without a successful submission requires the staff override password."""
+
 import gi
 import threading
 from datetime import datetime, time
@@ -46,6 +51,8 @@ SORTLY_SPEC_DATE_FIELD = "Spec Date"
 
 
 class SortlyRegister(Adw.Bin):
+    """Spec Sortly page: serial/K-number search, record create/update, staff override."""
+
     def __init__(self):
         super().__init__()
         self.set_margin_top(24)

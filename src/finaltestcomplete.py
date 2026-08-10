@@ -1,9 +1,14 @@
+"""Last page of the Final Test wizard: reports overall pass/fail from the
+manual tests and runs the stage completion reset script."""
+
 import gi
 gi.require_version('Adw', '1')
 from gi.repository import Adw, Gtk
 from utils import Utils
 
 class FinalTestComplete(Adw.Bin):
+    """Wizard page shown when Final Test is done; reports pass/fail."""
+
     def __init__(self):
         super().__init__()
         self.set_margin_top(20)

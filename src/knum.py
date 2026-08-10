@@ -1,3 +1,8 @@
+"""OS Load "Identify" page: the tech scans/enters the device's K-number,
+which is looked up in Sortly (pre-filled from a serial-number search when
+possible), the Sortly record is updated with current system info, and the
+machine's hostname is set to the K-number."""
+
 import gi
 import threading
 
@@ -19,6 +24,8 @@ from sortly import (
 
 
 class KramdenNumber(Adw.Bin):
+    """OS Load Identify page (K-number entry + Sortly lookup/update)."""
+
     def __init__(self):
         super().__init__()
         self.set_margin_top(20)

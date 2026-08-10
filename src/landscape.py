@@ -1,3 +1,7 @@
+"""OS Load page that registers the device with Kramden's Landscape
+management server -- a branded page with a Register button that calls
+Utils.register_landscape()."""
+
 import gi
 gi.require_version('Adw', '1')
 from gi.repository import Adw, Gtk
@@ -5,6 +9,8 @@ from utils import Utils
 import os
 
 class Landscape(Adw.Bin):
+    """OS Load page with a Register button for Landscape enrollment."""
+
     def __init__(self):
         super().__init__()
         self.set_margin_top(20)
