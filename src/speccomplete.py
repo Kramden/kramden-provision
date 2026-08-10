@@ -538,13 +538,15 @@ class SpecComplete(Adw.Bin):
         concatenated across all pages into one "/"-joined string with no
         spaces around any delimiter, e.g. "KB01|Keys do not
         work:A,B/TP01|Touchpad does not work at all" -- the format fed to
-        SortlyRegister.report_speccing_notes(). Pages that passed, weren't
-        tested, or have no get_sortly_entries() (SpecInfo isn't a manual
-        test page) contribute nothing."""
+        SortlyRegister.report_speccing_notes(). Pages that passed or weren't
+        tested contribute nothing. Also includes SpecInfo's own datacodes
+        (e.g. RA00's RAM breakdown -- see SpecInfo.get_sortly_entries)."""
         entries = []
         for page in self.manual_test_pages:
             if hasattr(page, "get_sortly_entries"):
                 entries.extend(page.get_sortly_entries())
+        if self.specinfo is not None:
+            entries.extend(self.specinfo.get_sortly_entries())
         return "/".join(entries)
 
     def _result_snapshot(self):
