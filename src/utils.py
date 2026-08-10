@@ -457,6 +457,13 @@ class Utils:
           - Bank Locator or Device Locator mentioning "Onboard",
             "Soldered", or "Node"
           - Memory Type starting with "LPDDR" (LPDDR is only ever soldered)
+          - Manufacturer, Serial Number, and Part Number all missing/
+            placeholder ("Unknown", "None", "Not Specified", etc.) --
+            soldered chips have no SPD EEPROM for the BIOS to read, so
+            these come back blank even when Form Factor/Locator/Type look
+            like a normal SODIMM (seen on some Lenovo ThinkPads, e.g. the
+            T470s's fixed 4GB chip, which reports as a plain DDR3L SODIMM
+            with no onboard/soldered wording anywhere)
         Also reports has_sodimm_slot: whether any Memory Device entry --
         populated or empty -- has a SODIMM Form Factor, i.e. whether
         there's a socket replaceable RAM could physically go into.
@@ -519,6 +526,22 @@ class Utils:
             mem_type = fields.get("Type", "")
             soldered_keywords = ("onboard", "soldered", "node")
 
+            placeholder_values = {
+                "unknown",
+                "none",
+                "not specified",
+                "to be filled by o.e.m.",
+                "",
+            }
+            manufacturer = fields.get("Manufacturer", "").strip().lower()
+            serial_number = fields.get("Serial Number", "").strip().lower()
+            part_number = fields.get("Part Number", "").strip().lower()
+            spd_fields_blank = (
+                manufacturer in placeholder_values
+                and serial_number in placeholder_values
+                and part_number in placeholder_values
+            )
+
             is_soldered = (
                 not form_factor
                 or "onboard" in form_factor.lower()
@@ -526,6 +549,7 @@ class Utils:
                 or any(kw in locator.lower() for kw in soldered_keywords)
                 or any(kw in bank_locator.lower() for kw in soldered_keywords)
                 or mem_type.upper().startswith("LPDDR")
+                or spd_fields_blank
             )
 
             if is_soldered:
