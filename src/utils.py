@@ -39,6 +39,7 @@ class Utils:
                 capture_output=True,
                 text=True,
                 check=True,
+                timeout=5,
             )
             json_output = result.stdout
             data = json.loads(json_output)
@@ -54,9 +55,15 @@ class Utils:
             if self.vendor.lower() != "lenovo":
                 self.serial = data.get("HardwareSerial", "")
             self.os = data.get("OperatingSystemPrettyName", "")
-        except (subprocess.CalledProcessError, json.JSONDecodeError, KeyError):
-            # If hostnamectl fails or returns invalid JSON, use empty defaults
-            # The fallback logic below will still attempt to populate serial from DMI
+        except (
+            subprocess.CalledProcessError,
+            subprocess.TimeoutExpired,
+            json.JSONDecodeError,
+            KeyError,
+        ):
+            # If hostnamectl fails, times out, or returns invalid JSON, use
+            # empty defaults. The fallback logic below will still attempt to
+            # populate serial from DMI.
             pass
         if not self.serial:
             serial_files = ["chassis_serial", "product_serial", "board_serial"]
@@ -71,13 +78,14 @@ class Utils:
                         capture_output=True,
                         text=True,
                         check=True,
+                        timeout=5,
                     )
                     contents = result.stdout
                     if contents.strip():
                         self.serial = contents.strip()
                         break
-                except subprocess.CalledProcessError:
-                    # If reading this serial file fails, try the next one
+                except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+                    # If reading this serial file fails or times out, try the next one
                     continue
 
     # Return the size of all detected necessary drives
