@@ -447,6 +447,101 @@ class Utils:
 
         return None
 
+    def get_memory_module_breakdown(self):
+        """Classify installed RAM as onboard/soldered vs. a replaceable
+        DIMM/SODIMM, using SMBIOS Memory Device data (dmidecode -t 17).
+        No single SMBIOS field reliably says "soldered", so this combines
+        several real-world signals seen on Kramden's donated fleet:
+          - Form Factor of "Onboard" or "FB-DIMM", or blank/missing
+            (vendors often leave this field out entirely for onboard RAM)
+          - Bank Locator or Device Locator mentioning "Onboard",
+            "Soldered", or "Node"
+          - Memory Type starting with "LPDDR" (LPDDR is only ever soldered)
+        Also reports has_sodimm_slot: whether any Memory Device entry --
+        populated or empty -- has a SODIMM Form Factor, i.e. whether
+        there's a socket replaceable RAM could physically go into.
+        Returns {"soldered_gb": float, "replaceable_gb": float,
+        "has_sodimm_slot": bool}, or None if dmidecode is
+        unavailable/fails or reports no installed modules.
+        """
+        try:
+            result = subprocess.run(
+                ["sudo", "dmidecode", "-t", "17"],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+        except (subprocess.CalledProcessError, OSError):
+            return None
+
+        soldered_mb = 0
+        replaceable_mb = 0
+        found_module = False
+        has_sodimm_slot = False
+
+        for block in result.stdout.split("\n\n"):
+            lines = [line.strip() for line in block.splitlines() if line.strip()]
+            # Each Memory Device block's first line is the "Handle ..."
+            # header, second is the literal "Memory Device" label.
+            if len(lines) < 2 or lines[1] != "Memory Device":
+                continue
+
+            fields = {}
+            for line in lines[2:]:
+                if ":" not in line:
+                    continue
+                key, _, value = line.partition(":")
+                fields[key.strip()] = value.strip()
+
+            form_factor = fields.get("Form Factor", "").strip()
+            # Checked on every slot, populated or not, since an empty
+            # SODIMM socket is still somewhere replaceable RAM could go.
+            if re.search(r"so-?dimm", form_factor, re.IGNORECASE):
+                has_sodimm_slot = True
+
+            size_field = fields.get("Size", "")
+            if (
+                not size_field
+                or "No Module Installed" in size_field
+                or "Not Installed" in size_field
+            ):
+                continue
+            size_match = re.search(r"(\d+)\s+(MB|GB)", size_field, re.IGNORECASE)
+            if not size_match:
+                continue
+            size_mb = int(size_match.group(1)) * (
+                1024 if size_match.group(2).upper() == "GB" else 1
+            )
+            found_module = True
+
+            locator = fields.get("Locator", "")
+            bank_locator = fields.get("Bank Locator", "")
+            mem_type = fields.get("Type", "")
+            soldered_keywords = ("onboard", "soldered", "node")
+
+            is_soldered = (
+                not form_factor
+                or "onboard" in form_factor.lower()
+                or "fb-dimm" in form_factor.lower()
+                or any(kw in locator.lower() for kw in soldered_keywords)
+                or any(kw in bank_locator.lower() for kw in soldered_keywords)
+                or mem_type.upper().startswith("LPDDR")
+            )
+
+            if is_soldered:
+                soldered_mb += size_mb
+            else:
+                replaceable_mb += size_mb
+
+        if not found_module:
+            return None
+
+        return {
+            "soldered_gb": soldered_mb / 1024,
+            "replaceable_gb": replaceable_mb / 1024,
+            "has_sodimm_slot": has_sodimm_slot,
+        }
+
     def _round_to_standard_ram(self, mem_gib):
         """Round memory to nearest standard RAM size when within tolerance."""
         # Common RAM sizes in GiB

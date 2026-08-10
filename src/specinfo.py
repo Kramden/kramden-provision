@@ -239,6 +239,8 @@ class SpecInfo(Adw.Bin):
         utils.sync_clock()
         print("Reading memory size...")
         mem = utils.get_mem()
+        print("Checking for soldered vs. replaceable memory...")
+        memory_breakdown = utils.get_memory_module_breakdown()
         print("Checking BIOS password (this can be slow)...")
         bios_password = utils.has_bios_password()
         bios_password_warning = getattr(utils, "bios_password_warning", None)
@@ -259,6 +261,7 @@ class SpecInfo(Adw.Bin):
 
         self._gathered = {
             "mem": mem,
+            "memory_breakdown": memory_breakdown,
             "bios_password": bios_password,
             "bios_password_warning": bios_password_warning,
             "asset_info": asset_info,
@@ -326,6 +329,21 @@ class SpecInfo(Adw.Bin):
         else:
             self.mem_row.set_icon_name("emblem-important-symbolic")
             self.mem_row.add_css_class("text-error")
+
+        # Append soldered/replaceable breakdown lines to the Memory row's
+        # subtitle, when dmidecode gave us enough to tell (see
+        # get_memory_module_breakdown). Each line only shows if that kind
+        # of RAM is actually present.
+        subtitle_lines = [f"{mem} GB"]
+        breakdown = self._gathered.get("memory_breakdown")
+        if breakdown:
+            if breakdown["soldered_gb"]:
+                subtitle_lines.append(f"Soldered: {breakdown['soldered_gb']:g} GB")
+            if breakdown["replaceable_gb"]:
+                subtitle_lines.append(
+                    f"Replaceable: {breakdown['replaceable_gb']:g} GB"
+                )
+        self.mem_row.set_subtitle("\n".join(subtitle_lines))
 
         bios_password = self._gathered["bios_password"]
         bios_password_warning = self._gathered.get("bios_password_warning")
@@ -488,6 +506,9 @@ class SpecInfo(Adw.Bin):
             entries.append({"text": f"<b>{BIOS_PASSWORD_CODE} HAS BIOS PASSWORD</b>"})
         if self._gathered.get("computrace") is True:
             entries.append({"text": "Computrace/Absolute is active"})
+        memory_breakdown = self._gathered.get("memory_breakdown")
+        if memory_breakdown and not memory_breakdown["has_sodimm_slot"]:
+            entries.append({"text": "No SODIMM slots"})
         return entries
 
     def _add_override_button(self, parent_row, dialog_title, on_accepted):

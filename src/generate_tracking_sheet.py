@@ -95,6 +95,7 @@ def _gather_system_info():
     model = utils.get_model()
     cpu = utils.get_cpu_info()
     ram = utils.get_mem()
+    memory_breakdown = utils.get_memory_module_breakdown()
     disks = utils.get_disks()
     gpu = utils.get_discrete_gpu()
     serial = utils.get_serial()
@@ -119,6 +120,12 @@ def _gather_system_info():
         "Serial# Scanner": serial,
         "Batteries": batteries,
     }
+
+    if memory_breakdown:
+        if memory_breakdown["soldered_gb"]:
+            info["RAM Soldered"] = f"{memory_breakdown['soldered_gb']:g}"
+        if memory_breakdown["replaceable_gb"]:
+            info["RAM Replaceable"] = f"{memory_breakdown['replaceable_gb']:g}"
 
     if device_type:
         info["Item Type"] = device_type
@@ -528,7 +535,21 @@ def generate_tracking_sheet(
     else:
         bat1_label, bat1_value = "", ""
 
-    ram_value = f"{system_info.get('RAM', '')}GB"
+    # Soldered/replaceable breakdown, when dmidecode gave us enough to tell
+    # (see Utils.get_memory_module_breakdown), replaces the plain total --
+    # each line only shows if that kind of RAM is actually present. Falls
+    # back to the plain total when no breakdown could be determined.
+    ram_lines = []
+    ram_soldered = system_info.get("RAM Soldered")
+    if ram_soldered:
+        ram_lines.append(f"S:{ram_soldered}GB")
+    ram_replaceable = system_info.get("RAM Replaceable")
+    if ram_replaceable:
+        ram_lines.append(f"R:{ram_replaceable}GB")
+    if ram_lines:
+        ram_value = "<br/>".join(ram_lines)
+    else:
+        ram_value = f"{system_info.get('RAM', '')}GB"
 
     # RAM, Storage, and Battery values have a known maximum length ("128GB",
     # "1000GB NVMe", "100%"), so their columns are sized to just fit that text
@@ -543,7 +564,8 @@ def generate_tracking_sheet(
     def _fit_width(text, buffer=WIDTH_BUFFER):
         return pdfmetrics.stringWidth(text, "Ubuntu", 10) + CELL_HPAD + buffer
 
-    ram_val_width = _fit_width("128GB")
+    # Wide enough for "128GB" plus the "S:"/"R:" breakdown prefix -- no wider.
+    ram_val_width = _fit_width("S:128GB")
     storage_val_width = _fit_width("1000GB NVMe", buffer=1)
     bat_val_width = _fit_width("100%")
 
