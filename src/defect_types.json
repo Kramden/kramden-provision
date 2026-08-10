@@ -156,7 +156,7 @@
         "order": 6
       },
       {
-        "label": "No webcam device found",
+        "label": "There is no webcam",
         "code": "WC07",
         "order": 7
       }
@@ -275,7 +275,7 @@
         "order": 2
       },
       {
-        "label": "No WiFi device detected",
+        "label": "No WiFi at all",
         "code": "WF03",
         "order": 3
       }

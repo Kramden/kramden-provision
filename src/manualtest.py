@@ -255,6 +255,14 @@ USB_C_REASON_SHORT_LABELS = {
 
 USB_PORT_LOCATIONS = ["Left Side", "Right Side", "Back"]
 
+# Tracking-sheet note text for UsbAPage/UsbCPage's "No USB Ports"/"No
+# USB-C Ports" toggle (see TogglePage's na_label/na_note) -- a tech-driven
+# equivalent of WEBCAM_NO_DEVICE_NOTE/WEBCAM_IR_ONLY_NOTE above, since
+# whether a machine has USB-A/USB-C ports at all can't be auto-detected
+# the way webcam presence is.
+USB_A_NO_PORTS_NOTE = "No USB ports present"
+USB_C_NO_PORTS_NOTE = "No USB-C ports present"
+
 # "Audio" must be an exact defect-type option (not free text) so the tracking
 # sheet can key off it directly to fill in the "Sound:" field -- see
 # TogglePage.has_reason() and SpecComplete._on_tracking_clicked. "Video" is
@@ -279,7 +287,7 @@ WIFI_DEFECT_CODES[WIFI_GATEWAY_PING_FAILURE_REASON] = "WF04"
 WIFI_REASON_SHORT_LABELS = {
     "Wi-Fi doesn't work": "Not working",
     "Wi-Fi is extremely slow": "Very slow",
-    "No WiFi device detected": "Device missing",
+    "No WiFi at all": "Device missing",
     WIFI_GATEWAY_PING_FAILURE_REASON: "No gateway",
 }
 
@@ -406,7 +414,7 @@ WEBCAM_REASON_SHORT_LABELS = {
     "The Image is blurry": "Blurry image",
     "The video is choppy with low frame rate": "Choppy video",
     "Everything is monochrome and flashing": "Flashing colors",
-    "No webcam device found": "Device missing",
+    "There is no webcam": "Device missing",
 }
 
 # Tracking-sheet note text used when WebcamPage auto-detects no usable
@@ -1046,6 +1054,8 @@ class TogglePage(Adw.Bin):
         row_title,
         pass_label="Yes",
         fail_label="No",
+        na_label=None,
+        na_note=None,
         reason_options=None,
         instructions=PLACEHOLDER_INSTRUCTIONS,
         code_prefix=None,
@@ -1059,6 +1069,15 @@ class TogglePage(Adw.Bin):
         self.skip = False
         self.passed = None
         self.state = None
+        # Third "doesn't apply to this machine at all" toggle option (e.g.
+        # UsbAPage/UsbCPage's "No USB Ports"), alongside the normal Yes/No
+        # pair -- only built below when na_label is given. Behaves like an
+        # instant "No" (passed=True, no reason required) but is tracked
+        # separately (self.not_applicable) so get_result/get_notes_entries
+        # can report it as "N/A" with its own note instead of a plain Pass.
+        self.na_button = None
+        self.na_note = na_note
+        self.not_applicable = False
         # Label for the free-text "add your own" option in the reason grid
         # below -- worded per-page so it reads naturally (e.g. "Some other
         # Keyboard issue") instead of a generic "Custom...".
@@ -1153,6 +1172,11 @@ class TogglePage(Adw.Bin):
         self.fail_button.connect("toggled", self._on_fail_toggled)
         toggle_box.append(self.pass_button)
         toggle_box.append(self.fail_button)
+        if na_label:
+            self.na_button = Gtk.ToggleButton(label=na_label)
+            self.na_button.set_valign(Gtk.Align.CENTER)
+            self.na_button.connect("toggled", self._on_na_toggled)
+            toggle_box.append(self.na_button)
         toggle_row.add_suffix(toggle_box)
         result_group.add(toggle_row)
         vbox.append(result_group)
@@ -1261,32 +1285,65 @@ class TogglePage(Adw.Bin):
                 self.pass_warning_label.set_visible(True)
                 return
             self.fail_button.set_active(False)
+            if self.na_button is not None:
+                self.na_button.set_active(False)
             button.add_css_class("toggle-pass-active")
             self.reason_revealer.set_reveal_child(False)
             self.pass_warning_label.set_visible(False)
+            self.not_applicable = False
             self.passed = True
             self.check_status()
         else:
             button.remove_css_class("toggle-pass-active")
-            if not self.fail_button.get_active():
-                # Neither button is selected anymore -- back to untested.
+            if not self.fail_button.get_active() and (
+                self.na_button is None or not self.na_button.get_active()
+            ):
+                # No button is selected anymore -- back to untested.
                 self.passed = None
                 self.check_status()
 
     def _on_fail_toggled(self, button):
         if button.get_active():
             self.pass_button.set_active(False)
+            if self.na_button is not None:
+                self.na_button.set_active(False)
             button.add_css_class("toggle-fail-active")
             self.reason_revealer.set_reveal_child(True)
             self.pass_warning_label.set_visible(False)
+            self.not_applicable = False
             self.passed = False
             self.check_status()
             _scroll_to_bottom(self.scrolled)
         else:
             button.remove_css_class("toggle-fail-active")
-            if not self.pass_button.get_active():
-                # Neither button is selected anymore -- back to untested.
+            if not self.pass_button.get_active() and (
+                self.na_button is None or not self.na_button.get_active()
+            ):
+                # No button is selected anymore -- back to untested.
                 self.reason_revealer.set_reveal_child(False)
+                self.passed = None
+                self.check_status()
+
+    def _on_na_toggled(self, button):
+        """Handles the optional third "doesn't apply" toggle (na_label) --
+        see UsbAPage/UsbCPage's "No USB Ports"/"No USB-C Ports". Acts like
+        an instant, reason-free "No" (self.passed=True), but flagged via
+        self.not_applicable so get_result/get_notes_entries can report it
+        distinctly rather than as a plain Pass."""
+        if button.get_active():
+            self.pass_button.set_active(False)
+            self.fail_button.set_active(False)
+            button.add_css_class("toggle-na-active")
+            self.reason_revealer.set_reveal_child(False)
+            self.pass_warning_label.set_visible(False)
+            self.not_applicable = True
+            self.passed = True
+            self.check_status()
+        else:
+            button.remove_css_class("toggle-na-active")
+            if not self.pass_button.get_active() and not self.fail_button.get_active():
+                # No button is selected anymore -- back to untested.
+                self.not_applicable = False
                 self.passed = None
                 self.check_status()
 
@@ -1579,7 +1636,9 @@ class TogglePage(Adw.Bin):
             if not codes:
                 return [f"{self.title} has issues"]
             return [
-                ", ".join(f"{code}: {self._short_label_for_code(code)}" for code in codes)
+                ", ".join(
+                    f"{code}: {self._short_label_for_code(code)}" for code in codes
+                )
             ]
         if self.passed is None:
             return [f"{self.title} not completed"]
@@ -1588,7 +1647,12 @@ class TogglePage(Adw.Bin):
     def get_notes_entries(self):
         """Each reported reason becomes its own coded detail (e.g. "KB02:
         Key(s) Sticking (F, G)"), all joined onto a single line so multiple
-        issues on the same test read as one grouped note."""
+        issues on the same test read as one grouped note. The "doesn't
+        apply" toggle (see na_label/na_note, self.not_applicable) reports
+        its own note instead, same as WebcamPage's auto-detected absent
+        case (see WEBCAM_NO_DEVICE_NOTE)."""
+        if self.not_applicable:
+            return [{"text": self.na_note}] if self.na_note else []
         if self.passed is not False:
             return []
         if not self._reason_entries:
@@ -1621,6 +1685,8 @@ class TogglePage(Adw.Bin):
     def get_result(self):
         if self.passed is None:
             return "Untested"
+        if self.not_applicable:
+            return "N/A"
         return "Pass" if self.passed else "Fail"
 
     def on_shown(self):
@@ -3797,6 +3863,8 @@ class UsbAPage(UsbPortLocationMixin, TogglePage):
                 "and report it below."
             ),
             reason_short_labels=USB_A_REASON_SHORT_LABELS,
+            na_label="No USB Ports",
+            na_note=USB_A_NO_PORTS_NOTE,
         )
 
     def _reason_code(self, reason):
@@ -3819,6 +3887,8 @@ class UsbCPage(UsbPortLocationMixin, TogglePage):
                 "ports and report it below."
             ),
             reason_short_labels=USB_C_REASON_SHORT_LABELS,
+            na_label="No USB-C Ports",
+            na_note=USB_C_NO_PORTS_NOTE,
         )
 
     def _reason_code(self, reason):
