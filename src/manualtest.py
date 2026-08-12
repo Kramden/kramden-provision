@@ -759,12 +759,9 @@ def _build_fullscreen_section_row(
     `on_change` is called with the list of currently selected sections (in
     SCREEN_SECTIONS order) once the picker window closes.
 
-    `auto_launch=False` skips the "open it immediately" behavior below --
-    used by PhysicalDefectsPage._build_part_location_picker, whose "Screen"
-    part row gets rebuilt (along with every other selected part's row)
-    every time the tech toggles a *different* part on/off, which would
-    otherwise reopen the fullscreen picker and clobber an already-completed
-    selection."""
+    `auto_launch=False` skips the "open it immediately" behavior below, for
+    callers that build this row without wanting the picker to pop up right
+    away."""
     row_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
     row_box.set_margin_top(8)
     row_box.set_margin_bottom(8)
@@ -1979,12 +1976,12 @@ class PhysicalDefectsPage(Adw.Bin):
         locations_list_row.set_activatable(False)
         locations_list_row.set_child(locations_box)
 
-        def _build_screen_part_row(newly_added):
-            # Rebuilt (like every other part's row) whenever *any* part is
-            # toggled on/off, so only auto-launch the fullscreen picker when
-            # "Screen" itself was just selected -- otherwise toggling some
-            # unrelated part (e.g. also checking "One or multiple corners")
-            # would reopen it on top of an already-completed selection.
+        # part -> its location-picker row widget, persisted across rebuilds
+        # so toggling one part on/off doesn't recreate (and thus reset) the
+        # already-made location selections for every other selected part.
+        part_rows = {}
+
+        def _build_screen_part_row():
             screen_data = {
                 "type": "sections",
                 "selected": data["locations"].get(PHYSICAL_SCREEN_PART, []),
@@ -1999,10 +1996,14 @@ class PhysicalDefectsPage(Adw.Bin):
                 "Entire Screen",
                 screen_data,
                 on_change=_on_screen_change,
-                auto_launch=newly_added,
+                # This row is only ever built once per "Screen" selection
+                # (see part_rows above), so it's always safe to auto-launch
+                # here -- it never gets reconstructed just because some
+                # unrelated part was toggled.
+                auto_launch=True,
             )
 
-        def _rebuild_part_location_rows(selected_parts, newly_added):
+        def _rebuild_part_location_rows(selected_parts):
             child = locations_box.get_first_child()
             while child is not None:
                 next_child = child.get_next_sibling()
@@ -2013,27 +2014,30 @@ class PhysicalDefectsPage(Adw.Bin):
                 for part, locations in data["locations"].items()
                 if part in selected_parts
             }
+            for part in list(part_rows.keys()):
+                if part not in selected_parts:
+                    del part_rows[part]
             for part in selected_parts:
-                if part == PHYSICAL_SCREEN_PART:
-                    locations_box.append(_build_screen_part_row(part in newly_added))
-                    continue
+                if part not in part_rows:
+                    if part == PHYSICAL_SCREEN_PART:
+                        part_rows[part] = _build_screen_part_row()
+                    else:
 
-                def _on_location_change(selected, part=part):
-                    data["locations"][part] = selected
-                    self.check_status()
+                        def _on_location_change(selected, part=part):
+                            data["locations"][part] = selected
+                            self.check_status()
 
-                part_row = _build_section_row(
-                    f"Location on {part}",
-                    SCREEN_SECTIONS,
-                    select_all_label="Select All",
-                    on_change=_on_location_change,
-                )
-                locations_box.append(part_row)
+                        part_rows[part] = _build_section_row(
+                            f"Location on {part}",
+                            SCREEN_SECTIONS,
+                            select_all_label="Select All",
+                            on_change=_on_location_change,
+                        )
+                locations_box.append(part_rows[part])
 
         def _on_parts_change(selected):
-            previous_parts = data.get("parts") or []
             data["parts"] = selected
-            _rebuild_part_location_rows(selected, set(selected) - set(previous_parts))
+            _rebuild_part_location_rows(selected)
             self.check_status()
             _scroll_to_bottom(self.scrolled)
 
