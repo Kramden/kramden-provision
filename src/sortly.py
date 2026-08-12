@@ -554,6 +554,7 @@ def get_system_info():
     model = utils.get_model()
     cpu = utils.get_cpu_info()
     ram = utils.get_mem()
+    memory_breakdown = utils.get_memory_module_breakdown()
     disks = utils.get_disks()
     gpu = utils.get_discrete_gpu()
     serial = utils.get_serial()
@@ -583,6 +584,12 @@ def get_system_info():
         "Serial# Scanner": serial,
         "Serial Number": serial,
     }
+
+    if memory_breakdown:
+        if memory_breakdown["soldered_gb"]:
+            info["RAM Soldered"] = f"{memory_breakdown['soldered_gb']:g}"
+        if memory_breakdown["replaceable_gb"]:
+            info["RAM Replaceable"] = f"{memory_breakdown['replaceable_gb']:g}"
 
     if device_type:
         info["Item Type"] = device_type

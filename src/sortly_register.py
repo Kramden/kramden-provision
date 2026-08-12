@@ -738,7 +738,17 @@ class SortlyRegister(Adw.Bin):
             row = Adw.ActionRow()
             row.set_title(field)
             if field == "RAM":
-                row.set_subtitle(f"{value} GB")
+                # Only clarified at all if soldered RAM is present -- see
+                # Utils.get_memory_module_breakdown. An all-replaceable
+                # machine just shows the total.
+                subtitle_lines = [f"{value} GB"]
+                soldered = self._system_info.get("RAM Soldered")
+                if soldered:
+                    subtitle_lines.append(f"Soldered: {soldered} GB")
+                    replaceable = self._system_info.get("RAM Replaceable")
+                    if replaceable:
+                        subtitle_lines.append(f"Replaceable: {replaceable} GB")
+                row.set_subtitle("\n".join(subtitle_lines))
             elif field == "Storage":
                 row.set_subtitle(f"{value} GB")
             else:

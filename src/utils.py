@@ -447,6 +447,142 @@ class Utils:
 
         return None
 
+    def get_memory_module_breakdown(self):
+        """Classify installed RAM as onboard/soldered vs. a replaceable
+        DIMM/SODIMM, using SMBIOS Memory Device data (dmidecode -t 17).
+        No single SMBIOS field reliably says "soldered", so this combines
+        several real-world signals seen on Kramden's donated fleet:
+          - Form Factor of "Onboard", "FB-DIMM", or "Row Of Chips" (the
+            latter seen on some Lenovos), or blank/missing (vendors often
+            leave this field out entirely for onboard RAM)
+          - Bank Locator or Device Locator mentioning "Onboard",
+            "Soldered", or "Node"
+          - Memory Type starting with "LPDDR" (LPDDR is only ever soldered)
+          - Manufacturer, Serial Number, and Part Number all missing/
+            placeholder ("Unknown", "None", "Not Specified", etc.) --
+            soldered chips generally have no SPD EEPROM for the BIOS to
+            read, so these come back blank even when Form Factor/Locator/
+            Type look like a normal SODIMM
+          - Serial Number is all zeros ("00000000", "0x00000000", etc.)
+            while Manufacturer/Part Number otherwise look legitimate --
+            confirmed on a Lenovo ThinkPad T470s, where the fixed DDR4
+            chip soldered to the systemboard (per Lenovo's PSREF: "4GB or
+            8GB memory soldered to systemboard, one DDR4 SO-DIMM socket")
+            reports as a plain SODIMM with a real-looking Manufacturer/
+            Part Number, differing from the actual SO-DIMM only in this
+            zeroed-out serial
+        Also reports has_sodimm_slot: whether any Memory Device entry --
+        populated or empty -- has a SODIMM Form Factor, i.e. whether
+        there's a socket replaceable RAM could physically go into.
+        Returns {"soldered_gb": float, "replaceable_gb": float,
+        "has_sodimm_slot": bool}, or None if dmidecode is
+        unavailable/fails or reports no installed modules.
+        """
+        try:
+            result = subprocess.run(
+                ["sudo", "dmidecode", "-t", "17"],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+        except (subprocess.CalledProcessError, OSError):
+            return None
+
+        soldered_mb = 0
+        replaceable_mb = 0
+        found_module = False
+        has_sodimm_slot = False
+
+        for block in result.stdout.split("\n\n"):
+            lines = [line.strip() for line in block.splitlines() if line.strip()]
+            # Each Memory Device block's first line is the "Handle ..."
+            # header, second is the literal "Memory Device" label.
+            if len(lines) < 2 or lines[1] != "Memory Device":
+                continue
+
+            fields = {}
+            for line in lines[2:]:
+                if ":" not in line:
+                    continue
+                key, _, value = line.partition(":")
+                fields[key.strip()] = value.strip()
+
+            form_factor = fields.get("Form Factor", "").strip()
+            # Checked on every slot, populated or not, since an empty
+            # SODIMM socket is still somewhere replaceable RAM could go.
+            if re.search(r"so-?dimm", form_factor, re.IGNORECASE):
+                has_sodimm_slot = True
+
+            size_field = fields.get("Size", "")
+            if (
+                not size_field
+                or "No Module Installed" in size_field
+                or "Not Installed" in size_field
+            ):
+                continue
+            size_match = re.search(r"(\d+)\s+(MB|GB)", size_field, re.IGNORECASE)
+            if not size_match:
+                continue
+            size_mb = int(size_match.group(1)) * (
+                1024 if size_match.group(2).upper() == "GB" else 1
+            )
+            found_module = True
+
+            locator = fields.get("Locator", "")
+            bank_locator = fields.get("Bank Locator", "")
+            mem_type = fields.get("Type", "")
+            soldered_keywords = ("onboard", "soldered", "node")
+
+            placeholder_values = {
+                "unknown",
+                "none",
+                "not specified",
+                "to be filled by o.e.m.",
+                "",
+            }
+            manufacturer = fields.get("Manufacturer", "").strip().lower()
+            serial_number = fields.get("Serial Number", "").strip().lower()
+            part_number = fields.get("Part Number", "").strip().lower()
+            spd_fields_blank = (
+                manufacturer in placeholder_values
+                and serial_number in placeholder_values
+                and part_number in placeholder_values
+            )
+
+            # Some boards (seen on a Lenovo T470s) write a real-looking
+            # Manufacturer/Part Number for the soldered chip but leave its
+            # Serial Number all zeros -- e.g. "00000000", "0x00000000" --
+            # while a genuine SODIMM has an actual varying serial from its
+            # SPD EEPROM.
+            serial_digits = serial_number[2:] if serial_number.startswith("0x") else serial_number
+            is_zero_serial = serial_digits != "" and set(serial_digits) == {"0"}
+
+            is_soldered = (
+                not form_factor
+                or "onboard" in form_factor.lower()
+                or "fb-dimm" in form_factor.lower()
+                or "row of chips" in form_factor.lower()
+                or any(kw in locator.lower() for kw in soldered_keywords)
+                or any(kw in bank_locator.lower() for kw in soldered_keywords)
+                or mem_type.upper().startswith("LPDDR")
+                or spd_fields_blank
+                or is_zero_serial
+            )
+
+            if is_soldered:
+                soldered_mb += size_mb
+            else:
+                replaceable_mb += size_mb
+
+        if not found_module:
+            return None
+
+        return {
+            "soldered_gb": soldered_mb / 1024,
+            "replaceable_gb": replaceable_mb / 1024,
+            "has_sodimm_slot": has_sodimm_slot,
+        }
+
     def _round_to_standard_ram(self, mem_gib):
         """Round memory to nearest standard RAM size when within tolerance."""
         # Common RAM sizes in GiB

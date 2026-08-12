@@ -11,6 +11,7 @@ gi.require_version("Adw", "1")
 gi.require_version("Gtk", "4.0")
 from gi.repository import Adw, GLib, Gtk
 from loading_capture import StdoutCapture
+from manualtest import _sortly_entry
 from utils import Utils
 
 # Toggle: when True, finding a drive already installed in the device blocks
@@ -22,6 +23,30 @@ BLOCK_NEXT_WHEN_DRIVE_PRESENT = True
 # see manualtest.py's CUSTOM_REASON_CODE_SUFFIX comment for the same
 # "<code> <reason>" scheme used by every manual test page's notes.
 BIOS_PASSWORD_CODE = "BP00"
+
+# Sortly Speccing Notes datacode for the soldered/replaceable RAM breakdown
+# (see get_memory_module_breakdown). Has no defect_types.json label/
+# description of its own -- unlike other datacodes, its "<code>|<description>"
+# Sortly entry uses the compact S/R breakdown itself as the "description"
+# (e.g. "RA00|16S 8R"). See _ram_datacode_value for the S/R format rules.
+RAM_DATACODE = "RA00"
+
+
+def _ram_datacode_value(memory_breakdown):
+    """Build RA00's compact "<soldered>S <replaceable>R" value from a
+    get_memory_module_breakdown() result, or None if there's nothing to
+    report. Soldered is omitted entirely when zero; replaceable is shown
+    as "0R" when a SODIMM socket exists but is empty (rather than omitted),
+    since an empty slot is itself useful information, and is otherwise
+    omitted when there's no socket at all (e.g. a fully soldered board)."""
+    parts = []
+    if memory_breakdown["soldered_gb"]:
+        parts.append(f"{memory_breakdown['soldered_gb']:g}S")
+    if memory_breakdown["replaceable_gb"]:
+        parts.append(f"{memory_breakdown['replaceable_gb']:g}R")
+    elif memory_breakdown["has_sodimm_slot"]:
+        parts.append("0R")
+    return " ".join(parts) if parts else None
 
 
 class SpecInfo(Adw.Bin):
@@ -239,6 +264,8 @@ class SpecInfo(Adw.Bin):
         utils.sync_clock()
         print("Reading memory size...")
         mem = utils.get_mem()
+        print("Checking for soldered vs. replaceable memory...")
+        memory_breakdown = utils.get_memory_module_breakdown()
         print("Checking BIOS password (this can be slow)...")
         bios_password = utils.has_bios_password()
         bios_password_warning = getattr(utils, "bios_password_warning", None)
@@ -259,6 +286,7 @@ class SpecInfo(Adw.Bin):
 
         self._gathered = {
             "mem": mem,
+            "memory_breakdown": memory_breakdown,
             "bios_password": bios_password,
             "bios_password_warning": bios_password_warning,
             "asset_info": asset_info,
@@ -326,6 +354,20 @@ class SpecInfo(Adw.Bin):
         else:
             self.mem_row.set_icon_name("emblem-important-symbolic")
             self.mem_row.add_css_class("text-error")
+
+        # Append soldered/replaceable breakdown lines to the Memory row's
+        # subtitle, when dmidecode gave us enough to tell (see
+        # get_memory_module_breakdown). Only clarified at all if soldered
+        # RAM is present -- an all-replaceable machine just shows the total.
+        subtitle_lines = [f"{mem} GB"]
+        breakdown = self._gathered.get("memory_breakdown")
+        if breakdown and breakdown["soldered_gb"]:
+            subtitle_lines.append(f"Soldered: {breakdown['soldered_gb']:g} GB")
+            if breakdown["replaceable_gb"]:
+                subtitle_lines.append(
+                    f"Replaceable: {breakdown['replaceable_gb']:g} GB"
+                )
+        self.mem_row.set_subtitle("\n".join(subtitle_lines))
 
         bios_password = self._gathered["bios_password"]
         bios_password_warning = self._gathered.get("bios_password_warning")
@@ -488,6 +530,23 @@ class SpecInfo(Adw.Bin):
             entries.append({"text": f"<b>{BIOS_PASSWORD_CODE} HAS BIOS PASSWORD</b>"})
         if self._gathered.get("computrace") is True:
             entries.append({"text": "Computrace/Absolute is active"})
+        memory_breakdown = self._gathered.get("memory_breakdown")
+        if memory_breakdown and not memory_breakdown["has_sodimm_slot"]:
+            entries.append({"text": "No SODIMM slots"})
+        return entries
+
+    def get_sortly_entries(self):
+        """Sortly-format sibling of get_notes_entries -- see
+        manualtest._sortly_entry for the "<code>|<description>" scheme this
+        matches, and SpecComplete._gather_sortly_notes for where it's
+        collected into Sortly's "Speccing Notes" custom attribute. Currently
+        just RA00 (see RAM_DATACODE/_ram_datacode_value)."""
+        entries = []
+        memory_breakdown = self._gathered.get("memory_breakdown")
+        if memory_breakdown:
+            value = _ram_datacode_value(memory_breakdown)
+            if value:
+                entries.append(_sortly_entry(RAM_DATACODE, value))
         return entries
 
     def _add_override_button(self, parent_row, dialog_title, on_accepted):
