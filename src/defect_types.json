@@ -40,6 +40,19 @@
         "label": "Case Bulging",
         "code": "PD10",
         "order": 8
+      },
+      {
+        "label": "Non-USB Port Problem",
+        "code": "PD11",
+        "order": 9,
+        "sub_buttons": [
+          "HDMI Problem",
+          "VGA Problem",
+          "DP Problem",
+          "Ethernet Problem",
+          "Primary Charging Port Loose Connection",
+          "Primary Charging Port Damaged"
+        ]
       }
     ]
   },
