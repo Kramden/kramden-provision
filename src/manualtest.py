@@ -115,18 +115,38 @@ def _sub_buttons_override(owner, entry_row, page_key, reason, fullscreen=False):
     return None
 
 
+# Standalone "Hinge broken"/"Loose Hinge" buttons (PD01/PD02, no location) --
+# pulled out of "Broken Part" so each gets its own top-level button instead
+# of living behind a "What is broken?" sub-picker. "Port Damaged" (PD07,
+# named port type, or PDOP for a custom-described one) is likewise a
+# standalone button -- see PHYSICAL_PORT_TYPES/PhysicalDefectsPage.
+# _build_port_damage_picker/_port_damage_codes_and_details below.
+PHYSICAL_HINGE_BROKEN_TYPE = "Hinge broken"
+PHYSICAL_LOOSE_HINGE_TYPE = "Loose Hinge"
 # Physical Defects' plain defect types (label, code, part-location-picker
-# vs. no-location) come from defect_types.json ("physical_defects"); the two
-# special types below ("Cracks"/"Broken Part") stay hardcoded and are merged
-# in at their original button position -- see _merge_defect_types.
+# vs. no-location) come from defect_types.json ("physical_defects"); the
+# special types below ("Cracks"/"Broken Part"/the hinge types/"Port Damaged")
+# stay hardcoded and are merged in at their original button position -- see
+# _merge_defect_types.
 PHYSICAL_DEFECT_TYPES, PHYSICAL_DEFECT_CODES = _merge_defect_types(
-    "physical_defects", specials=[("Cracks", 4), ("Broken Part", 5)]
+    "physical_defects",
+    specials=[
+        ("Cracks", 4),
+        ("Broken Part", 5),
+        (PHYSICAL_HINGE_BROKEN_TYPE, 6),
+        (PHYSICAL_LOOSE_HINGE_TYPE, 7),
+        ("Port Damaged", 8),
+    ],
 )
 PHYSICAL_DEFECT_CODES["Cracks"] = "PD06"
-# Feet issues are self-explanatory with no meaningful location to ask for.
+PHYSICAL_DEFECT_CODES[PHYSICAL_HINGE_BROKEN_TYPE] = "PD01"
+PHYSICAL_DEFECT_CODES[PHYSICAL_LOOSE_HINGE_TYPE] = "PD02"
+PHYSICAL_DEFECT_CODES["Port Damaged"] = "PD07"
+# Feet issues (and the hinge types above) are self-explanatory with no
+# meaningful location to ask for.
 PHYSICAL_NO_LOCATION_TYPES = {
     e["label"] for e in _page_entries("physical_defects") if e.get("no_location")
-}
+} | {PHYSICAL_HINGE_BROKEN_TYPE, PHYSICAL_LOOSE_HINGE_TYPE}
 # Defect types whose part-location picker (see
 # PhysicalDefectsPage._build_part_location_picker) offers PHYSICAL_SCREEN_PART
 # as an extra part alongside PHYSICAL_AFFECTED_PARTS -- picking it swaps in
@@ -155,60 +175,47 @@ PHYSICAL_AFFECTED_PARTS = [
 # _build_part_location_picker.
 PHYSICAL_SCREEN_PART = "Screen"
 # Ask which port type, reusing the same location picker as the dedicated
-# USB-A/USB-C pages (see UsbPortLocationMixin). Only USB-A/USB-C trigger the
-# suppress-on-matching-page logic below since those are the only port types
-# with their own dedicated test page; PHYSICAL_PORT_OTHER_TYPE additionally
-# asks for a free-text description of the port.
+# USB-A/USB-C pages (see UsbPortLocationMixin's USB_PORT_LOCATIONS).
+# PHYSICAL_PORT_OTHER_TYPE additionally asks for a free-text description of
+# the port -- named types report under PORT_DAMAGE_CODE, the custom one
+# under PORT_DAMAGE_OTHER_CODE, same "preset vs custom" code split as
+# CUSTOM_REASON_CODE_SUFFIX elsewhere in this file (see
+# PhysicalDefectsPage._port_damage_codes_and_details). USB/USB-C aren't
+# offered here -- those have their own dedicated test pages and are only
+# reachable through "Broken Part" -> "Port" instead (see
+# BROKEN_PART_PORT_TYPES below).
 PHYSICAL_PORT_DAMAGE_TYPES = {"Port Damaged"}
 PHYSICAL_PORT_OTHER_TYPE = "Some other port is damaged"
-PHYSICAL_PORT_TYPES = [
-    "USB",
-    "USB-C",
-    "Ethernet",
-    "HDMI",
-    "Display Port",
-    "Charging Port",
-    PHYSICAL_PORT_OTHER_TYPE,
-]
+PHYSICAL_PORT_TYPES = ["Charger", "HDMI", "Ethernet", "DP", "VGA", PHYSICAL_PORT_OTHER_TYPE]
+PORT_DAMAGE_CODE = "PD07"
+PORT_DAMAGE_OTHER_CODE = "PDOP"
 
 # "Broken Part" hands off Keys/Screen/USB-A/USB-C sub-reports to their own
-# dedicated test page (its own datacode) instead of Physical Defects --
-# see PhysicalDefectsPage._build_broken_part_picker/_delegate_broken_part.
-# "Hinge Broken"/"Loose Hinge"/"Port physically broken" (for a non-USB
-# port)/BROKEN_PART_OTHER_TYPE have no dedicated page, but still each get
-# their own real PD code instead of one generic "Broken Part" code for the
-# whole entry --
-# see BROKEN_PART_HINGE_CODES/BROKEN_PART_PORT_CODE/
-# BROKEN_PART_PORT_OTHER_CODE below and
-# PhysicalDefectsPage._broken_part_codes_and_details.
+# dedicated test page (its own datacode) instead of Physical Defects -- see
+# PhysicalDefectsPage._build_broken_part_picker/_delegate_broken_part/
+# _build_broken_part_port_block. BROKEN_PART_OTHER_TYPE has no dedicated
+# page, but still gets its own real PD code (the generic PDOT custom code,
+# same as a typed-in top-level defect) instead of one generic "Broken Part"
+# code for the whole entry -- see
+# PhysicalDefectsPage._broken_part_codes_and_details. "Broken Part" itself
+# never carries a PD code of its own.
 PHYSICAL_BROKEN_PART_TYPES = {"Broken Part"}
 BROKEN_PART_KEYS_TYPE = "Keys have physical damage"
 BROKEN_PART_PORT_TYPE = "Port physically broken"
-BROKEN_PART_HINGE_BROKEN_TYPE = "Hinge broken"
-BROKEN_PART_LOOSE_HINGE_TYPE = "Very loose hinge"
 BROKEN_PART_SCREEN_TYPE = "Screen"
 BROKEN_PART_OTHER_TYPE = "Some other part is broken"
 BROKEN_PART_SUB_TYPES = [
     BROKEN_PART_KEYS_TYPE,
     BROKEN_PART_PORT_TYPE,
-    BROKEN_PART_HINGE_BROKEN_TYPE,
-    BROKEN_PART_LOOSE_HINGE_TYPE,
     BROKEN_PART_SCREEN_TYPE,
     BROKEN_PART_OTHER_TYPE,
 ]
-# Fixed tracking-sheet codes for the Hinge Broken/Loose Hinge sub-types --
-# see PhysicalDefectsPage._broken_part_codes_and_details.
-BROKEN_PART_HINGE_CODES = {
-    BROKEN_PART_HINGE_BROKEN_TYPE: "PD01",
-    BROKEN_PART_LOOSE_HINGE_TYPE: "PD02",
-}
-# Fixed tracking-sheet codes for "Port physically broken" on a port with no
-# dedicated test page (i.e. not USB-A/USB-C, which delegate to UA02/UC02
-# instead) -- PD07 for a named port type, PDOP for "Other" (a
-# custom-described port), same "preset vs custom" code split as
-# CUSTOM_REASON_CODE_SUFFIX elsewhere in this file.
-BROKEN_PART_PORT_CODE = "PD07"
-BROKEN_PART_PORT_OTHER_CODE = "PDOP"
+# "Port physically broken" only offers USB/USB-C -- both always delegate to
+# that port's own dedicated test page (UA02/UC02); non-USB port damage is
+# reported through the standalone "Port Damaged" button instead (see
+# PHYSICAL_PORT_TYPES above), so unlike that button this sub-type never
+# produces a PD code of its own.
+BROKEN_PART_PORT_TYPES = ["USB", "USB-C"]
 
 PLACEHOLDER_INSTRUCTIONS = "(Instructions for this test will go here)"
 
@@ -1966,8 +1973,13 @@ class PhysicalDefectsPage(Adw.Bin):
         # same sextant. PHYSICAL_SCREEN_PART (offered only for
         # PHYSICAL_SCREEN_SECTION_TYPES, e.g. "Cracks") is the one part whose
         # "location" row is the fullscreen click-through picker instead of
-        # the sextant grid -- see _build_screen_part_row below.
-        data = {"type": "part_location", "parts": [], "locations": {}}
+        # the sextant grid -- see _build_screen_part_row below. Each part's
+        # row is built once and kept in data["_blocks"] for as long as that
+        # part stays selected -- same "don't tear down an in-progress grid"
+        # rule as _build_broken_part_picker's _sync_sub_type_blocks, so
+        # toggling a *different* part on/off doesn't reset an already-marked
+        # sextant grid for a part that's still selected.
+        data = {"type": "part_location", "parts": [], "locations": {}, "_blocks": {}}
 
         parts_options = PHYSICAL_AFFECTED_PARTS
         if defect_type in PHYSICAL_SCREEN_SECTION_TYPES:
@@ -1979,12 +1991,9 @@ class PhysicalDefectsPage(Adw.Bin):
         locations_list_row.set_activatable(False)
         locations_list_row.set_child(locations_box)
 
-        def _build_screen_part_row(newly_added):
-            # Rebuilt (like every other part's row) whenever *any* part is
-            # toggled on/off, so only auto-launch the fullscreen picker when
-            # "Screen" itself was just selected -- otherwise toggling some
-            # unrelated part (e.g. also checking "One or multiple corners")
-            # would reopen it on top of an already-completed selection.
+        def _build_screen_part_row():
+            # Only ever built once, the first time "Screen" is selected, so
+            # it's always safe to auto-launch here.
             screen_data = {
                 "type": "sections",
                 "selected": data["locations"].get(PHYSICAL_SCREEN_PART, []),
@@ -1999,41 +2008,44 @@ class PhysicalDefectsPage(Adw.Bin):
                 "Entire Screen",
                 screen_data,
                 on_change=_on_screen_change,
-                auto_launch=newly_added,
+                auto_launch=True,
             )
 
-        def _rebuild_part_location_rows(selected_parts, newly_added):
-            child = locations_box.get_first_child()
-            while child is not None:
-                next_child = child.get_next_sibling()
-                locations_box.remove(child)
-                child = next_child
-            data["locations"] = {
-                part: locations
-                for part, locations in data["locations"].items()
-                if part in selected_parts
-            }
-            for part in selected_parts:
-                if part == PHYSICAL_SCREEN_PART:
-                    locations_box.append(_build_screen_part_row(part in newly_added))
+        def _build_part_row(part):
+            if part == PHYSICAL_SCREEN_PART:
+                return _build_screen_part_row()
+
+            def _on_location_change(selected, part=part):
+                data["locations"][part] = selected
+                self.check_status()
+
+            return _build_section_row(
+                f"Location on {part}",
+                SCREEN_SECTIONS,
+                select_all_label="Select All",
+                on_change=_on_location_change,
+            )
+
+        def _sync_part_rows(selected_parts):
+            for part in list(data["_blocks"]):
+                if part in selected_parts:
                     continue
+                locations_box.remove(data["_blocks"].pop(part))
+                data["locations"].pop(part, None)
 
-                def _on_location_change(selected, part=part):
-                    data["locations"][part] = selected
-                    self.check_status()
+            data["parts"] = selected_parts
 
-                part_row = _build_section_row(
-                    f"Location on {part}",
-                    SCREEN_SECTIONS,
-                    select_all_label="Select All",
-                    on_change=_on_location_change,
+            for part in selected_parts:
+                if part in data["_blocks"]:
+                    continue  # Already built -- leave it alone.
+                row = _build_part_row(part)
+                data["_blocks"][part] = row
+                self._insert_block_in_order(
+                    locations_box, data["_blocks"], parts_options, part
                 )
-                locations_box.append(part_row)
 
         def _on_parts_change(selected):
-            previous_parts = data.get("parts") or []
-            data["parts"] = selected
-            _rebuild_part_location_rows(selected, set(selected) - set(previous_parts))
+            _sync_part_rows(selected)
             self.check_status()
             _scroll_to_bottom(self.scrolled)
 
@@ -2048,14 +2060,22 @@ class PhysicalDefectsPage(Adw.Bin):
         return data
 
     def _build_port_damage_picker(self, entry_row):
-        # Multiple port types can be damaged at once (e.g. a USB-A port and
-        # the charging port), each with its own set of affected location(s).
+        # Multiple port types can be damaged at once (e.g. HDMI and the
+        # charger), each with its own set of affected location(s). Named
+        # types report under PORT_DAMAGE_CODE, the custom (typed-in) one
+        # under PORT_DAMAGE_OTHER_CODE -- see _port_damage_codes_and_details.
+        # Each type's block is built once and kept in data["_blocks"] for as
+        # long as that type stays selected -- same "don't tear down an
+        # in-progress block" rule as _build_broken_part_picker's
+        # _sync_sub_type_blocks, so toggling a *different* type on/off
+        # doesn't reset an already-marked location grid (or typed-in custom
+        # description) for a type that's still selected.
         data = {
             "type": "port_damage",
             "types": [],
             "locations": {},  # port_type -> [location, ...]
             "custom_text": {},  # port_type (PHYSICAL_PORT_OTHER_TYPE) -> custom description
-            "_suppressed_pages": {},  # port_type -> page it's suppressed on
+            "_blocks": {},  # port_type -> block widget, built once
         }
 
         types_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
@@ -2064,73 +2084,62 @@ class PhysicalDefectsPage(Adw.Bin):
         types_list_row.set_activatable(False)
         types_list_row.set_child(types_box)
 
-        def _rebuild_type_blocks(selected_types):
-            child = types_box.get_first_child()
-            while child is not None:
-                next_child = child.get_next_sibling()
-                types_box.remove(child)
-                child = next_child
+        def _build_type_block(port_type):
+            block = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
 
-            for port_type in list(data["_suppressed_pages"].keys()):
-                if port_type not in selected_types:
-                    data["_suppressed_pages"].pop(port_type).restore_reason_option(
-                        self._port_damage_reason_for_type(port_type)
-                    )
-            data["locations"] = {
-                t: v for t, v in data["locations"].items() if t in selected_types
-            }
-            data["custom_text"] = {
-                t: v for t, v in data["custom_text"].items() if t in selected_types
-            }
+            type_label = Gtk.Label(label=port_type)
+            type_label.set_halign(Gtk.Align.START)
+            type_label.add_css_class("heading")
+            block.append(type_label)
+
+            if port_type == PHYSICAL_PORT_OTHER_TYPE:
+                custom_entry = Gtk.Entry()
+                custom_entry.set_placeholder_text("Describe the port")
+                custom_entry.set_text(data["custom_text"].get(port_type, ""))
+
+                def _on_custom_changed(entry, port_type=port_type):
+                    data["custom_text"][port_type] = entry.get_text().strip()
+                    self.check_status()
+
+                custom_entry.connect("changed", _on_custom_changed)
+                block.append(custom_entry)
+
+            def _on_locations_change(selected, port_type=port_type):
+                data["locations"][port_type] = selected
+                self.check_status()
+                _scroll_to_bottom(self.scrolled)
+
+            location_row = _build_section_row(
+                "Location(s)",
+                USB_PORT_LOCATIONS,
+                columns=len(USB_PORT_LOCATIONS),
+                on_change=_on_locations_change,
+            )
+            block.append(location_row)
+
+            return block
+
+        def _sync_type_blocks(selected_types):
+            for port_type in list(data["_blocks"]):
+                if port_type in selected_types:
+                    continue
+                types_box.remove(data["_blocks"].pop(port_type))
+                data["locations"].pop(port_type, None)
+                data["custom_text"].pop(port_type, None)
+
+            data["types"] = selected_types
 
             for port_type in selected_types:
-                block = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-
-                type_label = Gtk.Label(label=port_type)
-                type_label.set_halign(Gtk.Align.START)
-                type_label.add_css_class("heading")
-                block.append(type_label)
-
-                if port_type == PHYSICAL_PORT_OTHER_TYPE:
-                    custom_entry = Gtk.Entry()
-                    custom_entry.set_placeholder_text("Describe the port")
-                    custom_entry.set_text(data["custom_text"].get(port_type, ""))
-
-                    def _on_custom_changed(entry, port_type=port_type):
-                        data["custom_text"][port_type] = entry.get_text().strip()
-                        self.check_status()
-
-                    custom_entry.connect("changed", _on_custom_changed)
-                    block.append(custom_entry)
-
-                def _on_locations_change(selected, port_type=port_type):
-                    data["locations"][port_type] = selected
-                    self.check_status()
-                    _scroll_to_bottom(self.scrolled)
-
-                location_row = _build_section_row(
-                    "Location(s)",
-                    USB_PORT_LOCATIONS,
-                    columns=len(USB_PORT_LOCATIONS),
-                    on_change=_on_locations_change,
+                if port_type in data["_blocks"]:
+                    continue  # Already built -- leave it alone.
+                block = _build_type_block(port_type)
+                data["_blocks"][port_type] = block
+                self._insert_block_in_order(
+                    types_box, data["_blocks"], PHYSICAL_PORT_TYPES, port_type
                 )
-                block.append(location_row)
-
-                types_box.append(block)
-
-                # Suppress the matching "physically damage" reason on the
-                # type's matching USB page right away so it isn't
-                # double-reported there too.
-                page = self._usb_page_for_type(port_type)
-                if page is not None and port_type not in data["_suppressed_pages"]:
-                    page.suppress_reason_option(
-                        self._port_damage_reason_for_type(port_type)
-                    )
-                    data["_suppressed_pages"][port_type] = page
 
         def _on_types_change(selected):
-            data["types"] = selected
-            _rebuild_type_blocks(selected)
+            _sync_type_blocks(selected)
             self.check_status()
             _scroll_to_bottom(self.scrolled)
 
@@ -2165,13 +2174,13 @@ class PhysicalDefectsPage(Adw.Bin):
 
     def _build_broken_part_picker(self, entry_row):
         """ "Broken Part" -> "Keys Have Physical Damage"/"Screen"/"Port
-        Physically Broken" (for a USB-A/USB-C port) hand off to that
-        page's own dedicated test instead of being recorded here -- see
-        _delegate_broken_part/_build_broken_part_port_block. "Hinge
-        Broken"/"Loose Hinge"/BROKEN_PART_OTHER_TYPE (and any non-USB-A/C
-        port type) have no dedicated page, but each still get their own
-        real PD code instead of one generic "Broken Part" code -- see
-        _broken_part_codes_and_details.
+        Physically Broken" (USB-A/USB-C only) hand off to that page's own
+        dedicated test instead of being recorded here -- see
+        _delegate_broken_part/_build_broken_part_port_block.
+        BROKEN_PART_OTHER_TYPE has no dedicated page, but still gets its own
+        real PD code (the generic PDOT custom code) instead of one generic
+        "Broken Part" code -- see _broken_part_codes_and_details. "Broken
+        Part" itself never carries a PD code of its own.
 
         Each sub-type's block is built once and kept in data["_blocks"]
         for as long as it stays selected -- toggling some *other* sub-type
@@ -2211,11 +2220,6 @@ class PhysicalDefectsPage(Adw.Bin):
 
                 custom_entry.connect("changed", _on_custom_changed)
                 block.append(custom_entry)
-            elif sub_type in (
-                BROKEN_PART_HINGE_BROKEN_TYPE,
-                BROKEN_PART_LOOSE_HINGE_TYPE,
-            ):
-                pass  # Nothing further to record -- each gets a fixed code, see BROKEN_PART_HINGE_CODES.
             elif sub_type == BROKEN_PART_PORT_TYPE:
                 self._build_broken_part_port_block(block, data)
             else:
@@ -2274,8 +2278,6 @@ class PhysicalDefectsPage(Adw.Bin):
     def _fresh_broken_part_port_data():
         return {
             "types": [],
-            "locations": {},
-            "custom_text": {},
             "_delegated_pages": {},  # port_type -> delegation info
             "_blocks": {},  # port_type -> block widget, built once
         }
@@ -2295,19 +2297,18 @@ class PhysicalDefectsPage(Adw.Bin):
         box.insert_child_after(blocks[key], sibling)
 
     def _build_broken_part_port_block(self, box, data):
-        """ "Port Physically Broken" sub-block -- same port-type/location
-        grid as the top-level "Port Damaged" defect (see
-        _build_port_damage_picker), except a USB-A/USB-C selection is
-        fully delegated to that port's own dedicated test page (its own
-        datacode) instead of being recorded here; every other port type
-        stays Physical-Defects-coded exactly like "Port Damaged" already
-        does.
+        """ "Port Physically Broken" sub-block -- only offers USB/USB-C
+        (BROKEN_PART_PORT_TYPES), each fully delegated to that port's own
+        dedicated test page (its own datacode) instead of being recorded
+        here; non-USB port damage is reported through the standalone "Port
+        Damaged" button instead (see _build_port_damage_picker), so unlike
+        that button this sub-type never produces a PD code of its own.
 
         Each port type's block is built once and kept in
         port_data["_blocks"] for as long as it stays selected -- same
         "don't tear down an in-progress block" rule as
         _sync_sub_type_blocks, so picking a second port type doesn't wipe
-        out a location/delegation already set up for the first."""
+        out a delegation already set up for the first."""
         port_data = data["port_damage"]
         types_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
 
@@ -2319,54 +2320,26 @@ class PhysicalDefectsPage(Adw.Bin):
             block.append(type_label)
 
             page = self._usb_page_for_type(port_type)
-            if page is not None:
-                reason = self._port_damage_reason_for_type(port_type)
-                button = page._reason_buttons.get(reason)
-                # Don't claim ownership of (or duplicate) a report the
-                # tech already made directly on that page.
-                if button is not None and button.get_active():
-                    status_label = Gtk.Label(
-                        label=f"Already reported on the {page.title} test page."
-                    )
-                    status_label.set_halign(Gtk.Align.START)
-                    status_label.set_wrap(True)
-                    status_label.add_css_class("dim-label")
-                    block.append(status_label)
-                    return block
-
-                if not page.fail_button.get_active():
-                    page.fail_button.set_active(True)
-                page.suppress_reason_option(reason)
-                port_data["_delegated_pages"][port_type] = (
-                    self._build_port_physical_damage_block(block, page, reason)
+            reason = self._port_damage_reason_for_type(port_type)
+            button = page._reason_buttons.get(reason)
+            # Don't claim ownership of (or duplicate) a report the
+            # tech already made directly on that page.
+            if button is not None and button.get_active():
+                status_label = Gtk.Label(
+                    label=f"Already reported on the {page.title} test page."
                 )
+                status_label.set_halign(Gtk.Align.START)
+                status_label.set_wrap(True)
+                status_label.add_css_class("dim-label")
+                block.append(status_label)
                 return block
 
-            if port_type == PHYSICAL_PORT_OTHER_TYPE:
-                custom_entry = Gtk.Entry()
-                custom_entry.set_placeholder_text("Describe the port")
-                custom_entry.set_text(port_data["custom_text"].get(port_type, ""))
-
-                def _on_custom_changed(entry, port_type=port_type):
-                    port_data["custom_text"][port_type] = entry.get_text().strip()
-                    self.check_status()
-
-                custom_entry.connect("changed", _on_custom_changed)
-                block.append(custom_entry)
-
-            def _on_locations_change(selected, port_type=port_type):
-                port_data["locations"][port_type] = selected
-                self.check_status()
-                _scroll_to_bottom(self.scrolled)
-
-            location_row = _build_section_row(
-                "Location(s)",
-                USB_PORT_LOCATIONS,
-                columns=len(USB_PORT_LOCATIONS),
-                on_change=_on_locations_change,
+            if not page.fail_button.get_active():
+                page.fail_button.set_active(True)
+            page.suppress_reason_option(reason)
+            port_data["_delegated_pages"][port_type] = (
+                self._build_port_physical_damage_block(block, page, reason)
             )
-            block.append(location_row)
-
             return block
 
         def _sync_port_blocks(selected_types):
@@ -2377,8 +2350,6 @@ class PhysicalDefectsPage(Adw.Bin):
                 if block is not None:
                     types_box.remove(block)
                 self._undelegate_broken_part_port(port_type, port_data)
-                port_data["locations"].pop(port_type, None)
-                port_data["custom_text"].pop(port_type, None)
 
             port_data["types"] = selected_types
 
@@ -2388,7 +2359,7 @@ class PhysicalDefectsPage(Adw.Bin):
                 block = _build_port_block(port_type)
                 port_data["_blocks"][port_type] = block
                 self._insert_block_in_order(
-                    types_box, port_data["_blocks"], PHYSICAL_PORT_TYPES, port_type
+                    types_box, port_data["_blocks"], BROKEN_PART_PORT_TYPES, port_type
                 )
 
         def _on_port_types_change(selected):
@@ -2398,8 +2369,8 @@ class PhysicalDefectsPage(Adw.Bin):
 
         types_row = _build_section_row(
             "Port Type(s)",
-            PHYSICAL_PORT_TYPES,
-            columns=len(PHYSICAL_PORT_TYPES),
+            BROKEN_PART_PORT_TYPES,
+            columns=len(BROKEN_PART_PORT_TYPES),
             on_change=_on_port_types_change,
         )
         box.append(types_row)
@@ -2627,8 +2598,6 @@ class PhysicalDefectsPage(Adw.Bin):
             self._undelegate_broken_part(sub_type, data)
 
     def _broken_part_sub_is_filled(self, sub_type, data):
-        if sub_type in (BROKEN_PART_HINGE_BROKEN_TYPE, BROKEN_PART_LOOSE_HINGE_TYPE):
-            return True
         if sub_type == BROKEN_PART_OTHER_TYPE:
             return bool(data.get("other_text", "").strip())
         if sub_type in (BROKEN_PART_KEYS_TYPE, BROKEN_PART_SCREEN_TYPE):
@@ -2636,23 +2605,11 @@ class PhysicalDefectsPage(Adw.Bin):
             # is_complete() (see WizardWindow.update_buttons), not here.
             return True
         if sub_type == BROKEN_PART_PORT_TYPE:
+            # Every port type here always delegates -- that page's own
+            # is_complete() gates it, so this just needs at least one
+            # selected.
             port_data = data.get("port_damage") or {}
-            types = port_data.get("types") or []
-            if not types:
-                return False
-            locations = port_data.get("locations") or {}
-            custom_text = port_data.get("custom_text") or {}
-            for port_type in types:
-                if self._usb_page_for_type(port_type) is not None:
-                    continue  # delegated -- that page's is_complete() gates it
-                if not locations.get(port_type):
-                    return False
-                if (
-                    port_type == PHYSICAL_PORT_OTHER_TYPE
-                    and not custom_text.get(port_type, "").strip()
-                ):
-                    return False
-            return True
+            return bool(port_data.get("types"))
         return False
 
     def _broken_part_has_own_content(self, data):
@@ -2662,58 +2619,48 @@ class PhysicalDefectsPage(Adw.Bin):
         _broken_part_codes_and_details/get_failure_reasons/
         get_notes_entries)."""
         sub_types = data.get("sub_types") or []
-        if (
-            BROKEN_PART_HINGE_BROKEN_TYPE in sub_types
-            or BROKEN_PART_LOOSE_HINGE_TYPE in sub_types
-        ):
-            return True
-        if BROKEN_PART_OTHER_TYPE in sub_types and data.get("other_text", "").strip():
-            return True
-        if BROKEN_PART_PORT_TYPE in sub_types:
-            port_data = data.get("port_damage") or {}
-            for port_type in port_data.get("types") or []:
-                if self._usb_page_for_type(port_type) is None:
-                    return True
-        return False
+        return BROKEN_PART_OTHER_TYPE in sub_types and bool(
+            data.get("other_text", "").strip()
+        )
 
     def _broken_part_codes_and_details(self, data):
         """(code, detail text) pairs for the sub-types of "Broken Part"
-        that carry their own real PD code -- Hinge Broken/Loose Hinge
-        (BROKEN_PART_HINGE_CODES), Port Physically Broken on a non-USB-A/C
-        port (BROKEN_PART_PORT_CODE/BROKEN_PART_PORT_OTHER_CODE), and Other
-        (the generic PDOT custom code, same as a typed-in top-level
-        defect) -- instead of one generic "Broken Part" code for the whole
-        entry. Keys/Screen/USB-A/USB-C are reported on their own page
-        under their own datacode instead (see
-        _delegate_broken_part/_build_broken_part_port_block), so they're
-        deliberately left out here."""
+        that carry their own real PD code -- just Other (the generic PDOT
+        custom code, same as a typed-in top-level defect) -- instead of one
+        generic "Broken Part" code for the whole entry. Keys/Screen/Port
+        (USB-A/USB-C) are reported on their own page under their own
+        datacode instead (see _delegate_broken_part/
+        _build_broken_part_port_block), so they're deliberately left out
+        here -- "Broken Part" itself never carries a PD code of its own."""
         sub_types = data.get("sub_types") or []
         items = []
-        for hinge_type, code in BROKEN_PART_HINGE_CODES.items():
-            if hinge_type in sub_types:
-                items.append((code, f"{code}: {hinge_type}"))
         if BROKEN_PART_OTHER_TYPE in sub_types:
             text = data.get("other_text", "").strip()
             if text:
                 code = f"{self.CODE_PREFIX}{CUSTOM_REASON_CODE_SUFFIX}"
                 items.append((code, f"{code}: {text}"))
-        if BROKEN_PART_PORT_TYPE in sub_types:
-            port_data = data.get("port_damage") or {}
-            locations = port_data.get("locations") or {}
-            custom_text = port_data.get("custom_text") or {}
-            for port_type in port_data.get("types") or []:
-                if self._usb_page_for_type(port_type) is not None:
-                    continue
+        return items
+
+    def _port_damage_codes_and_details(self, data):
+        """(code, detail text) pairs for "Port Damaged" -- named port types
+        (PORT_DAMAGE_CODE) vs. the typed-in "Some other port is damaged"
+        (PORT_DAMAGE_OTHER_CODE), same "preset vs custom" split as
+        _broken_part_codes_and_details."""
+        types = data.get("types") or []
+        locations = data.get("locations") or {}
+        custom_text = data.get("custom_text") or {}
+        items = []
+        for port_type in types:
+            if port_type == PHYSICAL_PORT_OTHER_TYPE:
+                custom = custom_text.get(port_type, "").strip()
+                name = custom if custom else PHYSICAL_PORT_OTHER_TYPE
+                code = PORT_DAMAGE_OTHER_CODE
+            else:
                 name = port_type
-                if port_type == PHYSICAL_PORT_OTHER_TYPE:
-                    custom = custom_text.get(port_type, "").strip()
-                    name = custom if custom else PHYSICAL_PORT_OTHER_TYPE
-                    code = BROKEN_PART_PORT_OTHER_CODE
-                else:
-                    code = BROKEN_PART_PORT_CODE
-                locs = locations.get(port_type) or []
-                loc_text = ", ".join(locs) if locs else "no location specified"
-                items.append((code, f"{code}: {name} ({loc_text})"))
+                code = PORT_DAMAGE_CODE
+            locs = locations.get(port_type) or []
+            loc_text = ", ".join(locs) if locs else "no location specified"
+            items.append((code, f"{code}: {name} ({loc_text})"))
         return items
 
     def _defect_is_filled(self, data):
@@ -2841,21 +2788,10 @@ class PhysicalDefectsPage(Adw.Bin):
             return f"{label} ({'; '.join(part_details)})"
 
         if kind == "port_damage":
-            types = data.get("types") or []
-            if not types:
+            items = self._port_damage_codes_and_details(data)
+            if not items:
                 return f"{label} (no port type specified)"
-            locations = data.get("locations") or {}
-            custom_text = data.get("custom_text") or {}
-            type_details = []
-            for port_type in types:
-                name = port_type
-                if port_type == PHYSICAL_PORT_OTHER_TYPE:
-                    custom = custom_text.get(port_type, "").strip()
-                    name = custom if custom else PHYSICAL_PORT_OTHER_TYPE
-                locs = locations.get(port_type) or []
-                loc_text = ", ".join(locs) if locs else "no location specified"
-                type_details.append(f"{name}: {loc_text}")
-            return f"{label} ({'; '.join(type_details)})"
+            return "; ".join(text for _, text in items)
 
         if kind == "broken_part":
             items = self._broken_part_codes_and_details(data)
@@ -2882,6 +2818,11 @@ class PhysicalDefectsPage(Adw.Bin):
                     code for code, _ in self._broken_part_codes_and_details(data)
                 )
                 continue
+            if defect_type == "Port Damaged":
+                codes.update(
+                    code for code, _ in self._port_damage_codes_and_details(data)
+                )
+                continue
             codes.add(self._defect_code(defect_type))
         return sorted(codes, key=self._code_sort_key)
 
@@ -2900,6 +2841,10 @@ class PhysicalDefectsPage(Adw.Bin):
         for defect_type, (entry_row, data) in self._defect_entries.items():
             if defect_type == "Broken Part":
                 for code, text in self._broken_part_codes_and_details(data):
+                    details[code] = text
+                continue
+            if defect_type == "Port Damaged":
+                for code, text in self._port_damage_codes_and_details(data):
                     details[code] = text
                 continue
             code = self._defect_code(defect_type)
@@ -2947,36 +2892,38 @@ class PhysicalDefectsPage(Adw.Bin):
 
     def _broken_part_sortly_entries(self, data):
         """Sortly-format sibling of _broken_part_codes_and_details -- same
-        sub-type -> code branching (Keys/Screen/USB-A/USB-C deliberately
-        left out since those report on their own dedicated page), just
-        formatted as "<code>|<description>[:<locations>]" entries instead
-        of tracking-sheet prose."""
+        sub-type -> code branching (Keys/Screen/Port deliberately left out
+        since those report on their own dedicated page), just formatted as
+        "<code>|<description>[:<locations>]" entries instead of
+        tracking-sheet prose."""
         sub_types = data.get("sub_types") or []
         entries = []
-        for hinge_type, code in BROKEN_PART_HINGE_CODES.items():
-            if hinge_type in sub_types:
-                entries.append((code, _sortly_entry(code, hinge_type)))
         if BROKEN_PART_OTHER_TYPE in sub_types:
             text = data.get("other_text", "").strip()
             if text:
                 code = f"{self.CODE_PREFIX}{CUSTOM_REASON_CODE_SUFFIX}"
                 entries.append((code, _sortly_entry(code, text)))
-        if BROKEN_PART_PORT_TYPE in sub_types:
-            port_data = data.get("port_damage") or {}
-            locations = port_data.get("locations") or {}
-            custom_text = port_data.get("custom_text") or {}
-            for port_type in port_data.get("types") or []:
-                if self._usb_page_for_type(port_type) is not None:
-                    continue
+        return entries
+
+    def _port_damage_sortly_entries(self, data):
+        """Sortly-format sibling of _port_damage_codes_and_details -- same
+        preset-vs-custom code split, formatted as
+        "<code>|<description>[:<locations>]" entries instead of
+        tracking-sheet prose."""
+        types = data.get("types") or []
+        locations = data.get("locations") or {}
+        custom_text = data.get("custom_text") or {}
+        entries = []
+        for port_type in types:
+            if port_type == PHYSICAL_PORT_OTHER_TYPE:
+                custom = custom_text.get(port_type, "").strip()
+                name = custom if custom else PHYSICAL_PORT_OTHER_TYPE
+                code = PORT_DAMAGE_OTHER_CODE
+            else:
                 name = port_type
-                if port_type == PHYSICAL_PORT_OTHER_TYPE:
-                    custom = custom_text.get(port_type, "").strip()
-                    name = custom if custom else PHYSICAL_PORT_OTHER_TYPE
-                    code = BROKEN_PART_PORT_OTHER_CODE
-                else:
-                    code = BROKEN_PART_PORT_CODE
-                locs = locations.get(port_type) or []
-                entries.append((code, _sortly_entry(code, name, locs or None)))
+                code = PORT_DAMAGE_CODE
+            locs = locations.get(port_type) or []
+            entries.append((code, _sortly_entry(code, name, locs or None)))
         return entries
 
     def _defect_sortly_entries(self, defect_type, data):
@@ -3003,21 +2950,8 @@ class PhysicalDefectsPage(Adw.Bin):
             return [(code, _sortly_entry(code, defect_type, loc_list))]
 
         if kind == "port_damage":
-            types = data.get("types") or []
-            if not types:
-                return [(code, _sortly_entry(code, defect_type))]
-            locations = data.get("locations") or {}
-            custom_text = data.get("custom_text") or {}
-            loc_list = []
-            for port_type in types:
-                name = port_type
-                if port_type == PHYSICAL_PORT_OTHER_TYPE:
-                    custom = custom_text.get(port_type, "").strip()
-                    name = custom if custom else PHYSICAL_PORT_OTHER_TYPE
-                locs = locations.get(port_type) or []
-                loc_text = ",".join(locs) if locs else None
-                loc_list.append(f"{name} ({loc_text})" if loc_text else name)
-            return [(code, _sortly_entry(code, defect_type, loc_list))]
+            entries = self._port_damage_sortly_entries(data)
+            return entries or [(code, _sortly_entry(code, defect_type))]
 
         if kind == "broken_part":
             return self._broken_part_sortly_entries(data)
@@ -3056,7 +2990,7 @@ class PhysicalDefectsPage(Adw.Bin):
                 "This device appears to be charging through a secondary "
                 "port (e.g. USB-C) rather than its primary charging port. "
                 "If the primary charging port is damaged, report it below "
-                'under "Port Damaged" -> "Charging Port". '
+                'under "Port Damaged" -> "Charger". '
                 "Otherwise, please plug the charger into the primary port "
                 "and use that instead."
             )
