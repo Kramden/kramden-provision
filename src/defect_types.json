@@ -28,18 +28,19 @@
       {
         "label": "Laptop feet coming off",
         "code": "PD08",
-        "order": 6,
+        "order": 9,
         "no_location": true
       },
       {
         "label": "Significant Scuffing",
         "code": "PD09",
-        "order": 7
+        "order": 10
       },
       {
         "label": "Case Bulging",
         "code": "PD10",
-        "order": 8
+        "order": 11,
+        "no_sub_buttons": true
       }
     ]
   },
