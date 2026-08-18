@@ -916,6 +916,15 @@ TOUCHPAD_GIF_PATH = os.path.join(
     os.path.dirname(os.path.realpath(__file__)), "touchpad_animation.gif"
 )
 
+# Real inspection-step animations for the USB and USB-C pages -- see
+# UsbAPage/UsbCPage's gif_path param.
+USB_GIF_PATH = os.path.join(
+    os.path.dirname(os.path.realpath(__file__)), "usb_animation.gif"
+)
+USB_C_GIF_PATH = os.path.join(
+    os.path.dirname(os.path.realpath(__file__)), "usb_c_animation.gif"
+)
+
 
 def _build_gif_widget(gif_path):
     try:
@@ -3799,6 +3808,7 @@ class UsbAPage(UsbPortLocationMixin, TogglePage):
             reason_short_labels=USB_A_REASON_SHORT_LABELS,
             na_label="No USB Ports",
             na_note=USB_A_NO_PORTS_NOTE,
+            gif_path=USB_GIF_PATH,
         )
 
     def _reason_code(self, reason):
@@ -3823,6 +3833,7 @@ class UsbCPage(UsbPortLocationMixin, TogglePage):
             reason_short_labels=USB_C_REASON_SHORT_LABELS,
             na_label="No USB-C Ports",
             na_note=USB_C_NO_PORTS_NOTE,
+            gif_path=USB_C_GIF_PATH,
         )
 
     def _reason_code(self, reason):
