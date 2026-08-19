@@ -441,6 +441,12 @@ def generate_tracking_sheet(
         fontName="Ubuntu-Bold",
     )
 
+    model_value_style = ParagraphStyle(
+        "ModelValue",
+        parent=value_style,
+        fontName="Ubuntu-Bold",
+    )
+
     notes_label_style = ParagraphStyle(
         "NotesLabel",
         parent=styles["Normal"],
@@ -621,7 +627,7 @@ def generate_tracking_sheet(
         [
             [
                 Paragraph("Model", label_style),
-                Paragraph(system_info.get("Model", ""), value_style),
+                Paragraph(system_info.get("Model", ""), model_value_style),
             ],
         ],
         model_row_widths,
