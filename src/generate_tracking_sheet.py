@@ -523,7 +523,8 @@ def generate_tracking_sheet(
     elements.append(header_table)
     elements.append(Spacer(1, 4))
 
-    # ===== Spec grid: RAM/Storage/CPU, Model/Bat0, Graphics/Bat1 =====
+    # ===== Spec grid: Model, RAM/Storage/CPU, Graphics (Bat0/Bat1 ride on
+    # the Battery test line below, when shown) =====
     batteries = system_info.get("Batteries") or {}
 
     # Bat0 is always shown explicitly: a BAT1-only machine or one with no
@@ -615,77 +616,41 @@ def generate_tracking_sheet(
         ],
     )
 
-    model_row_widths = [
-        model_label_width,
-        usable_width - model_label_width - spec_label_col4 - bat_val_width,
-        spec_label_col4,
-        bat_val_width,
-    ]
+    model_row_widths = [model_label_width, usable_width - model_label_width]
     model_row_table = _grid_table(
         [
             [
                 Paragraph("Model", label_style),
                 Paragraph(system_info.get("Model", ""), value_style),
-                Paragraph(bat0_label, label_style),
-                Paragraph(bat0_value, value_style),
             ],
         ],
         model_row_widths,
         extra_cmds=[
             ("BACKGROUND", (0, 0), (0, -1), LABEL_BG),
-            ("BACKGROUND", (2, 0), (2, -1), LABEL_BG),
         ],
     )
 
-    # When there's no second battery, drop the Bat1 label/value columns and
-    # hand the freed width to the Graphics value column instead.
-    if not bat1_value:
-        graphics_row_widths = [
-            spec_label_col0,
-            usable_width - spec_label_col0,
-        ]
-        graphics_row_table = _grid_table(
+    graphics_row_widths = [spec_label_col0, usable_width - spec_label_col0]
+    graphics_row_table = _grid_table(
+        [
             [
-                [
-                    Paragraph("Graphics", label_style),
-                    Paragraph(system_info.get("Graphics", "N/A"), value_style),
-                ],
+                Paragraph("Graphics", label_style),
+                Paragraph(system_info.get("Graphics", "N/A"), value_style),
             ],
-            graphics_row_widths,
-            extra_cmds=[
-                ("BACKGROUND", (0, 0), (0, -1), LABEL_BG),
-            ],
-        )
-    else:
-        graphics_row_widths = [
-            spec_label_col0,
-            usable_width - spec_label_col0 - spec_label_col4 - bat_val_width,
-            spec_label_col4,
-            bat_val_width,
-        ]
-        graphics_row_table = _grid_table(
-            [
-                [
-                    Paragraph("Graphics", label_style),
-                    Paragraph(system_info.get("Graphics", "N/A"), value_style),
-                    Paragraph(bat1_label, label_style),
-                    Paragraph(bat1_value, value_style),
-                ],
-            ],
-            graphics_row_widths,
-            extra_cmds=[
-                ("BACKGROUND", (0, 0), (0, -1), LABEL_BG),
-                ("BACKGROUND", (2, 0), (2, -1), LABEL_BG),
-            ],
-        )
-    elements.append(row0_table)
+        ],
+        graphics_row_widths,
+        extra_cmds=[
+            ("BACKGROUND", (0, 0), (0, -1), LABEL_BG),
+        ],
+    )
     elements.append(model_row_table)
+    elements.append(row0_table)
     elements.append(graphics_row_table)
     elements.append(Spacer(1, 4))
 
     # ===== Battery test (laptops only) =====
-    # Bat0/Bat1 above report charge percentage; this is a separate manual
-    # pass/fail check (does it actually hold/take a charge) that only makes
+    # This is a separate manual pass/fail check (does it actually hold/take
+    # a charge) from the Bat0/Bat1 charge percentages, which only makes
     # sense on devices with a battery at all, so it's gated on chassis type
     # rather than shown unconditionally like the OS line below. The page is a
     # fixed A5 size, so this row's added height is clawed back from the Notes
@@ -694,22 +659,60 @@ def generate_tracking_sheet(
     notes_line_budget = NOTE_LINE_BUDGET
     show_battery_test = system_info.get("Item Type") == "Laptop"
     if show_battery_test:
-        battery_row_widths = [spec_label_col0, usable_width - spec_label_col0]
-        battery_row_table = _grid_table(
-            [
-                [
-                    Paragraph("Battery:", label_style),
-                    Paragraph(
-                        "PASS &nbsp;&nbsp;&nbsp; FAIL "
-                        '&nbsp;&nbsp;<font size="8" color="grey">(circle one)</font>',
-                        value_style,
-                    ),
-                ],
-            ],
-            battery_row_widths,
-            extra_cmds=[
+        battery_para = Paragraph(
+            "PASS &nbsp;&nbsp;&nbsp; FAIL "
+            '&nbsp;&nbsp;<font size="8" color="grey">(circle one)</font>',
+            value_style,
+        )
+        # Bat0/Bat1 charge percentages ride along on the same line,
+        # right-justified, matching the label/value column pattern used
+        # for the Model/Graphics rows above.
+        if not bat1_value:
+            battery_row_widths = [
+                spec_label_col0,
+                usable_width - spec_label_col0 - spec_label_col4 - bat_val_width,
+                spec_label_col4,
+                bat_val_width,
+            ]
+            battery_row_cells = [
+                Paragraph("Battery:", label_style),
+                battery_para,
+                Paragraph(bat0_label, label_style),
+                Paragraph(bat0_value, value_style),
+            ]
+            battery_extra_cmds = [
                 ("BACKGROUND", (0, 0), (0, -1), LABEL_BG),
-            ],
+                ("BACKGROUND", (2, 0), (2, -1), LABEL_BG),
+            ]
+        else:
+            battery_row_widths = [
+                spec_label_col0,
+                usable_width
+                - spec_label_col0
+                - 2 * spec_label_col4
+                - 2 * bat_val_width,
+                spec_label_col4,
+                bat_val_width,
+                spec_label_col4,
+                bat_val_width,
+            ]
+            battery_row_cells = [
+                Paragraph("Battery:", label_style),
+                battery_para,
+                Paragraph(bat0_label, label_style),
+                Paragraph(bat0_value, value_style),
+                Paragraph(bat1_label, label_style),
+                Paragraph(bat1_value, value_style),
+            ]
+            battery_extra_cmds = [
+                ("BACKGROUND", (0, 0), (0, -1), LABEL_BG),
+                ("BACKGROUND", (2, 0), (2, -1), LABEL_BG),
+                ("BACKGROUND", (4, 0), (4, -1), LABEL_BG),
+            ]
+        battery_row_table = _grid_table(
+            [battery_row_cells],
+            battery_row_widths,
+            extra_cmds=battery_extra_cmds,
         )
         battery_spacer_height = 4
         _, battery_row_height = battery_row_table.wrap(usable_width, page_size[1])
