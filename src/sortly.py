@@ -14,6 +14,11 @@ import requests
 from constants import Brand
 from utils import Utils
 
+# Master switch for live Sortly queries/updates in OSLoad. Spec (see
+# sortly_register.py) has its own always-on Sortly integration and is not
+# affected by this flag. Flip to True to re-enable Sortly lookups in OSLoad.
+OSLOAD_SORTLY_LOOKUP_ENABLED = False
+
 SORTLY_API_BASE_URL = "https://api.sortly.co/api/v1"
 OSLOAD_FOLDER_IDS = [
     "106345033",
