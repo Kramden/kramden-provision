@@ -772,19 +772,31 @@ def generate_tracking_sheet(
         segments = [("A", test_value("USBA"))]
         if "USBC" in mt:
             segments.append(("C", test_value("USBC")))
-        lines = []
-        any_bad = False
-        for label, value in segments:
+        # Each segment gets its own row so the symbol column only steals
+        # width from the "BAD" row it sits next to -- previously both
+        # segments shared one <br/>-joined paragraph, so reserving space
+        # for the symbol shrank the *other* (good) line too, wrapping it
+        # and leaving the symbol vertically centered on the whole block
+        # instead of next to "BAD".
+        rows = []
+        span_cmds = []
+        for i, (label, value) in enumerate(segments):
             if value == "BAD":
-                any_bad = True
-                lines.append(f'{label}: <font name="Ubuntu-Bold">BAD</font>')
+                rows.append(
+                    [
+                        Paragraph(
+                            f'{label}: <font name="Ubuntu-Bold">BAD</font>',
+                            value_style,
+                        ),
+                        _important_symbol(),
+                    ]
+                )
             else:
-                lines.append(f"{label}: {value}" if value else f"{label}:")
-        para = Paragraph("<br/>".join(lines), value_style)
-        if not any_bad:
-            return para
+                text = f"{label}: {value}" if value else f"{label}:"
+                rows.append([Paragraph(text, value_style), ""])
+                span_cmds.append(("SPAN", (0, i), (1, i)))
         return Table(
-            [[para, _important_symbol()]],
+            rows,
             colWidths=[None, 12],
             style=TableStyle(
                 [
@@ -794,6 +806,7 @@ def generate_tracking_sheet(
                     ("LEFTPADDING", (0, 0), (-1, -1), 0),
                     ("RIGHTPADDING", (0, 0), (-1, -1), 0),
                 ]
+                + span_cmds
             ),
         )
 
