@@ -86,6 +86,8 @@ sources = [
   'keyboard_animation.gif',
   'screen_animation.gif',
   'touchpad_animation.gif',
+  'usb_animation.gif',
+  'usb_c_animation.gif',
   'guide.py',
   'defect_types.json',
 ]
