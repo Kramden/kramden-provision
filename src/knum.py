@@ -12,6 +12,7 @@ from gi.repository import Adw, Gtk, GLib
 
 from utils import Utils
 from sortly import (
+    OSLOAD_SORTLY_LOOKUP_ENABLED,
     get_api_key,
     get_stage_folder_ids,
     list_subfolders,
@@ -125,11 +126,23 @@ class KramdenNumber(Adw.Bin):
             self._lookup_done = True
             return
 
-        # Temporarily disable the automatic serial lookup at startup in OSLoad.
-        self._lookup_done = True
-        self._set_status(
-            "Automatic serial lookup is temporarily disabled. Enter a K-number to continue."
+        if not OSLOAD_SORTLY_LOOKUP_ENABLED:
+            self._lookup_done = True
+            self._set_status(
+                "Automatic serial lookup is temporarily disabled. Enter a K-number to continue."
+            )
+            return
+
+        self._set_status(f"Looking up serial '{serial}' in Sortly...")
+        self.spinner.set_visible(True)
+        self.spinner.start()
+
+        thread = threading.Thread(
+            target=self._lookup_serial_thread,
+            args=(api_key, serial),
+            daemon=True,
         )
+        thread.start()
 
     def _lookup_serial_thread(self, api_key, serial):
         try:
@@ -205,6 +218,15 @@ class KramdenNumber(Adw.Bin):
         formatted = Utils.format_knumber(raw_value)
         if not formatted:
             self._set_status("Invalid K-number format.", error=True)
+            return
+
+        if not OSLOAD_SORTLY_LOOKUP_ENABLED:
+            # Sortly queries/updates are temporarily disabled in OSLoad: set
+            # the hostname/EFI var directly without contacting Sortly.
+            self.register_button.set_sensitive(False)
+            self.knumber_entry.set_sensitive(False)
+            self._set_status(f"Setting K-number to {formatted}...")
+            self._on_register_complete(True, formatted)
             return
 
         try:
