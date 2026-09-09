@@ -75,9 +75,8 @@ def main():
 
     if args.stage:
         root_folders = get_stage_folder_ids(args.stage)
-        print(f"Discovering subfolders for stage '{args.stage}'...")
+        print(f"Looking up folders for stage '{args.stage}'...")
         folder_ids = resolve_folder_ids(root_folders)
-        print(f"Searching {len(folder_ids)} folder(s)...")
     else:
         folder_ids = SEARCH_FOLDER_IDS
 

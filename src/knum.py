@@ -190,12 +190,9 @@ class KramdenNumber(Adw.Bin):
 
     def _lookup_serial_thread(self, api_key, serial):
         try:
-            GLib.idle_add(self._set_status, "Discovering subfolders...")
+            GLib.idle_add(self._set_status, "Looking up folders...")
             folder_ids = resolve_folder_ids(get_stage_folder_ids("osload"))
-            GLib.idle_add(
-                self._set_status,
-                f"Searching {len(folder_ids)} folder(s) for serial '{serial}'...",
-            )
+            GLib.idle_add(self._set_status, f"Searching for serial '{serial}'...")
             results = search_by_serial(api_key, folder_ids, serial)
         except Exception as e:
             GLib.idle_add(self._on_lookup_complete, None, sortly_error_message(e))
@@ -269,12 +266,9 @@ class KramdenNumber(Adw.Bin):
 
     def _search_knumber_thread(self, api_key, knumber):
         try:
-            GLib.idle_add(self._set_status, "Discovering subfolders...")
+            GLib.idle_add(self._set_status, "Looking up folders...")
             folder_ids = resolve_folder_ids(get_stage_folder_ids("osload"))
-            GLib.idle_add(
-                self._set_status,
-                f"Searching {len(folder_ids)} folder(s) for '{knumber}'...",
-            )
+            GLib.idle_add(self._set_status, f"Searching for '{knumber}'...")
             results = search_item_by_name(api_key, folder_ids, knumber)
         except Exception as e:
             GLib.idle_add(
