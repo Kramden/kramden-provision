@@ -15,7 +15,7 @@ from sortly import (
     OSLOAD_SORTLY_LOOKUP_ENABLED,
     get_api_key,
     get_stage_folder_ids,
-    list_subfolders,
+    resolve_folder_ids,
     search_by_serial,
     search_item_by_name,
     update_item,
@@ -147,9 +147,7 @@ class KramdenNumber(Adw.Bin):
     def _lookup_serial_thread(self, api_key, serial):
         try:
             GLib.idle_add(self._set_status, "Discovering subfolders...")
-            folder_ids = []
-            for fid in get_stage_folder_ids("osload"):
-                folder_ids.extend(list_subfolders(api_key, fid))
+            folder_ids = resolve_folder_ids(get_stage_folder_ids("osload"))
             GLib.idle_add(
                 self._set_status,
                 f"Searching {len(folder_ids)} folder(s) for serial '{serial}'...",
@@ -265,9 +263,7 @@ class KramdenNumber(Adw.Bin):
             else:
                 # Search for existing item by name
                 GLib.idle_add(self._set_status, "Discovering subfolders...")
-                folder_ids = []
-                for fid in get_stage_folder_ids("osload"):
-                    folder_ids.extend(list_subfolders(api_key, fid))
+                folder_ids = resolve_folder_ids(get_stage_folder_ids("osload"))
                 GLib.idle_add(
                     self._set_status,
                     f"Searching {len(folder_ids)} folder(s) for '{knumber}'...",

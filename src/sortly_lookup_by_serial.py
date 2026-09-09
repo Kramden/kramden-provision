@@ -18,7 +18,7 @@ from sortly import (
     search_by_serial,
     get_api_key,
     get_stage_folder_ids,
-    list_subfolders,
+    resolve_folder_ids,
     SEARCH_FOLDER_IDS,
 )
 
@@ -76,9 +76,7 @@ def main():
     if args.stage:
         root_folders = get_stage_folder_ids(args.stage)
         print(f"Discovering subfolders for stage '{args.stage}'...")
-        folder_ids = []
-        for fid in root_folders:
-            folder_ids.extend(list_subfolders(api_key, fid))
+        folder_ids = resolve_folder_ids(root_folders)
         print(f"Searching {len(folder_ids)} folder(s)...")
     else:
         folder_ids = SEARCH_FOLDER_IDS

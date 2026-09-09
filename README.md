@@ -19,9 +19,11 @@ On startup each workflow looks up the device by its serial number. If a matching
 | Environment Variable | Description |
 |---|---|
 | `SORTLY_API_KEY` | **Required.** API key for authenticating with the Sortly API. |
+| `SORTLY_FOLDER_LOOKUP_URL` | **Required.** URL of the Sortly folder hierarchy lookup endpoint (see below). |
+| `SORTLY_FOLDER_LOOKUP_API_KEY` | **Required.** API key for authenticating with the folder lookup endpoint. |
 | `KRAMDEN_TEST` | Optional. When set, all workflows use `TEST_FOLDER_IDS` instead of their stage-specific folders. |
 
-Each workflow searches its own set of top-level Sortly folders and recursively discovers all subfolders underneath them:
+Each workflow searches its own set of top-level Sortly folders. Rather than recursively paging through Sortly's own API to discover every subfolder, `resolve_folder_ids()` resolves each set of top-level folders to themselves plus all descendants in a single call to the folder hierarchy lookup endpoint:
 
 | Workflow | Folder IDs |
 |---|---|
@@ -35,6 +37,7 @@ Standalone scripts for working with Sortly outside the wizard workflows:
 
 ```bash
 # Look up a device by serial number (auto-detects if no serial given)
+# --stage requires SORTLY_FOLDER_LOOKUP_URL/SORTLY_FOLDER_LOOKUP_API_KEY to resolve subfolders
 SORTLY_API_KEY=... python3 src/sortly_lookup_by_serial.py [serial] [--stage=spec|osload|test]
 
 # Look up a device by name

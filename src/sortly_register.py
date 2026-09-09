@@ -18,7 +18,7 @@ from sortly import (
     INCOMING_FOLDER_ID,
     get_api_key,
     get_stage_folder_ids,
-    list_subfolders,
+    resolve_folder_ids,
     search_by_serial,
     search_item_by_name,
     create_item,
@@ -189,9 +189,7 @@ class SortlyRegister(Adw.Bin):
     def _lookup_serial_thread(self, api_key, serial):
         try:
             GLib.idle_add(self._set_status, "Discovering subfolders...")
-            folder_ids = []
-            for fid in get_stage_folder_ids("spec"):
-                folder_ids.extend(list_subfolders(api_key, fid))
+            folder_ids = resolve_folder_ids(get_stage_folder_ids("spec"))
             self._folder_ids = folder_ids
             GLib.idle_add(
                 self._set_status,
@@ -314,9 +312,7 @@ class SortlyRegister(Adw.Bin):
         try:
             folder_ids = self._folder_ids
             if not folder_ids:
-                folder_ids = []
-                for fid in get_stage_folder_ids("spec"):
-                    folder_ids.extend(list_subfolders(api_key, fid))
+                folder_ids = resolve_folder_ids(get_stage_folder_ids("spec"))
                 self._folder_ids = folder_ids
             results = search_item_by_name(api_key, folder_ids, knumber)
         except Exception as e:
@@ -388,9 +384,7 @@ class SortlyRegister(Adw.Bin):
     def _expanded_search_knumber_thread(self, api_key, knumber):
         try:
             GLib.idle_add(self._set_status, "Discovering expanded folders...")
-            folder_ids = []
-            for fid in EXPANDED_FOLDER_IDS:
-                folder_ids.extend(list_subfolders(api_key, fid))
+            folder_ids = resolve_folder_ids(EXPANDED_FOLDER_IDS)
             GLib.idle_add(
                 self._set_status,
                 f"Searching {len(folder_ids)} expanded folder(s) for '{knumber}'...",

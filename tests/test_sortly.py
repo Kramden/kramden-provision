@@ -203,3 +203,83 @@ class TestUpdateItem(unittest.TestCase):
         self.assertFalse(success)
         self.assertIn("Could not fetch the record from Sortly", error)
         self.assertIn("404", error)
+
+
+class TestResolveFolderIds(unittest.TestCase):
+    def setUp(self):
+        self.env_patcher = patch.dict(
+            os.environ,
+            {
+                "SORTLY_FOLDER_LOOKUP_URL": "https://example.catalystserverless.com/server/folders/",
+                "SORTLY_FOLDER_LOOKUP_API_KEY": "lookup-key",
+            },
+        )
+        self.env_patcher.start()
+
+    def tearDown(self):
+        self.env_patcher.stop()
+
+    def test_empty_input_makes_no_request(self):
+        self.assertEqual(sortly.resolve_folder_ids([]), [])
+
+    @patch("sortly.requests.post")
+    @patch("builtins.print")
+    def test_missing_config_raises(self, mock_print, mock_post):
+        self.env_patcher.stop()
+        with patch.dict(os.environ, {}, clear=True):
+            with self.assertRaises(EnvironmentError):
+                sortly.resolve_folder_ids(["106302688"])
+        mock_post.assert_not_called()
+        self.env_patcher.start()
+
+    @patch("sortly.requests.post")
+    @patch("builtins.print")
+    def test_filters_out_pure_ancestors(self, mock_print, mock_post):
+        response = MagicMock(status_code=200)
+        response.json.return_value = {
+            "folders": [
+                {
+                    "id": 106302688,
+                    "hierarchy": "106302688",
+                },
+                {
+                    "id": 106302712,
+                    "hierarchy": "106302688|106302712",
+                },
+                {
+                    "id": 106302720,
+                    "hierarchy": "106302688|106302712|106302720",
+                },
+            ],
+            "notFound": [],
+            "errors": [],
+        }
+        mock_post.return_value = response
+
+        folder_ids = sortly.resolve_folder_ids(["106302712"])
+
+        self.assertEqual(folder_ids, ["106302712", "106302720"])
+        mock_post.assert_called_once_with(
+            "https://example.catalystserverless.com/server/folders/",
+            json={"folderIds": [106302712]},
+            headers={"Content-Type": "application/json", "X-API-Key": "lookup-key"},
+            timeout=30,
+        )
+
+    @patch("sortly.requests.post")
+    @patch("builtins.print")
+    def test_reports_errors_and_not_found(self, mock_print, mock_post):
+        response = MagicMock(status_code=200)
+        response.json.return_value = {
+            "folders": [{"id": 106302688, "hierarchy": "106302688"}],
+            "notFound": [999999999],
+            "errors": [{"id": "abc", "message": "invalid id: not a positive integer"}],
+        }
+        mock_post.return_value = response
+
+        folder_ids = sortly.resolve_folder_ids(["106302688"])
+
+        self.assertEqual(folder_ids, ["106302688"])
+        printed = [call.args[0] for call in mock_print.call_args_list]
+        self.assertTrue(any("999999999" in line for line in printed))
+        self.assertTrue(any("invalid id" in line for line in printed))
