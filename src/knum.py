@@ -1,7 +1,14 @@
-"""OS Load "Identify" page: the tech scans/enters the device's K-number,
-which is looked up in Sortly (pre-filled from a serial-number search when
-possible), the Sortly record is updated with current system info, and the
-machine's hostname is set to the K-number."""
+"""OS Load "Identify" page: the tech scans/enters the device's K-number and
+clicks Search (or it's found in the EFI var and searched automatically) to
+look it up in Sortly by name; the Sortly record is then updated with
+current system info, and the machine's hostname is set to the K-number.
+
+Automatic serial-number lookup on page show is currently disabled (see
+_AUTO_SERIAL_LOOKUP_ENABLED below) -- searching by serial number across a
+broad folder scope can force Sortly's search to page through the entire
+scope before the client-side exact-match filter finds anything. The
+serial-lookup code path is kept for a future, more selective use (e.g.
+scoped to a narrow folder set) rather than deleted outright."""
 
 import gi
 import threading
@@ -22,6 +29,10 @@ from sortly import (
     get_system_info,
     sortly_error_message,
 )
+
+# Kept separate from OSLOAD_SORTLY_LOOKUP_ENABLED: this only gates the
+# automatic serial-number lookup on page show (see module docstring).
+_AUTO_SERIAL_LOOKUP_ENABLED = False
 
 
 class KramdenNumber(Adw.Bin):
@@ -53,13 +64,22 @@ class KramdenNumber(Adw.Bin):
         self.knumber_entry.set_placeholder_text("e.g. K-123456")
         self.knumber_entry.set_hexpand(True)
         self.knumber_entry.connect("changed", self._on_knumber_changed)
-        self.knumber_entry.connect("activate", self._on_register_clicked)
+        self.knumber_entry.connect("activate", self._on_entry_activate)
+
+        # Search button: looks up the entered K-number in Sortly. Only
+        # relevant when live Sortly lookups are enabled -- with the master
+        # switch off, "Set" below goes straight to setting the hostname.
+        self.search_button = Gtk.Button(label="Search")
+        self.search_button.set_visible(OSLOAD_SORTLY_LOOKUP_ENABLED)
+        self.search_button.set_sensitive(False)
+        self.search_button.connect("clicked", self._on_search_clicked)
 
         self.spinner = Gtk.Spinner()
         self.spinner.set_visible(False)
 
         knumber_box.append(knumber_label)
         knumber_box.append(self.knumber_entry)
+        knumber_box.append(self.search_button)
         knumber_box.append(self.spinner)
 
         # Status label
@@ -104,14 +124,38 @@ class KramdenNumber(Adw.Bin):
 
         # Prepopulate K-Number from EFI variable if available
         efi_knumber = Utils.read_kramden_number_efivar()
+        formatted_efi = None
         if efi_knumber:
-            formatted = Utils.format_knumber(efi_knumber)
-            if formatted and not self._user_edited:
-                self.knumber_entry.set_text(formatted)
+            formatted_efi = Utils.format_knumber(efi_knumber)
+            if formatted_efi and not self._user_edited:
+                self.knumber_entry.set_text(formatted_efi)
 
         self._set_status("Gathering system information...")
         self._system_info = get_system_info()
         self._populate_system_info()
+
+        if not _AUTO_SERIAL_LOOKUP_ENABLED:
+            self._lookup_done = True
+            if not OSLOAD_SORTLY_LOOKUP_ENABLED:
+                self._set_status(
+                    "Sortly lookup is temporarily disabled. Enter a K-number to continue."
+                )
+                return
+
+            if not formatted_efi:
+                self._set_status("Enter a K-number and click Search.")
+                return
+
+            # K-number already known from the EFI var -- search for its
+            # existing Sortly record automatically instead of making the
+            # tech search for a number they didn't have to type in.
+            try:
+                api_key = get_api_key()
+            except EnvironmentError as e:
+                self._set_status(str(e), error=True)
+                return
+            self._start_search(api_key, formatted_efi)
+            return
 
         try:
             api_key = get_api_key()
@@ -185,26 +229,111 @@ class KramdenNumber(Adw.Bin):
                 "No existing record found for this serial. Enter a K-number to register."
             )
 
+    def _on_entry_activate(self, entry):
+        # Enter key: register if a search already enabled it, otherwise
+        # search first (mirrors clicking whichever button is available).
+        if self.register_button.get_sensitive():
+            self._on_register_clicked(self.register_button)
+        elif self.search_button.get_sensitive():
+            self._on_search_clicked(self.search_button)
+
+    def _on_search_clicked(self, button):
+        raw_value = self.knumber_entry.get_text().strip()
+        formatted = Utils.format_knumber(raw_value)
+        if not formatted:
+            self._set_status("Invalid K-number format.", error=True)
+            return
+
+        try:
+            api_key = get_api_key()
+        except EnvironmentError as e:
+            self._set_status(str(e), error=True)
+            return
+
+        self._start_search(api_key, formatted)
+
+    def _start_search(self, api_key, knumber):
+        self.search_button.set_sensitive(False)
+        self.register_button.set_sensitive(False)
+        self.knumber_entry.set_sensitive(False)
+        self.spinner.set_visible(True)
+        self.spinner.start()
+        self._set_status(f"Searching for '{knumber}' in Sortly...")
+
+        thread = threading.Thread(
+            target=self._search_knumber_thread,
+            args=(api_key, knumber),
+            daemon=True,
+        )
+        thread.start()
+
+    def _search_knumber_thread(self, api_key, knumber):
+        try:
+            GLib.idle_add(self._set_status, "Discovering subfolders...")
+            folder_ids = resolve_folder_ids(get_stage_folder_ids("osload"))
+            GLib.idle_add(
+                self._set_status,
+                f"Searching {len(folder_ids)} folder(s) for '{knumber}'...",
+            )
+            results = search_item_by_name(api_key, folder_ids, knumber)
+        except Exception as e:
+            GLib.idle_add(
+                self._on_search_complete, None, knumber, sortly_error_message(e)
+            )
+            return
+        GLib.idle_add(self._on_search_complete, results, knumber, None)
+
+    def _on_search_complete(self, results, knumber, error):
+        self.spinner.stop()
+        self.spinner.set_visible(False)
+        self.knumber_entry.set_sensitive(not self._submitted)
+        self.search_button.set_sensitive(not self._submitted)
+
+        if error:
+            self._set_status(f"Search failed: {error}", error=True)
+            return
+
+        if results:
+            self._existing_item = results[0]
+            self._set_status(f"Found existing record: {knumber}")
+            self.register_button.set_label("Update")
+        else:
+            self._existing_item = None
+            self._set_status(f"No existing record found for '{knumber}'.")
+            self.register_button.set_label("Set")
+
+        self.register_button.set_sensitive(not self._submitted)
+
     def _on_knumber_changed(self, entry):
         self._user_edited = True
+        self._existing_item = None
         value = entry.get_text().strip()
+
+        if not OSLOAD_SORTLY_LOOKUP_ENABLED:
+            formatted = Utils.format_knumber(value) if value else None
+            self.register_button.set_sensitive(bool(formatted) and not self._submitted)
+            if formatted:
+                if self.status_label.has_css_class("text-error"):
+                    self.status_label.remove_css_class("text-error")
+                    self.status_label.set_label("")
+            elif value:
+                self._set_status("Invalid K-number format.", error=True)
+            return
+
+        self.register_button.set_sensitive(False)
         if not value:
-            self.register_button.set_sensitive(False)
+            self.search_button.set_sensitive(False)
             return
 
         formatted = Utils.format_knumber(value)
         if formatted:
-            self.register_button.set_sensitive(not self._submitted)
-            # If entry matches existing item name, show "Update"; otherwise "Set"
-            if self._existing_item and formatted == self._existing_item.get("name"):
-                self.register_button.set_label("Update")
-            else:
-                self.register_button.set_label("Set")
+            self.register_button.set_label("Set")
+            self.search_button.set_sensitive(not self._submitted)
             if self.status_label.has_css_class("text-error"):
                 self.status_label.remove_css_class("text-error")
                 self.status_label.set_label("")
         else:
-            self.register_button.set_sensitive(False)
+            self.search_button.set_sensitive(False)
             if value:
                 self._set_status("Invalid K-number format.", error=True)
 
@@ -233,60 +362,41 @@ class KramdenNumber(Adw.Bin):
             self._set_status(str(e), error=True)
             return
 
-        # If entry matches the existing item, update it directly
-        is_update = (
-            self._existing_item
-            and formatted == self._existing_item.get("name")
-        )
-
         self.register_button.set_sensitive(False)
+        self.search_button.set_sensitive(False)
         self.knumber_entry.set_sensitive(False)
         self.spinner.set_visible(True)
         self.spinner.start()
 
-        if is_update:
+        if self._existing_item:
             self._set_status(f"Updating {formatted}...")
         else:
             self._set_status(f"Registering {formatted}...")
 
         thread = threading.Thread(
             target=self._register_thread,
-            args=(api_key, formatted, is_update),
+            args=(api_key, formatted),
             daemon=True,
         )
         thread.start()
 
-    def _register_thread(self, api_key, knumber, is_update):
+    def _register_thread(self, api_key, knumber):
+        # A search (manual or EFI-var-triggered) always runs before this is
+        # reachable, so self._existing_item already reflects whatever Sortly
+        # record matches -- no need to search again here.
         try:
-            if is_update:
-                item = self._existing_item
-            else:
-                # Search for existing item by name
-                GLib.idle_add(self._set_status, "Discovering subfolders...")
-                folder_ids = resolve_folder_ids(get_stage_folder_ids("osload"))
-                GLib.idle_add(
-                    self._set_status,
-                    f"Searching {len(folder_ids)} folder(s) for '{knumber}'...",
-                )
-                results = search_item_by_name(api_key, folder_ids, knumber)
-                if results:
-                    item = results[0]
-                else:
-                    # No existing record — skip Sortly update and proceed
-                    GLib.idle_add(self._on_register_complete, True, knumber)
-                    return
-
-            item_id = item["id"]
-            info = self._system_info or {}
-            if info:
-                success, error = update_item(api_key, item_id, info)
-                if not success:
-                    GLib.idle_add(
-                        self._on_register_complete,
-                        False,
-                        error or "Failed to update item.",
-                    )
-                    return
+            item = self._existing_item
+            if item:
+                info = self._system_info or {}
+                if info:
+                    success, error = update_item(api_key, item["id"], info)
+                    if not success:
+                        GLib.idle_add(
+                            self._on_register_complete,
+                            False,
+                            error or "Failed to update item.",
+                        )
+                        return
 
             GLib.idle_add(self._on_register_complete, True, knumber)
         except Exception as e:
@@ -314,6 +424,7 @@ class KramdenNumber(Adw.Bin):
             error = result
             self._set_status(f"Failed: {error}", error=True)
             self.register_button.set_sensitive(True)
+            self.search_button.set_sensitive(True)
             self.knumber_entry.set_sensitive(True)
 
     def _populate_system_info(self):
