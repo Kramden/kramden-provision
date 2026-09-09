@@ -152,12 +152,16 @@ class SortlyRegister(Adw.Bin):
         if self._lookup_done:
             return
 
+        self._lookup_done = True
+        self.search_button.set_visible(True)
+
         # Prepopulate K-Number from EFI variable if available
         efi_knumber = Utils.read_kramden_number_efivar()
+        formatted_efi = None
         if efi_knumber:
-            formatted = Utils.format_knumber(efi_knumber)
-            if formatted:
-                self.knumber_entry.set_text(formatted)
+            formatted_efi = Utils.format_knumber(efi_knumber)
+            if formatted_efi:
+                self.knumber_entry.set_text(formatted_efi)
 
         self._set_status("Gathering system information...")
         self._system_info = get_system_info()
@@ -167,24 +171,16 @@ class SortlyRegister(Adw.Bin):
             api_key = get_api_key()
         except EnvironmentError as e:
             self._set_status(str(e), error=True)
-            self._lookup_done = True
             return
 
-        serial = self._system_info.get("Serial# Scanner")
-        if not serial:
-            self._set_status("Could not detect serial number.", error=True)
-            self._lookup_done = True
+        if formatted_efi:
+            # K-number already known from the EFI var -- search for its
+            # existing Sortly record automatically instead of making the
+            # tech search for a number they didn't have to type in.
+            self._start_search(api_key, formatted_efi)
             return
 
-        # Temporarily disable the automatic serial lookup at startup in Spec.
-        self._lookup_done = True
-        self.search_button.set_visible(True)
-        value = self.knumber_entry.get_text().strip()
-        if value and Utils.format_knumber(value) and not self._submitted:
-            self.search_button.set_sensitive(True)
-        self._set_status(
-            "Automatic serial lookup is temporarily disabled. Enter a K-number and search."
-        )
+        self._set_status("Enter a K-number and search.")
 
     def _lookup_serial_thread(self, api_key, serial):
         try:
@@ -290,17 +286,21 @@ class SortlyRegister(Adw.Bin):
             self._set_status(str(e), error=True)
             return
 
+        self._start_search(api_key, formatted)
+
+    def _start_search(self, api_key, knumber):
         self.search_button.set_sensitive(False)
+        self.expanded_search_button.set_visible(False)
         self.expanded_search_button.set_sensitive(False)
         self.register_button.set_visible(False)
         self.register_button.set_sensitive(False)
         self.spinner.set_visible(True)
         self.spinner.start()
-        self._set_status(f"Searching for '{formatted}' in Sortly...")
+        self._set_status(f"Searching for '{knumber}' in Sortly...")
 
         thread = threading.Thread(
             target=self._search_knumber_thread,
-            args=(api_key, formatted),
+            args=(api_key, knumber),
             daemon=True,
         )
         thread.start()
