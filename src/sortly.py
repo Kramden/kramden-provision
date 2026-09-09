@@ -17,9 +17,15 @@ from utils import Utils
 # Master switch for live Sortly queries/updates in OSLoad. Spec (see
 # sortly_register.py) has its own always-on Sortly integration and is not
 # affected by this flag. Flip to True to re-enable Sortly lookups in OSLoad.
-OSLOAD_SORTLY_LOOKUP_ENABLED = False
+OSLOAD_SORTLY_LOOKUP_ENABLED = True
 
 SORTLY_API_BASE_URL = "https://api.sortly.co/api/v1"
+OSLOAD_FOLDER_IDS = [
+    "102309375",  # RFT
+    "102309777",  # RTA
+    "102309828",  # Allocated
+]
+"""
 OSLOAD_FOLDER_IDS = [
     "106345030",
     "106345033",
@@ -37,6 +43,7 @@ OSLOAD_FOLDER_IDS = [
     "102312875",
     "102396658",
 ]
+"""
 SPEC_FOLDER_IDS = [
     "102396716",
     "102312621",
