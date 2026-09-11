@@ -186,7 +186,14 @@ PHYSICAL_SCREEN_PART = "Screen"
 # BROKEN_PART_PORT_TYPES below).
 PHYSICAL_PORT_DAMAGE_TYPES = {"Port Damaged"}
 PHYSICAL_PORT_OTHER_TYPE = "Some other port is damaged"
-PHYSICAL_PORT_TYPES = ["Charger", "HDMI", "Ethernet", "DP", "VGA", PHYSICAL_PORT_OTHER_TYPE]
+PHYSICAL_PORT_TYPES = [
+    "Charger",
+    "HDMI",
+    "Ethernet",
+    "DP",
+    "VGA",
+    PHYSICAL_PORT_OTHER_TYPE,
+]
 PORT_DAMAGE_CODE = "PD07"
 PORT_DAMAGE_OTHER_CODE = "PDOP"
 
@@ -3935,7 +3942,7 @@ class KeyboardPage(TogglePage):
             reason_options=KEYBOARD_DEFECT_TYPES,
             code_prefix="KB",
             instructions=(
-                "Type the sample text below using every key listed at least once, "
+                "Type the text below using every key listed at least once, "
                 "as well as Backspace, Period, Shift, and Enter, to confirm each key "
                 "registers correctly. All keys should respond accurately and "
                 "with a normal amount of effort."
