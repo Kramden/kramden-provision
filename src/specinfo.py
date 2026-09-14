@@ -469,8 +469,16 @@ class SpecInfo(Adw.Bin):
             # Ensure we only create disk info once
             self.disks_populated = True
 
-        # Check disk override status (runs every time on_shown is called)
-        if BLOCK_NEXT_WHEN_DRIVE_PRESENT and self.has_disks and not self.disk_override:
+        # Check disk override status (runs every time on_shown is called).
+        # A "kramden-staff" boot flag (see Utils.is_staff_mode) means a
+        # staff/Super Geek is running the tool, so the override password
+        # isn't required.
+        if (
+            BLOCK_NEXT_WHEN_DRIVE_PRESENT
+            and self.has_disks
+            and not self.disk_override
+            and not Utils.is_staff_mode()
+        ):
             passed = False
 
         # Populate battery information
@@ -501,11 +509,18 @@ class SpecInfo(Adw.Bin):
     def is_complete(self):
         """Whether the SpecInfo page's Next button should be enabled. A
         drive or asset tag found on the device blocks progress outright
-        (staff can override via the row's Override button); a BIOS
-        password does not block -- see get_notes_entries()."""
+        (staff can override via the row's Override button, or by booting
+        with "kramden-staff" on the kernel command line -- see
+        Utils.is_staff_mode); a BIOS password does not block -- see
+        get_notes_entries()."""
         if self._gathered.get("asset_info") and not self.asset_info_override:
             return False
-        if BLOCK_NEXT_WHEN_DRIVE_PRESENT and self.has_disks and not self.disk_override:
+        if (
+            BLOCK_NEXT_WHEN_DRIVE_PRESENT
+            and self.has_disks
+            and not self.disk_override
+            and not Utils.is_staff_mode()
+        ):
             # MAKE SURE THIS IS FALSE WHEN COMMITTING TO GIT
             return False
         return True

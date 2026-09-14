@@ -143,6 +143,19 @@ class Utils:
     def power_off():
         subprocess.run(["systemctl", "poweroff"])
 
+    # Whether the kernel was booted with "kramden-staff" on the command
+    # line (e.g. a boot menu entry used by Super Geeks/Staff). When set,
+    # staff-only overrides in the UI are granted automatically instead of
+    # requiring the override password.
+    @staticmethod
+    def is_staff_mode():
+        try:
+            with open("/proc/cmdline") as f:
+                cmdline = f.read()
+        except OSError:
+            return False
+        return "kramden-staff" in cmdline.split()
+
     # Set timezone and sync hardware clock
     def sync_clock(self):
         clock_sh = "/usr/share/kramden-provision/scripts/clock.sh"
