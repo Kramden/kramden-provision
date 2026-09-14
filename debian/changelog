@@ -1,3 +1,9 @@
+kramden-provision (0.2.1) noble; urgency=medium
+
+  * Updates for sortly improvements
+
+ -- Ken VanDine <ken.vandine@canonical.com>  Wed, 09 Sep 2026 17:50:20 -0400
+
 kramden-provision (0.2.0) noble; urgency=medium
 
   * New release 0.2.0

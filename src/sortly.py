@@ -17,20 +17,39 @@ from utils import Utils
 # Master switch for live Sortly queries/updates in OSLoad. Spec (see
 # sortly_register.py) has its own always-on Sortly integration and is not
 # affected by this flag. Flip to True to re-enable Sortly lookups in OSLoad.
-OSLOAD_SORTLY_LOOKUP_ENABLED = False
+OSLOAD_SORTLY_LOOKUP_ENABLED = True
 
 SORTLY_API_BASE_URL = "https://api.sortly.co/api/v1"
 OSLOAD_FOLDER_IDS = [
+    "102309375",  # RFT
+    "102309777",  # RTA
+    "102309828",  # Allocated
+]
+"""
+OSLOAD_FOLDER_IDS = [
+    "106345030",
     "106345033",
     "106345034",
     "106345035",
+    "106345031",
     "106345038",
     "106345039",
     "106345040",
+    "106345032",
     "106345043",
     "106345044",
     "106345045",
+    "102396645",
+    "102312875",
+    "102396658",
 ]
+"""
+SPEC_FOLDER_IDS = [
+    "102309375",  # RFT
+    "102309777",  # RTA
+    "102309828",  # Allocated
+]
+"""
 SPEC_FOLDER_IDS = [
     "102396716",
     "102312621",
@@ -38,6 +57,7 @@ SPEC_FOLDER_IDS = [
     "102312732",
     "102312850",
 ]
+"""
 TEST_FOLDER_IDS = ["102298337"]
 EXPANDED_FOLDER_IDS = (
     TEST_FOLDER_IDS
@@ -76,19 +96,22 @@ EXPANDED_FOLDER_IDS = (
 ### RTA Programs (Linux) All-In-Ones Stage 3: 106345045
 
 # SPEC: Search all RFT folders
-# OSLOAD/FINALTEST: All RTA + RTF Desktops + RTF All-In-Ones
+# OSLOAD/FINALTEST: All RTA (parents + stages) + the legacy RTA folders below,
+# resolved in a single call via resolve_folder_ids()
 
-#####################OLD###############################
+# Legacy RTA folders (pre-Linux-Programs reorg) -- still searched by
+# OSLOAD/FINALTEST since some in-flight machines are still filed there.
 # RTA All-In-Ones: 102396645
 # RTA Laptops: 102312875
 # RTA Desktop: 102396658
 # TRIAGE TEST 102298337
 # Allocated: 102309828
-#####################OLD###############################
 
 SEARCH_FOLDER_IDS = ["102309375", "102312621", "102298337"]
 INCOMING_FOLDER_ID = "106628131"  # Spec-Not-Found - Leadership Only
 API_KEY_ENV_VAR = "SORTLY_API_KEY"
+FOLDER_LOOKUP_URL_ENV_VAR = "SORTLY_FOLDER_LOOKUP_URL"
+FOLDER_LOOKUP_API_KEY_ENV_VAR = "SORTLY_FOLDER_LOOKUP_API_KEY"
 SORTLY_API_CALL_COUNT = 0
 _DEBUG_REPR = reprlib.Repr()
 _DEBUG_REPR.maxdict = 8
@@ -466,89 +489,54 @@ def update_item(api_key, item_id, updates_dict):
         return False, f"Update request failed: {sortly_error_message(e)}"
 
 
-def list_subfolders(api_key, parent_id, depth=0):
-    """Recursively find all subfolder IDs under a given parent folder."""
-    indent = "  " * depth
-    print(f"{indent}Checking folder {parent_id} for subfolders...")
+def get_folder_lookup_config():
+    """Read folder lookup URL/API key from env vars, raise EnvironmentError if missing."""
+    url = os.environ.get(FOLDER_LOOKUP_URL_ENV_VAR)
+    api_key = os.environ.get(FOLDER_LOOKUP_API_KEY_ENV_VAR)
+    if not url or not api_key:
+        raise EnvironmentError(
+            f"{FOLDER_LOOKUP_URL_ENV_VAR} and {FOLDER_LOOKUP_API_KEY_ENV_VAR} "
+            "environment variables must be set"
+        )
+    return url, api_key
 
-    url = f"{SORTLY_API_BASE_URL}/items"
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-    }
 
-    child_ids = []
-    child_names = {}
-    max_retries = 3
-    backoff_seconds = 60
-    page = 1
-    more_pages = True
+def resolve_folder_ids(root_folder_ids):
+    """Resolve root folder ids to themselves plus all their descendant folder ids.
 
-    while more_pages:
-        query_params = {"folder_id": parent_id, "page": page, "per_page": 100}
+    Calls the Sortly folder hierarchy lookup endpoint once for the whole batch
+    of root ids, instead of recursively paging through Sortly's own API for
+    each folder. The endpoint also returns ancestors of each root id, which
+    are filtered out here to preserve the original "root + descendants only"
+    search scope.
+    """
+    root_folder_ids = list(root_folder_ids)
+    if not root_folder_ids:
+        return []
 
-        for attempt in range(max_retries):
-            try:
-                response = _sortly_request(
-                    "get", url, params=query_params, headers=headers
-                )
+    url, api_key = get_folder_lookup_config()
+    headers = {"Content-Type": "application/json", "X-API-Key": api_key}
+    payload = {"folderIds": [int(fid) for fid in root_folder_ids]}
 
-                if response.status_code == 429:
-                    if attempt < max_retries - 1:
-                        print(
-                            f"{indent}Rate limit hit (429). Sleeping {backoff_seconds} seconds before retry "
-                            f"{attempt + 2} of {max_retries}..."
-                        )
-                        time.sleep(backoff_seconds)
-                        backoff_seconds *= 2
-                        continue
-                    else:
-                        print(
-                            f"{indent}Rate limit hit (429) and maximum retries reached."
-                        )
-                        more_pages = False
-                        break
+    print(f"[Folder Lookup] POST {url} folderIds={root_folder_ids}")
+    response = requests.post(url, json=payload, headers=headers, timeout=30)
+    print(f"[Folder Lookup] Response {response.status_code}")
+    response.raise_for_status()
+    data = response.json()
 
-                response.raise_for_status()
-                data = response.json()
-                items = data.get("data", [])
+    for error in data.get("errors", []):
+        print(f"[Folder Lookup] Error: {error}")
+    for missing_id in data.get("notFound", []):
+        print(f"[Folder Lookup] Folder not found: {missing_id}")
 
-                if not items:
-                    more_pages = False
-                    break
+    requested = {str(fid) for fid in root_folder_ids}
+    folder_ids = []
+    for folder in data.get("folders", []):
+        hierarchy_ids = folder["hierarchy"].split("|")
+        if requested.intersection(hierarchy_ids):
+            folder_ids.append(str(folder["id"]))
 
-                for item in items:
-                    if item.get("type") == "folder":
-                        cid = str(item["id"])
-                        child_ids.append(cid)
-                        child_names[cid] = item.get("name", cid)
-
-                if len(items) < 100:
-                    more_pages = False
-                else:
-                    page += 1
-                break
-
-            except (requests.RequestException, ValueError) as e:
-                if isinstance(e, requests.ConnectionError):
-                    raise
-                print(f"{indent}Error listing subfolders: {e}")
-                more_pages = False
-                break
-
-    if child_ids:
-        names = ", ".join(f"{child_names[c]} ({c})" for c in child_ids)
-        print(f"{indent}Found {len(child_ids)} subfolder(s): {names}")
-    else:
-        print(f"{indent}No subfolders")
-
-    # Recurse into each child folder
-    all_ids = [parent_id]
-    for child_id in child_ids:
-        all_ids.extend(list_subfolders(api_key, child_id, depth + 1))
-
-    return all_ids
+    return folder_ids
 
 
 def get_system_info():
