@@ -277,6 +277,11 @@ USB_PORT_LOCATIONS = ["Left Side", "Right Side", "Back"]
 USB_A_NO_PORTS_NOTE = "No USB ports present"
 USB_C_NO_PORTS_NOTE = "No USB-C ports present"
 
+# Tracking-sheet note text for WiFiPage's "No WiFi" toggle (see
+# TogglePage's na_label/na_note above) -- some desktops have no WiFi
+# hardware at all.
+WIFI_NO_WIFI_NOTE = "No WiFi hardware present"
+
 # "Audio" must be an exact defect-type option (not free text) so the tracking
 # sheet can key off it directly to fill in the "Sound:" field -- see
 # TogglePage.has_reason() and SpecComplete._on_tracking_clicked. "Video" is
@@ -3051,6 +3056,8 @@ class WiFiPage(TogglePage):
                 "stable. This page is skipped automatically once a "
                 "connection is detected and a gateway ping test passes."
             ),
+            na_label="No WiFi",
+            na_note=WIFI_NO_WIFI_NOTE,
         )
 
         self._ping_pending = False
@@ -3080,7 +3087,13 @@ class WiFiPage(TogglePage):
         ping_ok = True if not connected else (self._ping_ok is not False)
         self.skip = connected and ping_ok
         if connected and ping_ok:
+            # A real connection was detected -- clear a stale "No WiFi"
+            # selection (e.g. a mis-click) rather than reporting N/A for a
+            # working connection.
+            if self.na_button is not None and self.na_button.get_active():
+                self.na_button.set_active(False)
             self.passed = True
+            self.not_applicable = False
         if self.state is not None:
             state = self.state.get_value()
             state[self.key] = (connected and ping_ok) or bool(self.passed)
