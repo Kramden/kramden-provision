@@ -1734,6 +1734,7 @@ class PhysicalDefectsPage(Adw.Bin):
         self.title = "Physical Defects"
         self.skip = False
         self.has_defects = None
+        self.not_applicable = False
         self.state = None
         # Label for the free-text "add your own" defect-type option below --
         # see TogglePage.custom_option for the same pattern on every other
@@ -2740,6 +2741,15 @@ class PhysicalDefectsPage(Adw.Bin):
             )
         return True
 
+    def mark_not_applicable(self):
+        """Auto-pass this page as "N/A" and flag it to be skipped in wizard
+        navigation -- for a chassis type this whole page's laptop-oriented
+        defect types (hinge, screen sextants, etc.) don't apply to, e.g. a
+        desktop tower or All-In-One. See TogglePage.mark_not_applicable."""
+        self.has_defects = False
+        self.not_applicable = True
+        self.skip = True
+
     def check_status(self):
         if self.state is None:
             return
@@ -3000,6 +3010,8 @@ class PhysicalDefectsPage(Adw.Bin):
     def get_result(self):
         if self.has_defects is None:
             return "Untested"
+        if self.not_applicable:
+            return "N/A"
         return "Fail" if self.has_defects else "Pass"
 
     def on_shown(self):
