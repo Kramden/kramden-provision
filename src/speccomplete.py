@@ -808,11 +808,20 @@ class SpecComplete(Adw.Bin):
         self._speccing_notes_reported = success
         self._speccing_notes_error = error
         self._refresh_tracking_status()
+        # is_complete() gates on _speccing_notes_reported, and this report
+        # runs concurrently with the print job (see _start_sortly_updates)
+        # so it can resolve after _on_print_complete already fired its own
+        # on_status_changed() -- without this call, the Complete button's
+        # sensitivity would never get recalculated once this settles last.
+        if self.on_status_changed:
+            self.on_status_changed()
 
     def _on_spec_date_report_complete(self, success, error):
         self._spec_date_reported = success
         self._spec_date_error = error
         self._refresh_tracking_status()
+        if self.on_status_changed:
+            self.on_status_changed()
 
     def _on_sortly_retry_clicked(self, button):
         if not self.sortly_register or self._tracking_generated_date is None:
