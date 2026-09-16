@@ -1712,6 +1712,15 @@ class TogglePage(Adw.Bin):
             return "N/A"
         return "Pass" if self.passed else "Fail"
 
+    def mark_not_applicable(self):
+        """Auto-pass this page as "N/A" and flag it to be skipped in wizard
+        navigation -- for a component the current chassis type doesn't have
+        at all (e.g. a desktop with no built-in touchpad/keyboard/screen),
+        rather than something a tech marks per-device (see na_button)."""
+        self.passed = True
+        self.not_applicable = True
+        self.skip = True
+
     def on_shown(self):
         self.check_status()
 

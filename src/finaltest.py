@@ -117,6 +117,19 @@ class WizardWindow(Gtk.ApplicationWindow):
         physical_defects.usb_c_page = usb_c_pages[0] if usb_c_pages else None
         physical_defects.keyboard_page = keyboard
         physical_defects.screen_page = screen
+
+        # Desktops/All-In-Ones have no built-in touchpad or keyboard, and
+        # plain desktop towers (unlike All-In-Ones) have no built-in screen
+        # either -- skip those pages rather than asking a tech to test
+        # hardware the chassis doesn't have. Defaults to laptop behavior
+        # (skip nothing) when the chassis type can't be detected.
+        chassis_type = Utils.get_chassis_type()
+        if chassis_type in ("Desktop", "All-In-One"):
+            touchpad.mark_not_applicable()
+            keyboard.mark_not_applicable()
+        if chassis_type == "Desktop":
+            screen.mark_not_applicable()
+
         complete = FinalTestComplete()
 
         manual_test_pages = (
