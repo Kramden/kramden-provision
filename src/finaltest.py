@@ -3,7 +3,6 @@
 tech through System Information, software checks, the manual hardware
 tests, and Final Test Complete."""
 
-
 import gi
 
 gi.require_version("Gdk", "4.0")
@@ -38,7 +37,7 @@ class WizardWindow(Gtk.ApplicationWindow):
         super().__init__(application=app, title="Kramden - Final Test")
 
         self.set_icon_name("kramden")
-        self.set_default_size(800, 800)
+        self.set_default_size(1150, 1000)
         display = Gdk.Display.get_default()
         if display:
             monitors = display.get_monitors()
@@ -190,8 +189,8 @@ class WizardWindow(Gtk.ApplicationWindow):
     def _apply_monitor_size(self, monitor):
         geo = monitor.get_geometry()
         self.set_default_size(
-            min(800, int(geo.width * 0.8)),
-            min(800, int(geo.height * 0.8)),
+            min(1150, int(geo.width * 0.8)),
+            min(1000, int(geo.height * 0.8)),
         )
 
     def _on_monitors_changed(self, monitors, position, removed, added):
