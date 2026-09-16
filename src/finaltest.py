@@ -14,9 +14,21 @@ from gi.repository import Gdk, Gtk, Adw
 import os
 from sysinfo import SysInfo
 from check_packages import CheckPackages
-from manualtest import ManualTest
+from manualtest import (
+    PhysicalDefectsPage,
+    WiFiPage,
+    TouchpadPage,
+    KeyboardPage,
+    ScreenPage,
+    TouchscreenPage,
+    BrowserPage,
+    WebcamPage,
+    UsbAPage,
+    UsbCPage,
+)
 from finaltestcomplete import FinalTestComplete
 from observable import ObservableProperty, StateObserver
+from utils import Utils
 
 
 class WizardWindow(Gtk.ApplicationWindow):
@@ -35,10 +47,28 @@ class WizardWindow(Gtk.ApplicationWindow):
             else:
                 monitors.connect("items-changed", self._on_monitors_changed)
 
-        # Initialize the observable property for tracking state
-        self.observable_property = ObservableProperty(
-            {"SysInfo": False, "CheckPackages": False, "ManualTest": False}
-        )
+        # Initialize the observable property for tracking state. One entry
+        # per page below (Touchscreen and USB-C only exist on capable
+        # devices).
+        initial_state = {
+            "SysInfo": False,
+            "CheckPackages": False,
+            "PhysicalDefects": False,
+            "WiFi": False,
+            "Touchpad": False,
+            "Keyboard": False,
+            "ScreenTest": False,
+            "Browser": False,
+            "WebCam": False,
+            "USBA": False,
+        }
+        has_touchscreen = Utils.has_touchscreen()
+        if has_touchscreen:
+            initial_state["Touchscreen"] = False
+        show_usb_c_page = Utils.should_show_usb_c_page()
+        if show_usb_c_page:
+            initial_state["USBC"] = False
+        self.observable_property = ObservableProperty(initial_state)
         # Create and add an observer
         observer = StateObserver()
         self.observable_property.add_observer(observer)
@@ -70,23 +100,49 @@ class WizardWindow(Gtk.ApplicationWindow):
 
         # View Stack
         self.stack = Adw.ViewStack()
-        self.page1 = SysInfo()
-        self.page2 = CheckPackages()
-        self.page3 = ManualTest()
-        self.page4 = FinalTestComplete()
 
-        self.page1.state = self.observable_property
-        self.page1.on_loading_changed = self._on_sysinfo_loading_changed
+        sysinfo = SysInfo()
+        check_packages = CheckPackages()
+        physical_defects = PhysicalDefectsPage()
+        wifi = WiFiPage()
+        touchpad = TouchpadPage()
+        keyboard = KeyboardPage()
+        screen = ScreenPage()
+        touchscreen_pages = [TouchscreenPage()] if has_touchscreen else []
+        browser = BrowserPage()
+        webcam = WebcamPage()
+        usb_a = UsbAPage()
+        usb_c_pages = [UsbCPage()] if show_usb_c_page else []
+        physical_defects.usb_a_page = usb_a
+        physical_defects.usb_c_page = usb_c_pages[0] if usb_c_pages else None
+        physical_defects.keyboard_page = keyboard
+        physical_defects.screen_page = screen
+        complete = FinalTestComplete()
+
+        manual_test_pages = (
+            [physical_defects, wifi, touchpad, keyboard, screen]
+            + touchscreen_pages
+            + [browser, webcam, usb_a]
+            + usb_c_pages
+        )
+        self.pages = [sysinfo, check_packages] + manual_test_pages + [complete]
+
+        sysinfo.state = self.observable_property
+        sysinfo.on_loading_changed = self._on_sysinfo_loading_changed
         self._sysinfo_loading = False
-        self.page2.state = self.observable_property
-        self.page3.state = self.observable_property
-        self.page4.manual_test = self.page3
-        self.page4.state = self.observable_property
+        check_packages.state = self.observable_property
 
-        self.stack.add_named(self.page1, "page1")
-        self.stack.add_named(self.page2, "page2")
-        self.stack.add_named(self.page3, "page3")
-        self.stack.add_named(self.page4, "page4")
+        for page in manual_test_pages:
+            page.state = self.observable_property
+            page.on_status_changed = self.update_buttons
+
+        complete.manual_test_pages = manual_test_pages
+        complete.state = self.observable_property
+
+        self.manual_test_pages = manual_test_pages
+
+        for index, page in enumerate(self.pages):
+            self.stack.add_named(page, f"page{index + 1}")
 
         self.stack.set_vexpand(True)  # Ensure the stack expands vertically
 
@@ -97,7 +153,7 @@ class WizardWindow(Gtk.ApplicationWindow):
 
         self.set_child(content_box)
         self.current_page = 0
-        self.update_buttons()
+        self.update_buttons(focus_next=True)
 
         # Apply CSS
         css_provider = Gtk.CssProvider()
@@ -115,7 +171,7 @@ class WizardWindow(Gtk.ApplicationWindow):
         self.title_widget.set_label(self.stack.get_visible_child().title)
 
         # Fake visible change to set state info
-        self.page1.on_shown()
+        self.pages[0].on_shown()
 
     def _apply_monitor_size(self, monitor):
         geo = monitor.get_geometry()
@@ -138,35 +194,63 @@ class WizardWindow(Gtk.ApplicationWindow):
         if self.current_page > 0:
             self.current_page -= 1
             self.stack.set_visible_child_name(f"page{self.current_page + 1}")
-            self.update_buttons()
-            page = getattr(self, f"page{self.current_page + 1}")
+            self.update_buttons(focus_next=True)
+            page = self.pages[self.current_page]
             if page.skip:
-                print(f"on_prev_clicked: page{self.current_page - 1} skipped")
+                print(f"on_prev_clicked: page{self.current_page + 1} skipped")
                 self.on_prev_clicked()
 
     def on_next_clicked(self, button=None):
-        if self.current_page < 3:
+        current = self.pages[self.current_page]
+        if hasattr(current, "is_complete") and not current.is_complete():
+            self._show_incomplete_warning()
+            return
+
+        last_index = len(self.pages) - 1
+        if self.current_page < last_index:
             self.current_page += 1
             self.stack.set_visible_child_name(f"page{self.current_page + 1}")
-            self.update_buttons()
-            page = getattr(self, f"page{self.current_page + 1}")
+            self.update_buttons(focus_next=True)
+            page = self.pages[self.current_page]
             if page.skip:
                 print(f"on_next_clicked: page{self.current_page + 1} skipped")
                 self.on_next_clicked()
         else:
             self.complete()
 
-    def update_buttons(self):
+    def _show_incomplete_warning(self):
+        dialog = Gtk.MessageDialog(
+            transient_for=self,
+            modal=True,
+            message_type=Gtk.MessageType.WARNING,
+            buttons=Gtk.ButtonsType.OK,
+            text="You must fill out all of the necessary information before "
+            "moving to the next page!",
+        )
+        dialog.connect("response", lambda d, r: d.close())
+        dialog.present()
+
+    def update_buttons(self, focus_next=False):
+        last_index = len(self.pages) - 1
         self.prev_button.set_sensitive(self.current_page > 0)
-        self.next_button.set_sensitive(self.current_page <= 3)
-        if self.current_page == 3:
+        self.next_button.set_sensitive(self.current_page <= last_index)
+        current = self.pages[self.current_page]
+        if self.current_page == last_index:
             self.next_button.set_label("Complete")
             self.next_button.add_css_class("button-next-last-page")
+            self.next_button.remove_css_class("suggested-action")
             state = self.observable_property.get_value()
             self.next_button.set_sensitive(all(state.values()))
         else:
             self.next_button.remove_css_class("button-next-last-page")
             self.next_button.set_label("Next")
+            # Light the button up once the current page has everything it
+            # needs to move on -- pages without is_complete (SysInfo,
+            # CheckPackages) are left alone.
+            if hasattr(current, "is_complete") and current.is_complete():
+                self.next_button.add_css_class("suggested-action")
+            else:
+                self.next_button.remove_css_class("suggested-action")
 
         # While SysInfo is gathering, lock Next/Prev so rapid clicks
         # don't queue and fire after the page finishes loading.
@@ -174,8 +258,11 @@ class WizardWindow(Gtk.ApplicationWindow):
             self.next_button.set_sensitive(False)
             self.prev_button.set_sensitive(False)
 
-        # Focus the next button
-        self.next_button.grab_focus()
+        # Focus the next button -- only when we just navigated to a page, not
+        # on every status update (that would steal focus out from under
+        # whatever entry field the tech is typing in).
+        if focus_next:
+            self.next_button.grab_focus()
 
     def _on_sysinfo_loading_changed(self, loading):
         self._sysinfo_loading = loading
