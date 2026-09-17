@@ -151,6 +151,7 @@ class WizardWindow(Gtk.ApplicationWindow):
 
         complete.manual_test_pages = manual_test_pages
         complete.state = self.observable_property
+        complete.on_navigate_to_page = self._navigate_to_page
 
         self.manual_test_pages = manual_test_pages
 
@@ -280,6 +281,15 @@ class WizardWindow(Gtk.ApplicationWindow):
     def _on_sysinfo_loading_changed(self, loading):
         self._sysinfo_loading = loading
         self.update_buttons()
+
+    def _navigate_to_page(self, page):
+        try:
+            index = self.pages.index(page)
+        except ValueError:
+            return
+        self.current_page = index
+        self.stack.set_visible_child_name(f"page{index + 1}")
+        self.update_buttons(focus_next=True)
 
     def complete(self):
         print("Complete Clicked")

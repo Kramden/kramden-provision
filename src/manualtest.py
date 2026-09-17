@@ -1672,6 +1672,25 @@ class TogglePage(Adw.Bin):
             return [f"{self.title} not completed"]
         return []
 
+    def get_failure_summaries(self):
+        """Like get_failure_reasons(), but without the tracking-sheet data
+        code prefix (e.g. "Fully unresponsive, Wrong keys" instead of
+        "KB01: Fully unresponsive, KB09: Wrong keys") -- for Final Test
+        Complete, which doesn't report to Sortly/the tracking sheet and has
+        no use for that code."""
+        if self.passed is False:
+            if not self._reason_entries:
+                return [f"{self.title} has issues: no reason specified"]
+            codes = self._failed_codes()
+            if not codes:
+                return [f"{self.title} has issues"]
+            return [
+                ", ".join(self._short_label_for_code(code) for code in codes)
+            ]
+        if self.passed is None:
+            return [f"{self.title} not completed"]
+        return []
+
     def get_notes_entries(self):
         """Each reported reason becomes its own coded detail (e.g. "KB02:
         Key(s) Sticking (F, G)"), all joined onto a single line so multiple
@@ -2908,6 +2927,23 @@ class PhysicalDefectsPage(Adw.Bin):
         if not details:
             return ["Physical defects present"]
         return [", ".join(text for _, text in details)]
+
+    def get_failure_summaries(self):
+        """Like get_failure_reasons(), but without the PD-code prefix --
+        see TogglePage.get_failure_summaries for why (Final Test Complete
+        doesn't report to Sortly/the tracking sheet)."""
+        if self.has_defects is None:
+            return ["Physical defects check not completed"]
+        if not self.has_defects:
+            return []
+        if not self._defect_entries:
+            return ["Physical defects present"]
+        details = self._failed_code_details()
+        if not details:
+            return ["Physical defects present"]
+        return [
+            ", ".join(text.split(": ", 1)[-1] for _, text in details)
+        ]
 
     def get_notes_entries(self):
         """All reported defects are concatenated onto a single line (rather

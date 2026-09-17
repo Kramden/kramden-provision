@@ -51,6 +51,8 @@ class SectionPicker(Gtk.ApplicationWindow):
             "font-weight: bold; }"
             ".section-cell.selected { border: 5px solid #3fe35a; "
             "color: #3fe35a; background-color: rgba(63, 227, 90, 0.12); }"
+            ".section-picker-select-all { background-color: #e8a33d; "
+            "color: #1f1f1f; }"
         )
         Gtk.StyleContext.add_provider_for_display(
             Gdk.Display.get_default(),
@@ -76,6 +78,7 @@ class SectionPicker(Gtk.ApplicationWindow):
 
         if select_all_label:
             select_all_button = Gtk.Button(label=select_all_label)
+            select_all_button.add_css_class("section-picker-select-all")
             select_all_button.set_valign(Gtk.Align.CENTER)
             select_all_button.connect("clicked", self._on_select_all)
             top_bar.append(select_all_button)
