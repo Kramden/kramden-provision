@@ -277,6 +277,11 @@ USB_PORT_LOCATIONS = ["Left Side", "Right Side", "Back"]
 USB_A_NO_PORTS_NOTE = "No USB ports present"
 USB_C_NO_PORTS_NOTE = "No USB-C ports present"
 
+# Tracking-sheet note text for WiFiPage's "No WiFi" toggle (see
+# TogglePage's na_label/na_note above) -- some desktops have no WiFi
+# hardware at all.
+WIFI_NO_WIFI_NOTE = "No WiFi hardware present"
+
 # "Audio" must be an exact defect-type option (not free text) so the tracking
 # sheet can key off it directly to fill in the "Sound:" field -- see
 # TogglePage.has_reason() and SpecComplete._on_tracking_clicked. "Video" is
@@ -1667,6 +1672,25 @@ class TogglePage(Adw.Bin):
             return [f"{self.title} not completed"]
         return []
 
+    def get_failure_summaries(self):
+        """Like get_failure_reasons(), but without the tracking-sheet data
+        code prefix (e.g. "Fully unresponsive, Wrong keys" instead of
+        "KB01: Fully unresponsive, KB09: Wrong keys") -- for Final Test
+        Complete, which doesn't report to Sortly/the tracking sheet and has
+        no use for that code."""
+        if self.passed is False:
+            if not self._reason_entries:
+                return [f"{self.title} has issues: no reason specified"]
+            codes = self._failed_codes()
+            if not codes:
+                return [f"{self.title} has issues"]
+            return [
+                ", ".join(self._short_label_for_code(code) for code in codes)
+            ]
+        if self.passed is None:
+            return [f"{self.title} not completed"]
+        return []
+
     def get_notes_entries(self):
         """Each reported reason becomes its own coded detail (e.g. "KB02:
         Key(s) Sticking (F, G)"), all joined onto a single line so multiple
@@ -1712,6 +1736,15 @@ class TogglePage(Adw.Bin):
             return "N/A"
         return "Pass" if self.passed else "Fail"
 
+    def mark_not_applicable(self):
+        """Auto-pass this page as "N/A" and flag it to be skipped in wizard
+        navigation -- for a component the current chassis type doesn't have
+        at all (e.g. a desktop with no built-in touchpad/keyboard/screen),
+        rather than something a tech marks per-device (see na_button)."""
+        self.passed = True
+        self.not_applicable = True
+        self.skip = True
+
     def on_shown(self):
         self.check_status()
 
@@ -1725,6 +1758,7 @@ class PhysicalDefectsPage(Adw.Bin):
         self.title = "Physical Defects"
         self.skip = False
         self.has_defects = None
+        self.not_applicable = False
         self.state = None
         # Label for the free-text "add your own" defect-type option below --
         # see TogglePage.custom_option for the same pattern on every other
@@ -2731,6 +2765,15 @@ class PhysicalDefectsPage(Adw.Bin):
             )
         return True
 
+    def mark_not_applicable(self):
+        """Auto-pass this page as "N/A" and flag it to be skipped in wizard
+        navigation -- for a chassis type this whole page's laptop-oriented
+        defect types (hinge, screen sextants, etc.) don't apply to, e.g. a
+        desktop tower or All-In-One. See TogglePage.mark_not_applicable."""
+        self.has_defects = False
+        self.not_applicable = True
+        self.skip = True
+
     def check_status(self):
         if self.state is None:
             return
@@ -2885,6 +2928,23 @@ class PhysicalDefectsPage(Adw.Bin):
             return ["Physical defects present"]
         return [", ".join(text for _, text in details)]
 
+    def get_failure_summaries(self):
+        """Like get_failure_reasons(), but without the PD-code prefix --
+        see TogglePage.get_failure_summaries for why (Final Test Complete
+        doesn't report to Sortly/the tracking sheet)."""
+        if self.has_defects is None:
+            return ["Physical defects check not completed"]
+        if not self.has_defects:
+            return []
+        if not self._defect_entries:
+            return ["Physical defects present"]
+        details = self._failed_code_details()
+        if not details:
+            return ["Physical defects present"]
+        return [
+            ", ".join(text.split(": ", 1)[-1] for _, text in details)
+        ]
+
     def get_notes_entries(self):
         """All reported defects are concatenated onto a single line (rather
         than one line per defect type) so damages affecting the device read
@@ -2991,6 +3051,8 @@ class PhysicalDefectsPage(Adw.Bin):
     def get_result(self):
         if self.has_defects is None:
             return "Untested"
+        if self.not_applicable:
+            return "N/A"
         return "Fail" if self.has_defects else "Pass"
 
     def on_shown(self):
@@ -3030,6 +3092,8 @@ class WiFiPage(TogglePage):
                 "stable. This page is skipped automatically once a "
                 "connection is detected and a gateway ping test passes."
             ),
+            na_label="No WiFi",
+            na_note=WIFI_NO_WIFI_NOTE,
         )
 
         self._ping_pending = False
@@ -3059,7 +3123,13 @@ class WiFiPage(TogglePage):
         ping_ok = True if not connected else (self._ping_ok is not False)
         self.skip = connected and ping_ok
         if connected and ping_ok:
+            # A real connection was detected -- clear a stale "No WiFi"
+            # selection (e.g. a mis-click) rather than reporting N/A for a
+            # working connection.
+            if self.na_button is not None and self.na_button.get_active():
+                self.na_button.set_active(False)
             self.passed = True
+            self.not_applicable = False
         if self.state is not None:
             state = self.state.get_value()
             state[self.key] = (connected and ping_ok) or bool(self.passed)
