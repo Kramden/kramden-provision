@@ -215,6 +215,18 @@ class SpecComplete(Adw.Bin):
         self.sortly_retry_button.connect("clicked", self._on_sortly_retry_clicked)
         self.sortly_retry_button.set_visible(False)
         self.sortly_retry_button.set_halign(Gtk.Align.START)
+        # Staff-only escape hatch for a broken/unreachable printer -- lets
+        # Complete unlock without a successful print job once the tracking
+        # sheet has been reviewed (see is_complete()/_on_print_override_ok).
+        # Disabled until the sheet has actually been reviewed (there's
+        # nothing to complete without printing otherwise), and re-disabled
+        # by on_shown() whenever the underlying results change and the
+        # sheet needs reviewing again.
+        self.print_override_button = Gtk.Button(label="Override Print")
+        self.print_override_button.connect("clicked", self._on_print_override_clicked)
+        self.print_override_button.set_visible(True)
+        self.print_override_button.set_sensitive(False)
+        self.print_override_button.set_halign(Gtk.Align.START)
         # Set once the tech has clicked "Print Tracking Sheet" at least
         # once, so a subsequent click (e.g. because the sheet hasn't come
         # out yet) prompts for confirmation instead of silently queuing
@@ -222,9 +234,17 @@ class SpecComplete(Adw.Bin):
         self._tracking_print_requested = False
         # Both must happen at least once (in order) before is_complete()
         # allows the wizard's "Complete" button to be clicked -- see
-        # is_complete() and on_shown() below.
+        # is_complete() and on_shown() below. _tracking_print_override lets
+        # staff bypass _tracking_printed specifically (e.g. a broken
+        # printer) via the same "kramdenok" password used for the disk/
+        # asset overrides on SpecInfo and the Sortly override on the first
+        # page -- see _on_print_override_ok. It does not skip the Sortly
+        # Speccing Notes/Spec Date reports themselves (see
+        # _on_print_override_ok forcing _start_sortly_updates()), only the
+        # physical print.
         self._tracking_reviewed = False
         self._tracking_printed = False
+        self._tracking_print_override = False
         # _result_snapshot() taken at the moment the currently-reviewed
         # sheet was generated -- compared against in on_shown() so the
         # Review/Print state above survives navigating away and back
@@ -255,6 +275,7 @@ class SpecComplete(Adw.Bin):
         action_bar.set_halign(Gtk.Align.FILL)
         action_bar.append(self.tracking_status)
         action_bar.append(self.sortly_retry_button)
+        action_bar.append(self.print_override_button)
         action_bar.append(self.tracking_button)
 
         lists_overlay = Gtk.Overlay()
@@ -671,6 +692,9 @@ class SpecComplete(Adw.Bin):
         self.tracking_button.set_label("Print Tracking Sheet")
         self.tracking_button.remove_css_class("suggested-action")
         self.tracking_button.add_css_class("button-green")
+        # There's now a sheet to complete without printing, so the
+        # override becomes usable (see is_complete()/_on_print_override_ok).
+        self.print_override_button.set_sensitive(True)
 
         viewer = (
             "/usr/bin/evince"
@@ -735,8 +759,16 @@ class SpecComplete(Adw.Bin):
         if self._tracking_viewer_error:
             lines[-1] += f" (could not open viewer: {self._tracking_viewer_error})"
 
-        if self._tracking_print_requested:
-            if self._print_result is None:
+        if self._tracking_print_requested or self._tracking_print_override:
+            if self._tracking_print_override:
+                if self._print_result is False:
+                    lines.append(
+                        f"Print failed: {self._print_error} "
+                        "(overridden by staff)"
+                    )
+                else:
+                    lines.append("Printing overridden by staff.")
+            elif self._print_result is None:
                 lines.append("Printing...")
             elif self._print_result:
                 lines.append(
@@ -808,17 +840,99 @@ class SpecComplete(Adw.Bin):
         self._speccing_notes_reported = success
         self._speccing_notes_error = error
         self._refresh_tracking_status()
+        # is_complete() gates on _speccing_notes_reported, and this report
+        # runs concurrently with the print job (see _start_sortly_updates)
+        # so it can resolve after _on_print_complete already fired its own
+        # on_status_changed() -- without this call, the Complete button's
+        # sensitivity would never get recalculated once this settles last.
+        if self.on_status_changed:
+            self.on_status_changed()
 
     def _on_spec_date_report_complete(self, success, error):
         self._spec_date_reported = success
         self._spec_date_error = error
         self._refresh_tracking_status()
+        if self.on_status_changed:
+            self.on_status_changed()
 
     def _on_sortly_retry_clicked(self, button):
         if not self.sortly_register or self._tracking_generated_date is None:
             return
         self._start_sortly_updates()
         self._refresh_tracking_status()
+
+    def _on_print_override_clicked(self, button):
+        dialog = Gtk.Window()
+        dialog.set_title("Print Override")
+        dialog.set_transient_for(self.get_root())
+        dialog.set_modal(True)
+        dialog.set_default_size(350, -1)
+        dialog.set_resizable(False)
+
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        box.set_margin_top(24)
+        box.set_margin_bottom(24)
+        box.set_margin_start(24)
+        box.set_margin_end(24)
+
+        label = Gtk.Label(
+            label="Enter staff password to complete without printing the "
+            "tracking sheet:"
+        )
+        label.set_wrap(True)
+        box.append(label)
+
+        entry = Gtk.PasswordEntry()
+        entry.set_show_peek_icon(True)
+        box.append(entry)
+
+        error_label = Gtk.Label(label="")
+        error_label.add_css_class("text-error")
+        box.append(error_label)
+
+        btn_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        btn_box.set_halign(Gtk.Align.END)
+
+        cancel_btn = Gtk.Button(label="Cancel")
+        cancel_btn.connect("clicked", lambda b: dialog.close())
+        btn_box.append(cancel_btn)
+
+        ok_btn = Gtk.Button(label="OK")
+        ok_btn.add_css_class("suggested-action")
+        ok_btn.connect("clicked", self._on_print_override_ok, entry, error_label, dialog)
+        btn_box.append(ok_btn)
+
+        entry.connect(
+            "activate",
+            lambda e: self._on_print_override_ok(ok_btn, entry, error_label, dialog),
+        )
+
+        box.append(btn_box)
+        dialog.set_child(box)
+        dialog.present()
+        entry.grab_focus()
+
+    def _on_print_override_ok(self, button, entry, error_label, dialog):
+        if entry.get_text() != "kramdenok":
+            error_label.set_label("Incorrect password")
+            entry.set_text("")
+            entry.grab_focus()
+            return
+
+        dialog.close()
+        self._tracking_print_override = True
+        self.print_override_button.set_visible(False)
+        # The Sortly Speccing Notes/Spec Date reports are otherwise only
+        # kicked off by an actual print attempt (see
+        # _print_tracking_sheet/_start_sortly_updates) -- overriding the
+        # print requirement shouldn't also skip reporting this machine's
+        # results to Sortly, so fire them here if a print was never
+        # attempted at all.
+        if not self._tracking_print_requested:
+            self._start_sortly_updates()
+        self._refresh_tracking_status()
+        if self.on_status_changed:
+            self.on_status_changed()
 
     def _resolve_printer_name(self):
         """Pick which CUPS destination to print to, trying four tiers in
@@ -1331,9 +1445,12 @@ class SpecComplete(Adw.Bin):
         """The wizard's "Complete" button stays disabled until the tech has
         both reviewed and printed the tracking sheet at least once (see
         on_shown(), which resets this if they navigate away and the
-        underlying results change), and -- since clicking "Complete" no
-        longer sends its own Speccing Notes report but just acts on the
-        one already kicked off by "Print Tracking Sheet" (see
+        underlying results change) -- or staff have used the "Override
+        Print" button (see _on_print_override_ok) to bypass just the print
+        requirement, e.g. when the printer is broken -- and -- since
+        clicking "Complete" no longer sends its own Speccing Notes report
+        but just acts on the one already kicked off by "Print Tracking
+        Sheet" or the print override (see
         _start_sortly_updates/_complete_after_sortly_report) -- stays
         disabled until that report has actually resolved one way or the
         other, so there's always a real outcome to act on. Also stays
@@ -1345,7 +1462,7 @@ class SpecComplete(Adw.Bin):
         return (
             not self._blocking_issues
             and self._tracking_reviewed
-            and self._tracking_printed
+            and (self._tracking_printed or self._tracking_print_override)
             and (
                 not (REPORT_SPECCING_NOTES_TO_SORTLY and self.sortly_register)
                 or self._speccing_notes_reported is not None
@@ -1403,7 +1520,10 @@ class SpecComplete(Adw.Bin):
             self._print_result = None
             self._print_error = None
             self._print_label = None
+            self._tracking_print_override = False
             self.sortly_retry_button.set_visible(False)
+            self.print_override_button.set_visible(True)
+            self.print_override_button.set_sensitive(False)
             self.tracking_button.set_label("Review Tracking Sheet")
             self.tracking_button.remove_css_class("button-green")
             self.tracking_button.add_css_class("suggested-action")
@@ -1429,6 +1549,9 @@ class SpecComplete(Adw.Bin):
             manual_tests_complete and knumber_ok and sortly_registered
         )
         self.tracking_button.set_sensitive(not self._blocking_issues)
+        self.print_override_button.set_sensitive(
+            self._tracking_reviewed and not self._blocking_issues
+        )
         if self._blocking_issues:
             print("SpecComplete: Incomplete")
             self.complete_row.set_title("Kramden Spec Complete: <b>INCOMPLETE</b>")
