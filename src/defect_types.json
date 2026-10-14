@@ -310,11 +310,6 @@
       }
     ]
   },
-  "browser": {
-    "code_prefix": "BR",
-    "reserved_codes": [],
-    "types": []
-  },
   "sound": {
     "code_prefix": "SD",
     "reserved_codes": [],

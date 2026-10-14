@@ -71,7 +71,6 @@ _CODE_PREFIX_TO_PAGE_KEY = {
     "WF": "wifi",
     "TP": "touchpad",
     "SC": "screen",
-    "BR": "browser",
     "WC": "webcam",
     "UA": "usb_a",
     "UC": "usb_c",
@@ -285,11 +284,9 @@ WIFI_NO_WIFI_NOTE = "No WiFi hardware present"
 # "Audio" must be an exact defect-type option (not free text) so the tracking
 # sheet can key off it directly to fill in the "Sound:" field -- see
 # TogglePage.has_reason() and SpecComplete._on_tracking_clicked. It's the
-# only reason offered (the browser test is just a sound test, so there are
-# no BR codes; defect_types.json's "browser" has no plain entries).
-BROWSER_DEFECT_TYPES, BROWSER_DEFECT_CODES = _merge_defect_types(
-    "browser", specials=[("Audio", 2)]
-)
+# only reason offered (the browser test is just a sound test, so it has no
+# codes of its own -- see SOUND_DEFECT_TYPES for the real ones).
+BROWSER_DEFECT_TYPES = ["Audio"]
 
 # Must match an entry in WIFI_DEFECT_TYPES exactly -- see
 # WiFiPage._on_connectivity_checked.
@@ -522,8 +519,8 @@ PHYSICAL_DAMAGE_CODE_LABELS = {
 CUSTOM_REASON_CODE_SUFFIX = "OT"
 
 # Sound sub-picker embedded in Browser's "Audio" reason (see
-# BrowserPage.build_reason_locations) -- its own "SD" code namespace,
-# distinct from Browser's own "BR" prefix (see
+# BrowserPage.build_reason_locations) -- its own "SD" code namespace;
+# Browser has no codes of its own (see
 # BrowserPage._sound_reason_notes/_failed_codes/_code_sort_key). Any
 # selection that doesn't match SOUND_REASON_CODES (there's currently no way
 # to add one, since this picker has no free-text entry) falls back to
@@ -3576,7 +3573,6 @@ class BrowserPage(TogglePage):
             "Browser",
             "Browser (video and audio playback)",
             reason_options=BROWSER_DEFECT_TYPES,
-            code_prefix="BR",
             topic="video/audio playback",
             instructions=(
                 "Click below to open a test video in Firefox and confirm both "
@@ -3665,10 +3661,9 @@ class BrowserPage(TogglePage):
         return sorted(codes, key=self._code_sort_key)
 
     def _code_sort_key(self, code):
-        """Overrides TogglePage._code_sort_key -- this page's own "BR"
-        codes and the Sound sub-picker's "SD" codes are mixed together in
-        its failure codes, so strip whichever 2-letter prefix the code
-        actually has instead of assuming self.code_prefix specifically."""
+        """Overrides TogglePage._code_sort_key -- this page has no
+        code_prefix, and all of its codes are the Sound sub-picker's "SD"
+        codes, so strip the 2-letter prefix directly."""
         if not code:
             return 999
         try:
