@@ -542,7 +542,9 @@ class SpecInfo(Adw.Bin):
         (see is_complete()), so neither is reported here."""
         entries = []
         if self._gathered.get("bios_password"):
-            entries.append({"text": f"{BIOS_PASSWORD_CODE} HAS BIOS PASSWORD"})
+            entries.append(
+                {"text": f"{BIOS_PASSWORD_CODE} HAS BIOS PASSWORD", "bold": True}
+            )
         if self._gathered.get("computrace") is True:
             entries.append({"text": "Computrace/Absolute is active"})
         memory_breakdown = self._gathered.get("memory_breakdown")

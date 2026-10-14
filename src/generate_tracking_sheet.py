@@ -335,7 +335,12 @@ def _notes_table_rows(
     for entry in notes_entries or []:
         text = entry.get("text")
         if text:
-            para = Paragraph(_bold_data_codes(text), wrapped_value_style)
+            para = Paragraph(
+                f"<b>{escape(text)}</b>"
+                if entry.get("bold")
+                else _bold_data_codes(text),
+                wrapped_value_style,
+            )
             _, wrapped_height = para.wrap(
                 content_width, line_budget * NOTE_LINE_HEIGHT
             )
