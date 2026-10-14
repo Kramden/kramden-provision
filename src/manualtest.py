@@ -1177,7 +1177,19 @@ class TogglePage(Adw.Bin):
         if gif_path is not None:
             gif_widget = _build_gif_widget(gif_path)
             if gif_widget is not None:
-                vbox.append(gif_widget)
+                # A page can put extra controls to the right of its gif
+                # (see build_gif_side/TouchpadPage).
+                side_widget = self.build_gif_side()
+                if side_widget is None:
+                    vbox.append(gif_widget)
+                else:
+                    gif_widget.set_hexpand(True)
+                    gif_row = Gtk.Box(
+                        orientation=Gtk.Orientation.HORIZONTAL, spacing=16
+                    )
+                    gif_row.append(gif_widget)
+                    gif_row.append(side_widget)
+                    vbox.append(gif_row)
 
         # Hook for subclasses to add a launcher button, typing box, etc.
         self.action_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
@@ -1278,6 +1290,11 @@ class TogglePage(Adw.Bin):
     def build_action(self, box):
         """Override in subclasses to add page-specific test controls."""
         pass
+
+    def build_gif_side(self):
+        """Override in subclasses to return a widget shown to the right of
+        the page's gif (see TouchpadPage), or None for no side widget."""
+        return None
 
     def build_reason_locations(self, entry_row, reason):
         """Override in subclasses to replace the default section picker
@@ -3203,6 +3220,56 @@ class TouchpadPage(TogglePage):
         # reason_short_labels above.
         self.code_short_labels.update(TOUCHPAD_CLICK_SHORT_LABELS)
         self.code_short_labels.update(TOUCHPAD_CURSOR_SHORT_LABELS)
+
+    def build_gif_side(self):
+        """Optional, non-blocking click test shown beside the gif: four
+        corner buttons, where the left ones only turn green on a left click
+        and the right ones only on a right click. One of each is enough to
+        show both click types work; it never affects the Pass/Fail result."""
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        box.set_valign(Gtk.Align.CENTER)
+
+        title = Gtk.Label(label="Click the below buttons to test the touchpad:")
+        title.set_wrap(True)
+        title.set_max_width_chars(24)
+        title.set_xalign(0)
+        box.append(title)
+
+        grid = Gtk.Grid(row_spacing=6, column_spacing=6)
+        grid.set_column_homogeneous(True)
+        box.append(grid)
+
+        status = Gtk.Label(label="")
+        status.set_xalign(0)
+        status.set_wrap(True)
+        box.append(status)
+
+        clicked_sides = set()
+
+        def _on_pressed(gesture, n_press, x, y, button, side, mouse_button):
+            if gesture.get_current_button() != mouse_button:
+                return
+            button.add_css_class("success")
+            clicked_sides.add(side)
+            if clicked_sides >= {"left", "right"}:
+                status.set_label("Left and right click both work.")
+
+        for row, vertical in enumerate(("Top", "Bottom")):
+            for column, side in enumerate(("Left", "Right")):
+                button = Gtk.Button(label=f"{vertical} {side}")
+                gesture = Gtk.GestureClick()
+                gesture.set_button(0)
+                gesture.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+                gesture.connect(
+                    "pressed",
+                    _on_pressed,
+                    button,
+                    side.lower(),
+                    1 if side == "Left" else 3,
+                )
+                button.add_controller(gesture)
+                grid.attach(button, column, row, 1, 1)
+        return box
 
     def build_reason_locations(self, entry_row, reason):
         override = _sub_buttons_override(self, entry_row, self.page_key, reason)
