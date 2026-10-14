@@ -118,7 +118,11 @@ class SpecInfo(Adw.Bin):
         left_list_box.append(model_row)
         left_list_box.append(self.bios_password_row)
         left_list_box.append(self.asset_info_row)
+        self.tpm_row = Adw.ActionRow()
+        self.tpm_row.set_title("TPM")
+
         left_list_box.append(self.computrace_row)
+        left_list_box.append(self.tpm_row)
 
         # Right column: hardware spec rows
         right_list_box = Gtk.ListBox()
@@ -276,6 +280,9 @@ class SpecInfo(Adw.Bin):
         print("Checking Computrace/Absolute status...")
         computrace = utils.has_computrace_enabled()
         print(f"  Computrace: {computrace}")
+        print("Checking TPM status...")
+        tpm_disabled = utils.is_tpm_disabled()
+        print(f"  TPM disabled: {tpm_disabled}")
         print("Enumerating disks...")
         disks = utils.get_disks()
         print(f"  Found {len(disks)} disk(s)")
@@ -291,6 +298,7 @@ class SpecInfo(Adw.Bin):
             "bios_password_warning": bios_password_warning,
             "asset_info": asset_info,
             "computrace": computrace,
+            "tpm_disabled": tpm_disabled,
             "disks": disks,
             "batteries": batteries,
         }
@@ -422,6 +430,19 @@ class SpecInfo(Adw.Bin):
             self.computrace_row.set_subtitle("Unknown")
             self.computrace_row.set_icon_name("emblem-ok-symbolic")
 
+        # A disabled TPM is only noted (see get_notes_entries); it never
+        # blocks completion.
+        tpm_disabled = self._gathered.get("tpm_disabled")
+        if tpm_disabled is True:
+            self.tpm_row.set_subtitle("Disabled")
+            self.tpm_row.set_icon_name("dialog-warning-symbolic")
+        elif tpm_disabled is False:
+            self.tpm_row.set_subtitle("Enabled")
+            self.tpm_row.set_icon_name("emblem-ok-symbolic")
+        else:
+            self.tpm_row.set_subtitle("Not detected")
+            self.tpm_row.set_icon_name("emblem-ok-symbolic")
+
         # Populate disk information
         if not self.disks_populated:
             disks = self._gathered["disks"]
@@ -547,6 +568,8 @@ class SpecInfo(Adw.Bin):
             )
         if self._gathered.get("computrace") is True:
             entries.append({"text": "Computrace/Absolute is active"})
+        if self._gathered.get("tpm_disabled") is True:
+            entries.append({"text": "TPM is disabled"})
         memory_breakdown = self._gathered.get("memory_breakdown")
         if memory_breakdown and not memory_breakdown["has_sodimm_slot"]:
             entries.append({"text": "No SODIMM slots"})
