@@ -2062,19 +2062,11 @@ class PhysicalDefectsPage(Adw.Bin):
             )
 
         def _build_part_row(part):
+            # Only "Screen" asks for a location; every other part is
+            # reported by name alone (no secondary location grid).
             if part == PHYSICAL_SCREEN_PART:
                 return _build_screen_part_row()
-
-            def _on_location_change(selected, part=part):
-                data["locations"][part] = selected
-                self.check_status()
-
-            return _build_section_row(
-                f"Location on {part}",
-                SCREEN_SECTIONS,
-                select_all_label="Select All",
-                on_change=_on_location_change,
-            )
+            return None
 
         def _sync_part_rows(selected_parts):
             for part in list(data["_blocks"]):
@@ -2089,6 +2081,8 @@ class PhysicalDefectsPage(Adw.Bin):
                 if part in data["_blocks"]:
                     continue  # Already built -- leave it alone.
                 row = _build_part_row(part)
+                if row is None:
+                    continue
                 data["_blocks"][part] = row
                 self._insert_block_in_order(
                     locations_box, data["_blocks"], parts_options, part
@@ -2724,7 +2718,9 @@ class PhysicalDefectsPage(Adw.Bin):
         if kind == "part_location":
             parts = data.get("parts") or []
             locations = data.get("locations") or {}
-            return bool(parts) and all(locations.get(part) for part in parts)
+            return bool(parts) and all(
+                locations.get(part) for part in parts if part == PHYSICAL_SCREEN_PART
+            )
         if kind == "port_damage":
             # Every selected port type needs at least one location marked;
             # PHYSICAL_PORT_OTHER_TYPE additionally requires the custom
@@ -2842,6 +2838,9 @@ class PhysicalDefectsPage(Adw.Bin):
             part_details = []
             for part in parts:
                 selected = locations.get(part) or []
+                if part != PHYSICAL_SCREEN_PART:
+                    part_details.append(part)
+                    continue
                 loc_text = ", ".join(selected) if selected else "no location specified"
                 part_details.append(f"{part}: {loc_text}")
             return f"{label} ({'; '.join(part_details)})"
