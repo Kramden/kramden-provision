@@ -609,6 +609,61 @@ def _toggle_button_css(button):
 DEFECT_QUESTION_TEMPLATE = "Did the {topic} work as expected? (Select all that apply)"
 
 
+def _install_yes_no_shortcuts(page, get_yes_button, get_no_button, enabled=None):
+    """Make "y"/"n" click the page's Yes/No toggle buttons while the page is
+    on screen. The key controller lives on the page's window only between
+    the page's map/unmap (so only the visible page responds), and any key
+    pressed while a text field has focus is left alone so typing "y"/"n"
+    still types. `enabled`, if given, is a callable that can turn the
+    shortcuts off (see KeyboardPage)."""
+    state = {"root": None, "controller": None}
+
+    def _on_key_pressed(controller, keyval, keycode, key_state):
+        if enabled is not None and not enabled():
+            return False
+        if key_state & (
+            Gdk.ModifierType.CONTROL_MASK
+            | Gdk.ModifierType.ALT_MASK
+            | Gdk.ModifierType.SUPER_MASK
+        ):
+            return False
+        focus = state["root"].get_focus() if state["root"] is not None else None
+        if isinstance(focus, (Gtk.Editable, Gtk.TextView)):
+            return False
+        key = Gdk.keyval_name(Gdk.keyval_to_lower(keyval))
+        if key == "y":
+            button = get_yes_button()
+        elif key == "n":
+            button = get_no_button()
+        else:
+            return False
+        if not button.get_sensitive():
+            return False
+        button.set_active(True)
+        return True
+
+    def _on_map(widget):
+        root = widget.get_root()
+        if root is None or state["controller"] is not None:
+            return
+        controller = Gtk.EventControllerKey()
+        controller.set_propagation_phase(Gtk.PropagationPhase.BUBBLE)
+        controller.connect("key-pressed", _on_key_pressed)
+        root.add_controller(controller)
+        state["root"] = root
+        state["controller"] = controller
+
+    def _on_unmap(widget):
+        if state["controller"] is None:
+            return
+        state["root"].remove_controller(state["controller"])
+        state["root"] = None
+        state["controller"] = None
+
+    page.connect("map", _on_map)
+    page.connect("unmap", _on_unmap)
+
+
 def _scroll_to_bottom(scrolled_window):
     """Scroll `scrolled_window` all the way down once the layout settles, so
     content a button click just revealed (a panel, a newly-added entry row,
@@ -1209,6 +1264,12 @@ class TogglePage(Adw.Bin):
         self.fail_button.set_valign(Gtk.Align.CENTER)
         self.pass_button.connect("toggled", self._on_pass_toggled)
         self.fail_button.connect("toggled", self._on_fail_toggled)
+        _install_yes_no_shortcuts(
+            self,
+            lambda: self.pass_button,
+            lambda: self.fail_button,
+            enabled=lambda: self.yes_no_shortcuts_enabled,
+        )
         toggle_box.append(self.pass_button)
         toggle_box.append(self.fail_button)
         if na_label:
@@ -1290,6 +1351,10 @@ class TogglePage(Adw.Bin):
     def build_action(self, box):
         """Override in subclasses to add page-specific test controls."""
         pass
+
+    # "y"/"n" select Yes/No on the page (see _install_yes_no_shortcuts);
+    # KeyboardPage turns this off since its test is typing on the keyboard.
+    yes_no_shortcuts_enabled = True
 
     def build_gif_side(self):
         """Override in subclasses to return a widget shown to the right of
@@ -1843,6 +1908,9 @@ class PhysicalDefectsPage(Adw.Bin):
         self.no_defects_button.set_valign(Gtk.Align.CENTER)
         self.defects_present_button.set_valign(Gtk.Align.CENTER)
         self.no_defects_button.connect("toggled", self._on_no_defects_toggled)
+        _install_yes_no_shortcuts(
+            self, lambda: self.no_defects_button, lambda: self.defects_present_button
+        )
         self.defects_present_button.connect("toggled", self._on_defects_present_toggled)
         toggle_box.append(self.no_defects_button)
         toggle_box.append(self.defects_present_button)
@@ -4077,6 +4145,8 @@ class TouchscreenPage(ScreenSectionMixin, TogglePage):
 
 
 class KeyboardPage(TogglePage):
+    yes_no_shortcuts_enabled = False
+
     def __init__(self):
         super().__init__(
             "Keyboard",
