@@ -43,8 +43,9 @@ except ImportError:
 
 from utils import Utils
 
-# Data codes in notes text (e.g. "KB02", "BP00", "PDOP") are bolded.
-_DATA_CODE_RE = re.compile(r"\b(?:[A-Z]{2}\d{2}|PDOP)\b")
+# Data codes in notes text (e.g. "KB02", "BP00", and the "other issue" codes
+# like "KBOT"/"PDOT"/"PDOP") are bolded.
+_DATA_CODE_RE = re.compile(r"\b[A-Z]{2}(?:\d{2}|OT|OP)\b")
 
 
 def _bold_data_codes(text):
