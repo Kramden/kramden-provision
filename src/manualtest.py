@@ -3876,14 +3876,24 @@ class WebcamPage(TogglePage):
         if reason == WEBCAM_BLACK_SCREEN_REASON:
             # Many laptops have a physical privacy shutter over the camera
             # lens -- easy to mistake for a dead webcam if it's slid shut.
-            entry_row.add_row(
-                _build_note_row(
-                    "Before reporting this: check for a physical camera "
-                    "cover with a moveable switch, and make sure it is "
-                    "slid open."
-                )
-            )
+            # Shown as a popup when the reason is selected, rather than a
+            # permanent note under it.
+            GLib.idle_add(self._show_camera_cover_popup)
         return {"type": "none"}
+
+    def _show_camera_cover_popup(self):
+        dialog = Adw.MessageDialog(
+            transient_for=self.get_root(),
+            heading="Check for a camera cover",
+            body=(
+                "Before reporting this: check for a physical camera cover "
+                "with a moveable switch, and make sure it is slid open."
+            ),
+        )
+        dialog.add_response("ok", "OK")
+        dialog.set_default_response("ok")
+        dialog.present()
+        return False
 
     def get_result(self):
         if self.webcam_status != "present":
