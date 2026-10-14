@@ -284,8 +284,9 @@ WIFI_NO_WIFI_NOTE = "No WiFi hardware present"
 
 # "Audio" must be an exact defect-type option (not free text) so the tracking
 # sheet can key off it directly to fill in the "Sound:" field -- see
-# TogglePage.has_reason() and SpecComplete._on_tracking_clicked. "Video" is
-# the only plain entry (from defect_types.json's "browser").
+# TogglePage.has_reason() and SpecComplete._on_tracking_clicked. It's the
+# only reason offered (the browser test is just a sound test, so there are
+# no BR codes; defect_types.json's "browser" has no plain entries).
 BROWSER_DEFECT_TYPES, BROWSER_DEFECT_CODES = _merge_defect_types(
     "browser", specials=[("Audio", 2)]
 )
@@ -3627,9 +3628,7 @@ class BrowserPage(TogglePage):
         """Overrides TogglePage._reason_code -- "Audio" gets no code of
         its own; each Sound issue selected under it reports under its own
         real SD code instead (see _sound_reason_notes), same "no single
-        code" pattern as TouchpadPage's click/cursor reasons. "Video" gets
-        its fixed code from BROWSER_DEFECT_CODES (defect_types.json's
-        "browser")."""
+        code" pattern as TouchpadPage's click/cursor reasons."""
         if reason == "Audio":
             return None
         return BROWSER_DEFECT_CODES.get(reason) or super()._reason_code(reason)
@@ -3679,7 +3678,7 @@ class BrowserPage(TogglePage):
         """Overrides TogglePage.get_notes_entries -- "Audio" has no code
         of its own; each Sound issue selected under it becomes its own
         coded detail (e.g. "SD02: Sound is crunchy") instead of one
-        "BR02: Audio (...)" line, so entries are gathered across every
+        "Audio (...)" line, so entries are gathered across every
         reason and re-sorted by code at the end (same pattern as
         TouchpadPage.get_notes_entries for its click/cursor sub-reasons)."""
         if self.passed is not False:

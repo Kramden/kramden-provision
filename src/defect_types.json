@@ -313,13 +313,7 @@
   "browser": {
     "code_prefix": "BR",
     "reserved_codes": [],
-    "types": [
-      {
-        "label": "Video",
-        "code": "BR01",
-        "order": 1
-      }
-    ]
+    "types": []
   },
   "sound": {
     "code_prefix": "SD",
