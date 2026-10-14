@@ -3628,10 +3628,12 @@ class BrowserPage(TogglePage):
         """Overrides TogglePage._reason_code -- "Audio" gets no code of
         its own; each Sound issue selected under it reports under its own
         real SD code instead (see _sound_reason_notes), same "no single
-        code" pattern as TouchpadPage's click/cursor reasons."""
+        code" pattern as TouchpadPage's click/cursor reasons. The browser test
+        is only a sound test, so there are no BR codes: any other (typed-in)
+        reason reports under the Sound custom code (SOUND_CUSTOM_CODE)."""
         if reason == "Audio":
             return None
-        return BROWSER_DEFECT_CODES.get(reason) or super()._reason_code(reason)
+        return SOUND_CUSTOM_CODE
 
     def _sound_reason_notes(self, data):
         """Each Sound option selected under "Audio" reports under its own
