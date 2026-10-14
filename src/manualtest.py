@@ -1400,10 +1400,26 @@ class TogglePage(Adw.Bin):
         was blocked."""
         return "Please perform the test before marking it as having no issues."
 
+    # True to show _pass_blocked_message() in a popup instead of the inline
+    # warning label under the Result row (see KeyboardPage).
+    pass_blocked_popup = False
+
+    def _show_pass_blocked_popup(self):
+        dialog = Adw.MessageDialog(
+            transient_for=self.get_root(),
+            body=self._pass_blocked_message(),
+        )
+        dialog.add_response("ok", "OK")
+        dialog.set_default_response("ok")
+        dialog.present()
+
     def _on_pass_toggled(self, button):
         if button.get_active():
             if not self._can_mark_no_issues():
                 button.set_active(False)
+                if self.pass_blocked_popup:
+                    self._show_pass_blocked_popup()
+                    return
                 _set_status(
                     self.pass_warning_label, self._pass_blocked_message(), is_error=True
                 )
@@ -4164,6 +4180,7 @@ class TouchscreenPage(ScreenSectionMixin, TogglePage):
 
 class KeyboardPage(TogglePage):
     yes_no_shortcuts_enabled = False
+    pass_blocked_popup = True
 
     def __init__(self):
         super().__init__(
