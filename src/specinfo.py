@@ -430,7 +430,7 @@ class SpecInfo(Adw.Bin):
             self.computrace_row.set_subtitle("Unknown")
             self.computrace_row.set_icon_name("emblem-ok-symbolic")
 
-        # A disabled TPM is only noted (see get_notes_entries); it never
+        # A disabled/undetected TPM is only noted (see get_notes_entries); it never
         # blocks completion.
         tpm_disabled = self._gathered.get("tpm_disabled")
         if tpm_disabled is True:
@@ -568,8 +568,11 @@ class SpecInfo(Adw.Bin):
             )
         if self._gathered.get("computrace") is True:
             entries.append({"text": "Computrace/Absolute is active"})
-        if self._gathered.get("tpm_disabled") is True:
+        tpm_disabled = self._gathered.get("tpm_disabled")
+        if tpm_disabled is True:
             entries.append({"text": "TPM is disabled"})
+        elif tpm_disabled is None:
+            entries.append({"text": "TPM not detected"})
         memory_breakdown = self._gathered.get("memory_breakdown")
         if memory_breakdown and not memory_breakdown["has_sodimm_slot"]:
             entries.append({"text": "No SODIMM slots"})
