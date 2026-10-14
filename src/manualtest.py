@@ -609,6 +609,19 @@ def _toggle_button_css(button):
 DEFECT_QUESTION_TEMPLATE = "Did the {topic} work as expected? (Select all that apply)"
 
 
+def _underline_first_letter(button):
+    """Underline the first letter of a button's label to hint at its "y"/"n"
+    keyboard shortcut (see _install_yes_no_shortcuts)."""
+    text = button.get_label()
+    if not text:
+        return
+    label = Gtk.Label()
+    label.set_markup(
+        f"<u>{GLib.markup_escape_text(text[0])}</u>{GLib.markup_escape_text(text[1:])}"
+    )
+    button.set_child(label)
+
+
 def _install_yes_no_shortcuts(page, get_yes_button, get_no_button, enabled=None):
     """Make "y"/"n" click the page's Yes/No toggle buttons while the page is
     on screen. The key controller lives on the page's window only between
@@ -1262,6 +1275,9 @@ class TogglePage(Adw.Bin):
         self.fail_button = Gtk.ToggleButton(label=fail_label)
         self.pass_button.set_valign(Gtk.Align.CENTER)
         self.fail_button.set_valign(Gtk.Align.CENTER)
+        if self.yes_no_shortcuts_enabled:
+            _underline_first_letter(self.pass_button)
+            _underline_first_letter(self.fail_button)
         self.pass_button.connect("toggled", self._on_pass_toggled)
         self.fail_button.connect("toggled", self._on_fail_toggled)
         _install_yes_no_shortcuts(
@@ -1907,6 +1923,8 @@ class PhysicalDefectsPage(Adw.Bin):
         self.defects_present_button = Gtk.ToggleButton(label="No")
         self.no_defects_button.set_valign(Gtk.Align.CENTER)
         self.defects_present_button.set_valign(Gtk.Align.CENTER)
+        _underline_first_letter(self.no_defects_button)
+        _underline_first_letter(self.defects_present_button)
         self.no_defects_button.connect("toggled", self._on_no_defects_toggled)
         _install_yes_no_shortcuts(
             self, lambda: self.no_defects_button, lambda: self.defects_present_button
