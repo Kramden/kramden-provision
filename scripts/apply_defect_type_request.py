@@ -36,7 +36,6 @@ PAGE_DISPLAY_TO_KEY = {
     "USB-C": "usb_c",
     "WiFi": "wifi",
     "Touchpad": "touchpad",
-    "Browser": "browser",
     'Sound (Browser\'s "Audio" sub-picker)': "sound",
 }
 

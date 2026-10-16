@@ -49,7 +49,7 @@ SORTLY_API_KEY=... python3 src/sortly_update_system_info.py <item_name>
 
 ## Defect Types
 
-The defect-type buttons and tracking-sheet datacodes shown on each Final Test page (Physical Defects, Screen, Touchscreen, Webcam, Keyboard, USB-A, USB-C, WiFi, Touchpad, Browser, and Browser's "Audio" sub-picker) are config-driven from `src/defect_types.json`, rather than hardcoded in `src/manualtest.py`. Each entry has a `label`, a fixed `code` (order-independent -- never derive a new one from position), an `order`, and optionally `sub_buttons` (custom labels to pop up instead of the page's normal picker) or `no_sub_buttons` (report directly, no picker at all).
+The defect-type buttons and tracking-sheet datacodes shown on each Final Test page (Physical Defects, Screen, Touchscreen, Webcam, Keyboard, USB-A, USB-C, WiFi, Touchpad, and Browser's "Audio" sub-picker) are config-driven from `src/defect_types.json`, rather than hardcoded in `src/manualtest.py`. Each entry has a `label`, a fixed `code` (order-independent -- never derive a new one from position), an `order`, and optionally `sub_buttons` (custom labels to pop up instead of the page's normal picker) or `no_sub_buttons` (report directly, no picker at all).
 
 After hand-editing `src/defect_types.json`, validate it with:
 
