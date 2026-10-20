@@ -200,6 +200,74 @@ class Utils:
             return result.returncode != 0
         return False
 
+    # Check whether the TPM is disabled in BIOS. Returns True if disabled,
+    # False if enabled, None if it can't be determined (including machines
+    # with no TPM hardware at all).
+    def is_tpm_disabled(self):
+        # A TPM the kernel can see is enabled.
+        try:
+            if os.path.isdir("/sys/class/tpm") and any(
+                name.startswith("tpm") for name in os.listdir("/sys/class/tpm")
+            ):
+                return False
+        except OSError:
+            pass
+
+        # BIOS setting via firmware-attributes (Lenovo, Dell, HP).
+        result = self._check_tpm_firmware_attrs()
+        if result is not None:
+            return result
+
+        # SMBIOS type 43 (TPM Device) is reported by the firmware even
+        # when the TPM isn't exposed to the OS, so a device the kernel
+        # can't see but SMBIOS lists is treated as disabled.
+        try:
+            result = subprocess.run(
+                ["sudo", "dmidecode", "-t", "43"], capture_output=True, text=True
+            )
+            if result.returncode == 0 and "TPM Device" in result.stdout:
+                return True
+        except (OSError, subprocess.SubprocessError):
+            pass
+        return None
+
+    def _check_tpm_firmware_attrs(self):
+        """True/False from a TPM-related firmware-attributes setting
+        (e.g. "TPMSecurity", "SecurityChip", "Intel PTT"), else None."""
+        names = ("tpm", "securitychip", "security chip", "ptt")
+        disabled_values = ("disable", "disabled", "off", "hidden")
+        enabled_values = ("enable", "enabled", "on", "active", "available")
+        firmware_attrs_base = "/sys/class/firmware-attributes"
+        try:
+            if not os.path.isdir(firmware_attrs_base):
+                return None
+            for provider in os.listdir(firmware_attrs_base):
+                attrs_dir = os.path.join(firmware_attrs_base, provider, "attributes")
+                if not os.path.isdir(attrs_dir):
+                    continue
+                for attr_name in os.listdir(attrs_dir):
+                    if not any(n in attr_name.lower() for n in names):
+                        continue
+                    result = subprocess.run(
+                        [
+                            "sudo",
+                            "cat",
+                            os.path.join(attrs_dir, attr_name, "current_value"),
+                        ],
+                        capture_output=True,
+                        text=True,
+                    )
+                    if result.returncode != 0:
+                        continue
+                    value = result.stdout.strip().lower()
+                    if value in disabled_values:
+                        return True
+                    if value in enabled_values:
+                        return False
+        except (OSError, subprocess.SubprocessError):
+            pass
+        return None
+
     # Check if Computrace/Absolute is activated in BIOS, returns True if activated
     def has_computrace_enabled(self):
         # Check firmware attributes exposed by Linux kernel

@@ -71,7 +71,6 @@ _CODE_PREFIX_TO_PAGE_KEY = {
     "WF": "wifi",
     "TP": "touchpad",
     "SC": "screen",
-    "BR": "browser",
     "WC": "webcam",
     "UA": "usb_a",
     "UC": "usb_c",
@@ -284,11 +283,10 @@ WIFI_NO_WIFI_NOTE = "No WiFi hardware present"
 
 # "Audio" must be an exact defect-type option (not free text) so the tracking
 # sheet can key off it directly to fill in the "Sound:" field -- see
-# TogglePage.has_reason() and SpecComplete._on_tracking_clicked. "Video" is
-# the only plain entry (from defect_types.json's "browser").
-BROWSER_DEFECT_TYPES, BROWSER_DEFECT_CODES = _merge_defect_types(
-    "browser", specials=[("Audio", 2)]
-)
+# TogglePage.has_reason() and SpecComplete._on_tracking_clicked. It's the
+# only reason offered (the browser test is just a sound test, so it has no
+# codes of its own -- see SOUND_DEFECT_TYPES for the real ones).
+BROWSER_DEFECT_TYPES = ["Audio"]
 
 # Must match an entry in WIFI_DEFECT_TYPES exactly -- see
 # WiFiPage._on_connectivity_checked.
@@ -521,8 +519,8 @@ PHYSICAL_DAMAGE_CODE_LABELS = {
 CUSTOM_REASON_CODE_SUFFIX = "OT"
 
 # Sound sub-picker embedded in Browser's "Audio" reason (see
-# BrowserPage.build_reason_locations) -- its own "SD" code namespace,
-# distinct from Browser's own "BR" prefix (see
+# BrowserPage.build_reason_locations) -- its own "SD" code namespace;
+# Browser has no codes of its own (see
 # BrowserPage._sound_reason_notes/_failed_codes/_code_sort_key). Any
 # selection that doesn't match SOUND_REASON_CODES (there's currently no way
 # to add one, since this picker has no free-text entry) falls back to
@@ -543,6 +541,7 @@ SOUND_SHORT_LABELS = {
 
 # Simplified keyboard layout used by the keyboard failure-location picker.
 KEYBOARD_LAYOUT = [
+    ["Esc", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12", "PrtScr", "Insert", "Delete"],
     ["~", "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "=", "Backspace"],
     ["Tab", "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P", "[", "]", "\\"],
     ["CapsLock", "A", "S", "D", "F", "G", "H", "J", "K", "L", ";", "'", "Enter"],
@@ -608,6 +607,74 @@ def _toggle_button_css(button):
 # in that question, pass topic= to TogglePage.__init__ (or edit the
 # PhysicalDefectsPage topic below) instead of touching this template.
 DEFECT_QUESTION_TEMPLATE = "Did the {topic} work as expected? (Select all that apply)"
+
+
+def _underline_first_letter(button):
+    """Underline the first letter of a button's label to hint at its "y"/"n"
+    keyboard shortcut (see _install_yes_no_shortcuts)."""
+    text = button.get_label()
+    if not text:
+        return
+    label = Gtk.Label()
+    label.set_markup(
+        f"<u>{GLib.markup_escape_text(text[0])}</u>{GLib.markup_escape_text(text[1:])}"
+    )
+    button.set_child(label)
+
+
+def _install_yes_no_shortcuts(page, get_yes_button, get_no_button, enabled=None):
+    """Make "y"/"n" click the page's Yes/No toggle buttons while the page is
+    on screen. The key controller lives on the page's window only between
+    the page's map/unmap (so only the visible page responds), and any key
+    pressed while a text field has focus is left alone so typing "y"/"n"
+    still types. `enabled`, if given, is a callable that can turn the
+    shortcuts off (see KeyboardPage)."""
+    state = {"root": None, "controller": None}
+
+    def _on_key_pressed(controller, keyval, keycode, key_state):
+        if enabled is not None and not enabled():
+            return False
+        if key_state & (
+            Gdk.ModifierType.CONTROL_MASK
+            | Gdk.ModifierType.ALT_MASK
+            | Gdk.ModifierType.SUPER_MASK
+        ):
+            return False
+        focus = state["root"].get_focus() if state["root"] is not None else None
+        if isinstance(focus, (Gtk.Editable, Gtk.TextView)):
+            return False
+        key = Gdk.keyval_name(Gdk.keyval_to_lower(keyval))
+        if key == "y":
+            button = get_yes_button()
+        elif key == "n":
+            button = get_no_button()
+        else:
+            return False
+        if not button.get_sensitive():
+            return False
+        button.set_active(True)
+        return True
+
+    def _on_map(widget):
+        root = widget.get_root()
+        if root is None or state["controller"] is not None:
+            return
+        controller = Gtk.EventControllerKey()
+        controller.set_propagation_phase(Gtk.PropagationPhase.BUBBLE)
+        controller.connect("key-pressed", _on_key_pressed)
+        root.add_controller(controller)
+        state["root"] = root
+        state["controller"] = controller
+
+    def _on_unmap(widget):
+        if state["controller"] is None:
+            return
+        state["root"].remove_controller(state["controller"])
+        state["root"] = None
+        state["controller"] = None
+
+    page.connect("map", _on_map)
+    page.connect("unmap", _on_unmap)
 
 
 def _scroll_to_bottom(scrolled_window):
@@ -1178,7 +1245,19 @@ class TogglePage(Adw.Bin):
         if gif_path is not None:
             gif_widget = _build_gif_widget(gif_path)
             if gif_widget is not None:
-                vbox.append(gif_widget)
+                # A page can put extra controls to the right of its gif
+                # (see build_gif_side/TouchpadPage).
+                side_widget = self.build_gif_side()
+                if side_widget is None:
+                    vbox.append(gif_widget)
+                else:
+                    gif_widget.set_hexpand(True)
+                    gif_row = Gtk.Box(
+                        orientation=Gtk.Orientation.HORIZONTAL, spacing=16
+                    )
+                    gif_row.append(gif_widget)
+                    gif_row.append(side_widget)
+                    vbox.append(gif_row)
 
         # Hook for subclasses to add a launcher button, typing box, etc.
         self.action_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
@@ -1196,8 +1275,17 @@ class TogglePage(Adw.Bin):
         self.fail_button = Gtk.ToggleButton(label=fail_label)
         self.pass_button.set_valign(Gtk.Align.CENTER)
         self.fail_button.set_valign(Gtk.Align.CENTER)
+        if self.yes_no_shortcuts_enabled:
+            _underline_first_letter(self.pass_button)
+            _underline_first_letter(self.fail_button)
         self.pass_button.connect("toggled", self._on_pass_toggled)
         self.fail_button.connect("toggled", self._on_fail_toggled)
+        _install_yes_no_shortcuts(
+            self,
+            lambda: self.pass_button,
+            lambda: self.fail_button,
+            enabled=lambda: self.yes_no_shortcuts_enabled,
+        )
         toggle_box.append(self.pass_button)
         toggle_box.append(self.fail_button)
         if na_label:
@@ -1280,6 +1368,15 @@ class TogglePage(Adw.Bin):
         """Override in subclasses to add page-specific test controls."""
         pass
 
+    # "y"/"n" select Yes/No on the page (see _install_yes_no_shortcuts);
+    # KeyboardPage turns this off since its test is typing on the keyboard.
+    yes_no_shortcuts_enabled = True
+
+    def build_gif_side(self):
+        """Override in subclasses to return a widget shown to the right of
+        the page's gif (see TouchpadPage), or None for no side widget."""
+        return None
+
     def build_reason_locations(self, entry_row, reason):
         """Override in subclasses to replace the default section picker
         with a custom one (see KeyboardPage, UsbPortLocationMixin), or to
@@ -1303,10 +1400,26 @@ class TogglePage(Adw.Bin):
         was blocked."""
         return "Please perform the test before marking it as having no issues."
 
+    # True to show _pass_blocked_message() in a popup instead of the inline
+    # warning label under the Result row (see KeyboardPage).
+    pass_blocked_popup = False
+
+    def _show_pass_blocked_popup(self):
+        dialog = Adw.MessageDialog(
+            transient_for=self.get_root(),
+            body=self._pass_blocked_message(),
+        )
+        dialog.add_response("ok", "OK")
+        dialog.set_default_response("ok")
+        dialog.present()
+
     def _on_pass_toggled(self, button):
         if button.get_active():
             if not self._can_mark_no_issues():
                 button.set_active(False)
+                if self.pass_blocked_popup:
+                    self._show_pass_blocked_popup()
+                    return
                 _set_status(
                     self.pass_warning_label, self._pass_blocked_message(), is_error=True
                 )
@@ -1826,7 +1939,12 @@ class PhysicalDefectsPage(Adw.Bin):
         self.defects_present_button = Gtk.ToggleButton(label="No")
         self.no_defects_button.set_valign(Gtk.Align.CENTER)
         self.defects_present_button.set_valign(Gtk.Align.CENTER)
+        _underline_first_letter(self.no_defects_button)
+        _underline_first_letter(self.defects_present_button)
         self.no_defects_button.connect("toggled", self._on_no_defects_toggled)
+        _install_yes_no_shortcuts(
+            self, lambda: self.no_defects_button, lambda: self.defects_present_button
+        )
         self.defects_present_button.connect("toggled", self._on_defects_present_toggled)
         toggle_box.append(self.no_defects_button)
         toggle_box.append(self.defects_present_button)
@@ -2062,19 +2180,11 @@ class PhysicalDefectsPage(Adw.Bin):
             )
 
         def _build_part_row(part):
+            # Only "Screen" asks for a location; every other part is
+            # reported by name alone (no secondary location grid).
             if part == PHYSICAL_SCREEN_PART:
                 return _build_screen_part_row()
-
-            def _on_location_change(selected, part=part):
-                data["locations"][part] = selected
-                self.check_status()
-
-            return _build_section_row(
-                f"Location on {part}",
-                SCREEN_SECTIONS,
-                select_all_label="Select All",
-                on_change=_on_location_change,
-            )
+            return None
 
         def _sync_part_rows(selected_parts):
             for part in list(data["_blocks"]):
@@ -2089,6 +2199,8 @@ class PhysicalDefectsPage(Adw.Bin):
                 if part in data["_blocks"]:
                     continue  # Already built -- leave it alone.
                 row = _build_part_row(part)
+                if row is None:
+                    continue
                 data["_blocks"][part] = row
                 self._insert_block_in_order(
                     locations_box, data["_blocks"], parts_options, part
@@ -2724,7 +2836,9 @@ class PhysicalDefectsPage(Adw.Bin):
         if kind == "part_location":
             parts = data.get("parts") or []
             locations = data.get("locations") or {}
-            return bool(parts) and all(locations.get(part) for part in parts)
+            return bool(parts) and all(
+                locations.get(part) for part in parts if part == PHYSICAL_SCREEN_PART
+            )
         if kind == "port_damage":
             # Every selected port type needs at least one location marked;
             # PHYSICAL_PORT_OTHER_TYPE additionally requires the custom
@@ -2842,6 +2956,9 @@ class PhysicalDefectsPage(Adw.Bin):
             part_details = []
             for part in parts:
                 selected = locations.get(part) or []
+                if part != PHYSICAL_SCREEN_PART:
+                    part_details.append(part)
+                    continue
                 loc_text = ", ".join(selected) if selected else "no location specified"
                 part_details.append(f"{part}: {loc_text}")
             return f"{label} ({'; '.join(part_details)})"
@@ -3205,6 +3322,56 @@ class TouchpadPage(TogglePage):
         # reason_short_labels above.
         self.code_short_labels.update(TOUCHPAD_CLICK_SHORT_LABELS)
         self.code_short_labels.update(TOUCHPAD_CURSOR_SHORT_LABELS)
+
+    def build_gif_side(self):
+        """Optional, non-blocking click test shown beside the gif: four
+        corner buttons, where the left ones only turn green on a left click
+        and the right ones only on a right click. One of each is enough to
+        show both click types work; it never affects the Pass/Fail result."""
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        box.set_valign(Gtk.Align.CENTER)
+
+        title = Gtk.Label(label="Click the below buttons to test the touchpad:")
+        title.set_wrap(True)
+        title.set_max_width_chars(24)
+        title.set_xalign(0)
+        box.append(title)
+
+        grid = Gtk.Grid(row_spacing=6, column_spacing=6)
+        grid.set_column_homogeneous(True)
+        box.append(grid)
+
+        status = Gtk.Label(label="")
+        status.set_xalign(0)
+        status.set_wrap(True)
+        box.append(status)
+
+        clicked_sides = set()
+
+        def _on_pressed(gesture, n_press, x, y, button, side, mouse_button):
+            if gesture.get_current_button() != mouse_button:
+                return
+            button.add_css_class("success")
+            clicked_sides.add(side)
+            if clicked_sides >= {"left", "right"}:
+                status.set_label("Left and right click both work.")
+
+        for row, vertical in enumerate(("Top", "Bottom")):
+            for column, side in enumerate(("Left", "Right")):
+                button = Gtk.Button(label=f"{vertical} {side}")
+                gesture = Gtk.GestureClick()
+                gesture.set_button(0)
+                gesture.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+                gesture.connect(
+                    "pressed",
+                    _on_pressed,
+                    button,
+                    side.lower(),
+                    1 if side == "Left" else 3,
+                )
+                button.add_controller(gesture)
+                grid.attach(button, column, row, 1, 1)
+        return box
 
     def build_reason_locations(self, entry_row, reason):
         override = _sub_buttons_override(self, entry_row, self.page_key, reason)
@@ -3576,7 +3743,6 @@ class BrowserPage(TogglePage):
             "Browser",
             "Browser (video and audio playback)",
             reason_options=BROWSER_DEFECT_TYPES,
-            code_prefix="BR",
             topic="video/audio playback",
             instructions=(
                 "Click below to open a test video in Firefox and confirm both "
@@ -3628,12 +3794,12 @@ class BrowserPage(TogglePage):
         """Overrides TogglePage._reason_code -- "Audio" gets no code of
         its own; each Sound issue selected under it reports under its own
         real SD code instead (see _sound_reason_notes), same "no single
-        code" pattern as TouchpadPage's click/cursor reasons. "Video" gets
-        its fixed code from BROWSER_DEFECT_CODES (defect_types.json's
-        "browser")."""
+        code" pattern as TouchpadPage's click/cursor reasons. The browser test
+        is only a sound test, so there are no BR codes: any other (typed-in)
+        reason reports under the Sound custom code (SOUND_CUSTOM_CODE)."""
         if reason == "Audio":
             return None
-        return BROWSER_DEFECT_CODES.get(reason) or super()._reason_code(reason)
+        return SOUND_CUSTOM_CODE
 
     def _sound_reason_notes(self, data):
         """Each Sound option selected under "Audio" reports under its own
@@ -3665,10 +3831,9 @@ class BrowserPage(TogglePage):
         return sorted(codes, key=self._code_sort_key)
 
     def _code_sort_key(self, code):
-        """Overrides TogglePage._code_sort_key -- this page's own "BR"
-        codes and the Sound sub-picker's "SD" codes are mixed together in
-        its failure codes, so strip whichever 2-letter prefix the code
-        actually has instead of assuming self.code_prefix specifically."""
+        """Overrides TogglePage._code_sort_key -- this page has no
+        code_prefix, and all of its codes are the Sound sub-picker's "SD"
+        codes, so strip the 2-letter prefix directly."""
         if not code:
             return 999
         try:
@@ -3680,7 +3845,7 @@ class BrowserPage(TogglePage):
         """Overrides TogglePage.get_notes_entries -- "Audio" has no code
         of its own; each Sound issue selected under it becomes its own
         coded detail (e.g. "SD02: Sound is crunchy") instead of one
-        "BR02: Audio (...)" line, so entries are gathered across every
+        "Audio (...)" line, so entries are gathered across every
         reason and re-sorted by code at the end (same pattern as
         TouchpadPage.get_notes_entries for its click/cursor sub-reasons)."""
         if self.passed is not False:
@@ -3814,14 +3979,24 @@ class WebcamPage(TogglePage):
         if reason == WEBCAM_BLACK_SCREEN_REASON:
             # Many laptops have a physical privacy shutter over the camera
             # lens -- easy to mistake for a dead webcam if it's slid shut.
-            entry_row.add_row(
-                _build_note_row(
-                    "Before reporting this: check for a physical camera "
-                    "cover with a moveable switch, and make sure it is "
-                    "slid open."
-                )
-            )
+            # Shown as a popup when the reason is selected, rather than a
+            # permanent note under it.
+            GLib.idle_add(self._show_camera_cover_popup)
         return {"type": "none"}
+
+    def _show_camera_cover_popup(self):
+        dialog = Adw.MessageDialog(
+            transient_for=self.get_root(),
+            heading="Check for a camera cover",
+            body=(
+                "Before reporting this: check for a physical camera cover "
+                "with a moveable switch, and make sure it is slid open."
+            ),
+        )
+        dialog.add_response("ok", "OK")
+        dialog.set_default_response("ok")
+        dialog.present()
+        return False
 
     def get_result(self):
         if self.webcam_status != "present":
@@ -4004,6 +4179,9 @@ class TouchscreenPage(ScreenSectionMixin, TogglePage):
 
 
 class KeyboardPage(TogglePage):
+    yes_no_shortcuts_enabled = False
+    pass_blocked_popup = True
+
     def __init__(self):
         super().__init__(
             "Keyboard",

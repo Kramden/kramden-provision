@@ -11,6 +11,7 @@ Usage: python3 generate_tracking_sheet.py <item_name> [output_path]
 import io
 import sys
 import os
+import re
 import threading
 from datetime import date
 from math import ceil
@@ -41,6 +42,22 @@ except ImportError:
     sys.exit(1)
 
 from utils import Utils
+
+# Data codes in notes text (e.g. "KB02", "BP00", and the "other issue" codes
+# like "KBOT"/"PDOT"/"PDOP") are bolded.
+_DATA_CODE_RE = re.compile(r"\b[A-Z]{2}(?:\d{2}|OT|OP)\b")
+
+
+def _bold_data_codes(text):
+    """Escape `text` for a reportlab Paragraph, wrapping data codes in <b>."""
+    parts = []
+    last = 0
+    for m in _DATA_CODE_RE.finditer(text):
+        parts.append(escape(text[last : m.start()]))
+        parts.append(f"<b>{escape(m.group())}</b>")
+        last = m.end()
+    parts.append(escape(text[last:]))
+    return "".join(parts)
 
 TRACKING_SHEET_TITLE = "Kramden Institute Tracking Sheet"
 TRACKING_SHEET_REV = "Rev. 2.0 - August 2026"
@@ -319,7 +336,12 @@ def _notes_table_rows(
     for entry in notes_entries or []:
         text = entry.get("text")
         if text:
-            para = Paragraph(escape(text), wrapped_value_style)
+            para = Paragraph(
+                f"<b>{escape(text)}</b>"
+                if entry.get("bold")
+                else _bold_data_codes(text),
+                wrapped_value_style,
+            )
             _, wrapped_height = para.wrap(
                 content_width, line_budget * NOTE_LINE_HEIGHT
             )
