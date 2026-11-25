@@ -303,6 +303,8 @@ class Utils:
             "Absolute",
         ]
         firmware_attrs_base = "/sys/class/firmware-attributes"
+        found_active = False
+        found_inactive = False
         try:
             if not os.path.isdir(firmware_attrs_base):
                 return None
@@ -310,7 +312,10 @@ class Utils:
                 attrs_dir = os.path.join(firmware_attrs_base, provider, "attributes")
                 if not os.path.isdir(attrs_dir):
                     continue
-                # Check activation-style attributes first (Enable = activated)
+                # Check activation-style attributes (Enable = activated). Both
+                # Computrace and Absolute attributes can be present on the
+                # same machine, so check all of them rather than stopping at
+                # the first one found.
                 for attr_name in activation_attrs:
                     current_value_path = os.path.join(
                         attrs_dir, attr_name, "current_value"
@@ -325,14 +330,14 @@ class Utils:
                             value = result.stdout.strip().lower()
                             # For *Activation attributes, Enable means activated
                             if value in ["enabled"]:
-                                return True
+                                found_active = True
                             elif value in [
                                 "disable",
                                 "disabled",
                                 "permanentlydisable",
                                 "permanently disable",
                             ]:
-                                return False
+                                found_inactive = True
                 # Check standard attributes (Activate = activated)
                 for attr_name in standard_attrs:
                     current_value_path = os.path.join(
@@ -347,7 +352,7 @@ class Utils:
                         if result.returncode == 0:
                             value = result.stdout.strip().lower()
                             if value in ["activate", "activated"]:
-                                return True
+                                found_active = True
                             elif value in [
                                 "enable",
                                 "enabled",
@@ -356,9 +361,13 @@ class Utils:
                                 "permanentlydisable",
                                 "permanently disable",
                             ]:
-                                return False
+                                found_inactive = True
         except (OSError, subprocess.SubprocessError):
             pass
+        if found_active:
+            return True
+        if found_inactive:
+            return False
         return None
 
     def _check_computrace_dell_cctk(self):
@@ -366,8 +375,10 @@ class Utils:
         cctk_path = "/opt/dell/dcc/cctk"
         if not os.path.exists(cctk_path):
             return None
+        found_active = False
+        found_inactive = False
         try:
-            # Check activation-style attribute first (Enable = activated)
+            # Check activation-style attribute (Enable = activated)
             result = subprocess.run(
                 ["sudo", cctk_path, "--AbsoluteEnable"],
                 capture_output=True,
@@ -377,11 +388,14 @@ class Utils:
                 output = result.stdout.strip().lower()
                 # For AbsoluteEnable, Enable/Enabled means activated
                 if "=enable" in output or "=enabled" in output:
-                    return True
+                    found_active = True
                 elif "=disable" in output or "=disabled" in output:
-                    return False
+                    found_inactive = True
 
-            # Check standard attributes (Activate = activated)
+            # Check standard attributes (Activate = activated). Both
+            # Computrace and Absolute attributes can be present on the same
+            # machine, so check both rather than stopping at the first one
+            # found.
             for attr in ["Computrace", "Absolute"]:
                 result = subprocess.run(
                     ["sudo", cctk_path, f"--{attr}"],
@@ -392,15 +406,21 @@ class Utils:
                     output = result.stdout.strip().lower()
                     # For standard attributes, Activate/Activated means activated
                     if "=activate" in output or "=activated" in output:
-                        return True
+                        found_active = True
                     elif "=deactivate" in output or "=deactivated" in output:
-                        return False
+                        found_inactive = True
         except (OSError, subprocess.SubprocessError):
             pass
+        if found_active:
+            return True
+        if found_inactive:
+            return False
         return None
 
     def _check_computrace_dmidecode(self):
         """Check SMBIOS tables via dmidecode for Computrace/Absolute settings."""
+        found_active = False
+        found_inactive = False
         try:
             # Check BIOS information (type 0) and System Configuration Options (type 12)
             # for Computrace-related strings
@@ -414,7 +434,9 @@ class Utils:
 
             output = result.stdout.lower()
 
-            # Look for Computrace/Absolute entries in dmidecode output
+            # Look for Computrace/Absolute entries in dmidecode output.
+            # Both can be present on the same machine, so scan every match
+            # instead of stopping at the first one found.
             # Pattern: lines containing computrace or absolute followed by activated/disabled
             lines = output.split("\n")
             for i, line in enumerate(lines):
@@ -424,14 +446,19 @@ class Utils:
                     if any(status in context for status in ["activated", "active"]):
                         # Make sure it's not "disabled" or "deactivated"
                         if "disabled" not in context and "deactivated" not in context:
-                            return True
+                            found_active = True
+                            continue
                     if any(
                         status in context
                         for status in ["disabled", "deactivated", "inactive"]
                     ):
-                        return False
+                        found_inactive = True
         except (OSError, subprocess.SubprocessError):
             pass
+        if found_active:
+            return True
+        if found_inactive:
+            return False
         return None
 
     @staticmethod
