@@ -360,6 +360,8 @@ class Utils:
                                 "disabled",
                                 "permanentlydisable",
                                 "permanently disable",
+                                "deactivate",
+                                "deactivated",
                             ]:
                                 found_inactive = True
         except (OSError, subprocess.SubprocessError):
